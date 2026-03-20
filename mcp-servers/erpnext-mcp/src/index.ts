@@ -6,17 +6,22 @@
  * Tools:
  *  - search_products: Search product catalog
  *  - get_product: Get product details + stock
+ *  - check_stock: Check inventory for an item
  *  - create_order: Create a sales order
  *  - get_order: Get order status
+ *  - list_orders: List recent orders with filters
  *  - update_order: Update an existing sales order
  *  - cancel_order: Cancel a sales order
- *  - list_orders: List recent orders with filters
  *  - list_customers: Search customers
  *  - create_customer: Create a new customer
- *  - check_stock: Check inventory for an item
  *  - get_item_price: Get pricing for an item including discounts
  *  - create_quotation: Create a price quotation
- *  - create_invoice: Generate a sales invoice
+ *  - create_payment_entry: Record a payment against a sales order
+ *  - create_purchase_order: Create a purchase order to a supplier
+ *  - create_item: Add a new product to the catalog
+ *  - update_item: Update item details (price, description, etc.)
+ *  - get_sales_summary: Aggregate sales data for a date range
+ *  - get_customer_balance: Get outstanding balance for a customer
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -276,6 +281,130 @@ const TOOLS = [
       required: ["customer", "items"],
     },
   },
+  {
+    name: "create_payment_entry",
+    description:
+      "Record a payment received against a sales order. Use after verifying payment (e.g., Yape screenshot).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        sales_order: { type: "string", description: "Sales Order ID (e.g., SO-00001)" },
+        amount: { type: "number", description: "Payment amount received" },
+        payment_method: {
+          type: "string",
+          enum: ["Cash", "Bank Transfer", "Yape", "Plin", "Credit Card", "Other"],
+          description: "Mode of payment",
+        },
+        reference_number: {
+          type: "string",
+          description: "Payment reference number or transaction ID (optional)",
+        },
+        date: {
+          type: "string",
+          description: "Payment date, ISO format (optional, defaults to today)",
+        },
+      },
+      required: ["sales_order", "amount", "payment_method"],
+    },
+  },
+  {
+    name: "create_purchase_order",
+    description:
+      "Create a purchase order to a supplier for restocking inventory.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        supplier: { type: "string", description: "Supplier name" },
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              item_code: { type: "string" },
+              qty: { type: "number" },
+              rate: { type: "number", description: "Price per unit" },
+            },
+            required: ["item_code", "qty", "rate"],
+          },
+          description: "List of items to order from supplier",
+        },
+        schedule_date: {
+          type: "string",
+          description: "Expected delivery date, ISO format (optional)",
+        },
+        notes: { type: "string", description: "Order notes (optional)" },
+      },
+      required: ["supplier", "items"],
+    },
+  },
+  {
+    name: "create_item",
+    description: "Add a new product to the ERPNext catalog.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        item_name: { type: "string", description: "Product name" },
+        item_code: {
+          type: "string",
+          description: "Unique item code (optional, auto-generated if omitted)",
+        },
+        item_group: {
+          type: "string",
+          description: "Item group/category (e.g., Products, Raw Material)",
+        },
+        standard_rate: { type: "number", description: "Standard selling price" },
+        description: { type: "string", description: "Product description (optional)" },
+        stock_uom: { type: "string", description: "Unit of measure (default: Nos)" },
+        is_stock_item: {
+          type: "boolean",
+          description: "Whether to track stock (default: true)",
+        },
+      },
+      required: ["item_name", "item_group", "standard_rate"],
+    },
+  },
+  {
+    name: "update_item",
+    description:
+      "Update an existing product's details such as price, description, or stock settings.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        item_code: { type: "string", description: "ERPNext Item Code" },
+        standard_rate: { type: "number", description: "New standard selling price (optional)" },
+        description: { type: "string", description: "Updated description (optional)" },
+        item_name: { type: "string", description: "Updated product name (optional)" },
+        disabled: { type: "boolean", description: "Set to true to disable the item (optional)" },
+      },
+      required: ["item_code"],
+    },
+  },
+  {
+    name: "get_sales_summary",
+    description:
+      "Get aggregate sales data: total revenue, order count, and top-selling products for a date range.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        from_date: { type: "string", description: "Start date, ISO format (e.g., 2025-01-01)" },
+        to_date: { type: "string", description: "End date, ISO format (e.g., 2025-01-31)" },
+        customer: { type: "string", description: "Filter by customer (optional)" },
+      },
+      required: ["from_date", "to_date"],
+    },
+  },
+  {
+    name: "get_customer_balance",
+    description:
+      "Get the total outstanding balance for a customer across all unpaid invoices and orders.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        customer: { type: "string", description: "Customer name" },
+      },
+      required: ["customer"],
+    },
+  },
 ];
 
 // ── Tool Handlers ─────────────────────────────────────
@@ -484,6 +613,213 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
         body: JSON.stringify({ data: quotation }),
       });
       return JSON.stringify(data.data, null, 2);
+    }
+
+    case "create_payment_entry": {
+      // Get sales order to resolve customer and currency
+      const so = await erpFetch(`/resource/Sales Order/${args.sales_order}`);
+      const soData = so.data;
+      const paymentDate = args.date || new Date().toISOString().split("T")[0];
+
+      const payment: Record<string, any> = {
+        doctype: "Payment Entry",
+        payment_type: "Receive",
+        party_type: "Customer",
+        party: soData.customer,
+        paid_amount: args.amount,
+        received_amount: args.amount,
+        target_exchange_rate: 1,
+        paid_to_account_currency: soData.currency || "PEN",
+        mode_of_payment: args.payment_method,
+        reference_no: args.reference_number || "",
+        reference_date: paymentDate,
+        posting_date: paymentDate,
+        references: [
+          {
+            reference_doctype: "Sales Order",
+            reference_name: args.sales_order,
+            allocated_amount: args.amount,
+          },
+        ],
+      };
+
+      const data = await erpFetch("/resource/Payment Entry", {
+        method: "POST",
+        body: JSON.stringify({ data: payment }),
+      });
+      return JSON.stringify(data.data, null, 2);
+    }
+
+    case "create_purchase_order": {
+      const scheduleDate =
+        args.schedule_date || new Date().toISOString().split("T")[0];
+      const po: Record<string, any> = {
+        doctype: "Purchase Order",
+        supplier: args.supplier,
+        items: args.items.map((item: any) => ({
+          item_code: item.item_code,
+          qty: item.qty,
+          rate: item.rate,
+          schedule_date: scheduleDate,
+        })),
+      };
+      if (args.notes) po.notes = args.notes;
+
+      const data = await erpFetch("/resource/Purchase Order", {
+        method: "POST",
+        body: JSON.stringify({ data: po }),
+      });
+      return JSON.stringify(data.data, null, 2);
+    }
+
+    case "create_item": {
+      const item: Record<string, any> = {
+        doctype: "Item",
+        item_name: args.item_name,
+        item_group: args.item_group,
+        standard_rate: args.standard_rate,
+        stock_uom: args.stock_uom || "Nos",
+        is_stock_item: args.is_stock_item !== false ? 1 : 0,
+      };
+      if (args.item_code) item.item_code = args.item_code;
+      if (args.description) item.description = args.description;
+
+      const data = await erpFetch("/resource/Item", {
+        method: "POST",
+        body: JSON.stringify({ data: item }),
+      });
+      return JSON.stringify(data.data, null, 2);
+    }
+
+    case "update_item": {
+      const updates: Record<string, any> = {};
+      if (args.standard_rate !== undefined) updates.standard_rate = args.standard_rate;
+      if (args.description !== undefined) updates.description = args.description;
+      if (args.item_name !== undefined) updates.item_name = args.item_name;
+      if (args.disabled !== undefined) updates.disabled = args.disabled ? 1 : 0;
+
+      if (Object.keys(updates).length === 0) {
+        throw new Error(
+          "No fields to update. Provide standard_rate, description, item_name, or disabled."
+        );
+      }
+
+      const data = await erpFetch(
+        `/resource/Item/${encodeURIComponent(args.item_code)}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ data: updates }),
+        }
+      );
+      return JSON.stringify(data.data, null, 2);
+    }
+
+    case "get_sales_summary": {
+      // Fetch submitted sales orders in the date range
+      const soFilters: any[][] = [
+        ["transaction_date", ">=", args.from_date],
+        ["transaction_date", "<=", args.to_date],
+        ["docstatus", "=", 1],
+      ];
+      if (args.customer) {
+        soFilters.push(["customer", "like", `%${args.customer}%`]);
+      }
+
+      const orders = await erpFetch(
+        `/resource/Sales Order?filters=${encodeURIComponent(JSON.stringify(soFilters))}&fields=${encodeURIComponent(JSON.stringify(["name", "customer", "grand_total", "status", "transaction_date", "currency"]))}&limit_page_length=0`
+      );
+
+      const orderList: any[] = orders.data || [];
+      const totalRevenue = orderList.reduce(
+        (sum: number, o: any) => sum + (o.grand_total || 0),
+        0
+      );
+
+      // Fetch order items to compute top products
+      const productCounts: Record<string, { qty: number; revenue: number }> = {};
+      for (const order of orderList) {
+        try {
+          const detail = await erpFetch(
+            `/resource/Sales Order/${order.name}`
+          );
+          const items: any[] = detail.data?.items || [];
+          for (const it of items) {
+            if (!productCounts[it.item_code]) {
+              productCounts[it.item_code] = { qty: 0, revenue: 0 };
+            }
+            productCounts[it.item_code].qty += it.qty || 0;
+            productCounts[it.item_code].revenue += it.amount || 0;
+          }
+        } catch {
+          // Skip orders whose details we can't fetch
+        }
+      }
+
+      const topProducts = Object.entries(productCounts)
+        .sort(([, a], [, b]) => b.revenue - a.revenue)
+        .slice(0, 10)
+        .map(([item_code, stats]) => ({ item_code, ...stats }));
+
+      return JSON.stringify(
+        {
+          from_date: args.from_date,
+          to_date: args.to_date,
+          total_revenue: totalRevenue,
+          order_count: orderList.length,
+          currency: orderList[0]?.currency || "PEN",
+          top_products: topProducts,
+        },
+        null,
+        2
+      );
+    }
+
+    case "get_customer_balance": {
+      // Unpaid sales invoices
+      const invFilters = [
+        ["customer", "=", args.customer],
+        ["docstatus", "=", 1],
+        ["outstanding_amount", ">", 0],
+      ];
+      const invoices = await erpFetch(
+        `/resource/Sales Invoice?filters=${encodeURIComponent(JSON.stringify(invFilters))}&fields=${encodeURIComponent(JSON.stringify(["name", "grand_total", "outstanding_amount", "posting_date", "currency"]))}&limit_page_length=0`
+      );
+      const invoiceList: any[] = invoices.data || [];
+      const totalOutstanding = invoiceList.reduce(
+        (sum: number, inv: any) => sum + (inv.outstanding_amount || 0),
+        0
+      );
+
+      // Unpaid sales orders (billed but not fully paid)
+      const soFilters = [
+        ["customer", "=", args.customer],
+        ["docstatus", "=", 1],
+        ["status", "in", ["To Deliver and Bill", "To Bill"]],
+      ];
+      const salesOrders = await erpFetch(
+        `/resource/Sales Order?filters=${encodeURIComponent(JSON.stringify(soFilters))}&fields=${encodeURIComponent(JSON.stringify(["name", "grand_total", "advance_paid", "status", "transaction_date", "currency"]))}&limit_page_length=0`
+      );
+      const soList: any[] = salesOrders.data || [];
+      const unbilledTotal = soList.reduce(
+        (sum: number, s: any) => sum + ((s.grand_total || 0) - (s.advance_paid || 0)),
+        0
+      );
+
+      return JSON.stringify(
+        {
+          customer: args.customer,
+          outstanding_invoices: totalOutstanding,
+          unbilled_orders: unbilledTotal,
+          total_balance: totalOutstanding + unbilledTotal,
+          currency: invoiceList[0]?.currency || soList[0]?.currency || "PEN",
+          invoice_count: invoiceList.length,
+          unpaid_order_count: soList.length,
+          invoices: invoiceList,
+          orders: soList,
+        },
+        null,
+        2
+      );
     }
 
     default:

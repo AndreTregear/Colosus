@@ -10,6 +10,10 @@
  *  - get_payment_methods: Get configured payment methods
  *  - create_payment_reminder: Schedule a payment reminder
  *  - get_payment_history: Get payment history for a customer
+ *  - process_refund: Initiate a refund for an order
+ *  - search_payment_by_amount: Search recent payments by approximate amount
+ *  - get_daily_collection_summary: Total collected today by payment method
+ *  - create_return_authorization: Create a return/exchange authorization in ERPNext
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -253,6 +257,135 @@ const TOOLS = [
       required: ["customer"],
     },
   },
+  {
+    name: "process_refund",
+    description:
+      "Initiate a refund for an order. Creates a refund record and a Return Payment Entry in ERPNext. For refunds above the configured threshold, requires prior owner approval (not enforced here — the skill must check before calling).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        order_id: {
+          type: "string",
+          description: "Original Sales Order ID (e.g., SO-00001)",
+        },
+        amount: {
+          type: "number",
+          description: "Refund amount (may be less than order total for partial refunds)",
+        },
+        reason: {
+          type: "string",
+          description: "Reason for refund (e.g., damaged, wrong_item, changed_mind, not_as_described)",
+        },
+        method: {
+          type: "string",
+          enum: ["mobile_money", "bank_transfer", "store_credit"],
+          description: "Refund method",
+        },
+        return_authorization: {
+          type: "string",
+          description: "Return authorization ID / RMA number (optional)",
+        },
+        notes: {
+          type: "string",
+          description: "Additional notes (optional)",
+        },
+      },
+      required: ["order_id", "amount", "reason", "method"],
+    },
+  },
+  {
+    name: "search_payment_by_amount",
+    description:
+      "Search recent payments by approximate amount (±5% tolerance). Useful for matching unidentified Yape or bank transfer payments when only the amount is known.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        amount: {
+          type: "number",
+          description: "Approximate payment amount to search for",
+        },
+        tolerance_percent: {
+          type: "number",
+          description: "Tolerance percentage for fuzzy matching (default: 5)",
+        },
+        from_date: {
+          type: "string",
+          description: "Start date for search range, ISO format (default: 7 days ago)",
+        },
+        to_date: {
+          type: "string",
+          description: "End date for search range, ISO format (default: today)",
+        },
+        payment_method: {
+          type: "string",
+          description: "Filter by payment method (optional)",
+        },
+        limit: { type: "number", description: "Max results (default 20)" },
+      },
+      required: ["amount"],
+    },
+  },
+  {
+    name: "get_daily_collection_summary",
+    description:
+      "Get total collected today (or a specific date) broken down by payment method (Yape, BCP, cash, etc.). Useful for end-of-day reconciliation.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        date: {
+          type: "string",
+          description: "Date to summarize, ISO format (default: today)",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "create_return_authorization",
+    description:
+      "Create a return merchandise authorization (RMA) in ERPNext. Links to the original Sales Order and records the return reason, items, and expected refund.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        order_id: {
+          type: "string",
+          description: "Original Sales Order ID",
+        },
+        reason: {
+          type: "string",
+          enum: ["damaged", "wrong_item", "size_issue", "changed_mind", "not_as_described", "other"],
+          description: "Return reason",
+        },
+        items: {
+          type: "array",
+          description: "Items being returned (item_code, qty, optional reason per item)",
+          items: {
+            type: "object",
+            properties: {
+              item_code: { type: "string", description: "ERPNext Item Code" },
+              qty: { type: "number", description: "Quantity to return" },
+              reason: { type: "string", description: "Item-specific reason (optional)" },
+            },
+            required: ["item_code", "qty"],
+          },
+        },
+        refund_method: {
+          type: "string",
+          enum: ["mobile_money", "bank_transfer", "store_credit"],
+          description: "Preferred refund method",
+        },
+        customer_notes: {
+          type: "string",
+          description: "Customer's description of the issue (optional)",
+        },
+        has_photos: {
+          type: "boolean",
+          description: "Whether damage/issue photos were provided (optional)",
+        },
+      },
+      required: ["order_id", "reason", "items"],
+    },
+  },
 ];
 
 // ── Tool Handlers ────────────────────────────────────
@@ -261,7 +394,7 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
   switch (name) {
     case "list_pending_payments": {
       const limit = args.limit || 20;
-      const filters: string[][] = [
+      const filters: (string | string[])[][] = [
         ["docstatus", "=", "1"],
         ["status", "in", ["To Deliver and Bill", "To Bill"]],
       ];
@@ -283,7 +416,7 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
 
     case "match_payment": {
       // Fetch pending orders, optionally filtered by customer
-      const filters: string[][] = [
+      const filters: (string | string[])[][] = [
         ["docstatus", "=", "1"],
         ["status", "in", ["To Deliver and Bill", "To Bill"]],
       ];
@@ -437,6 +570,337 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
 
       const data = await paymentsFetch(`/payments?${params.toString()}`);
       return JSON.stringify(data, null, 2);
+    }
+
+    case "process_refund": {
+      // 1. Fetch original order to get customer and validate
+      const order = await erpFetch(`/resource/Sales Order/${args.order_id}`);
+      const customer = order.data.customer;
+      const orderTotal = Number(order.data.grand_total);
+
+      if (args.amount > orderTotal) {
+        throw new Error(
+          `Refund amount (${args.amount}) exceeds order total (${orderTotal})`
+        );
+      }
+
+      // 2. Record refund in payments table
+      const refundRecord = await paymentsFetch("/refunds", {
+        method: "POST",
+        body: JSON.stringify({
+          order_id: args.order_id,
+          customer,
+          amount: args.amount,
+          reason: args.reason,
+          method: args.method,
+          return_authorization: args.return_authorization || null,
+          notes: args.notes || null,
+          status: args.method === "store_credit" ? "completed" : "processing",
+          created_at: new Date().toISOString(),
+        }),
+      });
+
+      // 3. Create return Payment Entry in ERPNext (except for store credit)
+      let erpPaymentEntry = null;
+      if (args.method !== "store_credit") {
+        const paymentEntry = {
+          doctype: "Payment Entry",
+          payment_type: "Pay",
+          party_type: "Customer",
+          party: customer,
+          mode_of_payment:
+            args.method === "mobile_money"
+              ? "Mobile Money"
+              : args.method === "bank_transfer"
+                ? "Bank Transfer"
+                : "Cash",
+          paid_amount: args.amount,
+          received_amount: args.amount,
+          reference_no: args.return_authorization || `REFUND-${args.order_id}`,
+          reference_date: new Date().toISOString().split("T")[0],
+          remarks: `Refund for ${args.order_id}: ${args.reason}`,
+          references: [
+            {
+              reference_doctype: "Sales Order",
+              reference_name: args.order_id,
+              allocated_amount: args.amount,
+            },
+          ],
+        };
+
+        const erpResult = await erpFetch("/resource/Payment Entry", {
+          method: "POST",
+          body: JSON.stringify({ data: paymentEntry }),
+        });
+        erpPaymentEntry = erpResult.data?.name;
+      }
+
+      // 4. For store credit, record in the credits ledger
+      if (args.method === "store_credit") {
+        await paymentsFetch("/store-credits", {
+          method: "POST",
+          body: JSON.stringify({
+            customer,
+            amount: args.amount,
+            source_order: args.order_id,
+            reason: args.reason,
+            expires_at: new Date(
+              Date.now() + 90 * 24 * 60 * 60 * 1000
+            ).toISOString(),
+          }),
+        });
+      }
+
+      return JSON.stringify(
+        {
+          status: args.method === "store_credit" ? "completed" : "processing",
+          refund_record: refundRecord,
+          erpnext_payment_entry: erpPaymentEntry,
+          order_id: args.order_id,
+          customer,
+          amount: args.amount,
+          method: args.method,
+          reason: args.reason,
+        },
+        null,
+        2
+      );
+    }
+
+    case "search_payment_by_amount": {
+      const amount = Number(args.amount);
+      const tolerancePercent = args.tolerance_percent || 5;
+      const minAmount = amount * (1 - tolerancePercent / 100);
+      const maxAmount = amount * (1 + tolerancePercent / 100);
+      const limit = args.limit || 20;
+
+      const today = new Date().toISOString().split("T")[0];
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+
+      const params = new URLSearchParams();
+      params.set("min_amount", String(minAmount));
+      params.set("max_amount", String(maxAmount));
+      params.set("from_date", args.from_date || weekAgo);
+      params.set("to_date", args.to_date || today);
+      if (args.payment_method) params.set("payment_method", args.payment_method);
+      params.set("limit", String(limit));
+
+      const data = await paymentsFetch(
+        `/payments/search?${params.toString()}`
+      );
+
+      // Enrich results with match quality
+      const results = (data.payments || data || []).map((p: any) => ({
+        ...p,
+        difference: Math.abs(Number(p.amount) - amount),
+        match_quality:
+          Number(p.amount) === amount
+            ? "exact"
+            : Math.abs(Number(p.amount) - amount) <= amount * 0.02
+              ? "very_close"
+              : "approximate",
+      }));
+
+      results.sort(
+        (a: { difference: number }, b: { difference: number }) =>
+          a.difference - b.difference
+      );
+
+      return JSON.stringify(
+        {
+          search: {
+            target_amount: amount,
+            tolerance: `±${tolerancePercent}%`,
+            range: { min: minAmount, max: maxAmount },
+          },
+          results,
+          total_found: results.length,
+        },
+        null,
+        2
+      );
+    }
+
+    case "get_daily_collection_summary": {
+      const date =
+        args.date || new Date().toISOString().split("T")[0];
+
+      // Fetch confirmed payments for the date from payments DB
+      const data = await paymentsFetch(
+        `/payments/summary?date=${date}`
+      );
+
+      // Also fetch from ERPNext Payment Entries for cross-reference
+      const erpFilters = JSON.stringify([
+        ["docstatus", "=", "1"],
+        ["posting_date", "=", date],
+        ["payment_type", "=", "Receive"],
+      ]);
+      const erpFields = JSON.stringify([
+        "name",
+        "mode_of_payment",
+        "paid_amount",
+        "party",
+        "reference_no",
+      ]);
+      const erpData = await erpFetch(
+        `/resource/Payment Entry?filters=${encodeURIComponent(erpFilters)}&fields=${encodeURIComponent(erpFields)}&limit_page_length=100&order_by=creation desc`
+      );
+
+      // Aggregate ERPNext entries by payment method
+      const erpEntries = erpData.data || [];
+      const byMethod: Record<
+        string,
+        { count: number; total: number; payments: any[] }
+      > = {};
+
+      for (const entry of erpEntries) {
+        const method = entry.mode_of_payment || "Other";
+        if (!byMethod[method]) {
+          byMethod[method] = { count: 0, total: 0, payments: [] };
+        }
+        byMethod[method].count++;
+        byMethod[method].total += Number(entry.paid_amount);
+        byMethod[method].payments.push({
+          id: entry.name,
+          customer: entry.party,
+          amount: entry.paid_amount,
+          reference: entry.reference_no,
+        });
+      }
+
+      const grandTotal = erpEntries.reduce(
+        (sum: number, e: any) => sum + Number(e.paid_amount),
+        0
+      );
+
+      return JSON.stringify(
+        {
+          date,
+          grand_total: grandTotal,
+          total_transactions: erpEntries.length,
+          by_method: byMethod,
+          payments_db_summary: data,
+        },
+        null,
+        2
+      );
+    }
+
+    case "create_return_authorization": {
+      // 1. Fetch original order for validation
+      const order = await erpFetch(
+        `/resource/Sales Order/${args.order_id}`
+      );
+      const customer = order.data.customer;
+
+      // 2. Verify the order is in a returnable state
+      const status = order.data.status;
+      const returnableStatuses = [
+        "Completed",
+        "To Deliver and Bill",
+        "To Bill",
+        "To Deliver",
+      ];
+      if (!returnableStatuses.includes(status)) {
+        throw new Error(
+          `Order ${args.order_id} has status "${status}" and is not eligible for returns`
+        );
+      }
+
+      // 3. Calculate refund amount from the items being returned
+      const orderItems = order.data.items || [];
+      let refundAmount = 0;
+      const returnItems = [];
+
+      for (const returnItem of args.items) {
+        const orderItem = orderItems.find(
+          (oi: any) => oi.item_code === returnItem.item_code
+        );
+        if (!orderItem) {
+          throw new Error(
+            `Item ${returnItem.item_code} not found in order ${args.order_id}`
+          );
+        }
+        if (returnItem.qty > orderItem.qty) {
+          throw new Error(
+            `Return qty (${returnItem.qty}) exceeds ordered qty (${orderItem.qty}) for ${returnItem.item_code}`
+          );
+        }
+        const unitRate = Number(orderItem.rate);
+        const itemRefund = unitRate * returnItem.qty;
+        refundAmount += itemRefund;
+        returnItems.push({
+          item_code: returnItem.item_code,
+          item_name: orderItem.item_name,
+          qty: returnItem.qty,
+          rate: unitRate,
+          amount: itemRefund,
+          reason: returnItem.reason || args.reason,
+        });
+      }
+
+      // 4. Create the return authorization record in payments DB
+      const rma = await paymentsFetch("/return-authorizations", {
+        method: "POST",
+        body: JSON.stringify({
+          order_id: args.order_id,
+          customer,
+          reason: args.reason,
+          items: returnItems,
+          refund_amount: refundAmount,
+          refund_method: args.refund_method || null,
+          customer_notes: args.customer_notes || null,
+          has_photos: args.has_photos || false,
+          status: "authorized",
+          created_at: new Date().toISOString(),
+        }),
+      });
+
+      // 5. Create a Sales Return (negative Stock Entry) in ERPNext
+      // so inventory is updated when the item is received back
+      const stockEntry = {
+        doctype: "Stock Entry",
+        stock_entry_type: "Material Receipt",
+        remarks: `Return for ${args.order_id} — RMA ${rma.id || rma.name || "pending"}`,
+        items: returnItems.map((item) => ({
+          item_code: item.item_code,
+          qty: item.qty,
+          s_warehouse: null,
+          t_warehouse: "Stores - YP", // Default return warehouse
+        })),
+      };
+
+      let stockEntryResult = null;
+      try {
+        const erpResult = await erpFetch("/resource/Stock Entry", {
+          method: "POST",
+          body: JSON.stringify({ data: stockEntry }),
+        });
+        stockEntryResult = erpResult.data?.name;
+      } catch {
+        // Stock entry creation is non-critical — log but don't fail
+        stockEntryResult = "pending_manual_entry";
+      }
+
+      return JSON.stringify(
+        {
+          status: "authorized",
+          rma_id: rma.id || rma.name,
+          order_id: args.order_id,
+          customer,
+          reason: args.reason,
+          items: returnItems,
+          refund_amount: refundAmount,
+          refund_method: args.refund_method || "pending_selection",
+          stock_entry: stockEntryResult,
+          has_photos: args.has_photos || false,
+        },
+        null,
+        2
+      );
     }
 
     default:
