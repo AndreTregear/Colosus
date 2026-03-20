@@ -1,8 +1,6 @@
 # Yaya Platform — Full Stack Docker Compose
-# Usage: docker compose up -d
+# Usage: docker compose --env-file .env up -d
 # Requires: NVIDIA GPU with docker nvidia runtime for vLLM + Whisper
-
-version: "3.8"
 
 services:
   # ── Database Layer ──────────────────────────────────
@@ -10,23 +8,25 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-yaya}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yaya_s3cur3_2026}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       POSTGRES_DB: ${POSTGRES_DB:-yaya}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yaya}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    restart: unless-stopped
     networks:
       - yaya-net
 
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
     volumes:
@@ -36,6 +36,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
     networks:
       - yaya-net
 
@@ -44,18 +45,24 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-yaya_s3}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-yaya_s3_2026}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme}
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
       - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
     networks:
       - yaya-net
 
   # ── AI Layer (GPU) ──────────────────────────────────
   vllm:
-    image: vllm/vllm-openai:qwen3_5
+    image: vllm/vllm-openai:latest
     deploy:
       resources:
         reservations:
@@ -84,6 +91,12 @@ services:
     ports:
       - "8000:8000"
     shm_size: "8g"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     restart: unless-stopped
     networks:
       - yaya-net
@@ -100,45 +113,280 @@ services:
               device_ids: ["0"]
               capabilities: [gpu]
     environment:
-      WHISPER_MODEL: large-v3-turbo
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3-turbo}
       WHISPER_DEVICE: cuda
       WHISPER_COMPUTE: int8
       WHISPER_GPU: "0"
       WHISPER_PORT: "9100"
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-es}
     ports:
       - "9100:9100"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9100/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     restart: unless-stopped
     networks:
       - yaya-net
 
-  # ── Business Services ───────────────────────────────
-  # ERPNext (via frappe_docker)
-  # See services/erpnext/ for full frappe docker setup
-  # Ports: 8080 (web), 9000 (socketio)
+  # ── Lago Billing ────────────────────────────────────
+  lago-api:
+    image: getlago/api:v1.20.1
+    environment:
+      LAGO_API_URL: http://lago-api:3000
+      DATABASE_URL: postgresql://${LAGO_DB_USER:-lago}:${LAGO_DB_PASSWORD:-lago_s3cur3}@postgres:5432/${LAGO_DB_NAME:-lago_db}
+      REDIS_URL: redis://redis:6379/1
+      REDIS_PASSWORD: ""
+      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:-changeme_generate_with_setup_sh}
+      RAILS_ENV: production
+      LAGO_RSA_PRIVATE_KEY: ${LAGO_RSA_PRIVATE_KEY:-}
+      LAGO_FRONT_URL: http://${HOST_IP:-localhost}:8080
+      LAGO_API_KEY: ${LAGO_API_KEY:-}
+      LAGO_DISABLE_SIGNUP: "false"
+      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:-changeme}
+      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:-changeme}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:-changeme}
+      LAGO_AWS_S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-yaya_s3}
+      LAGO_AWS_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-changeme}
+      LAGO_AWS_S3_REGION: us-east-1
+      LAGO_AWS_S3_BUCKET: lago
+      LAGO_AWS_S3_ENDPOINT: http://minio:9000
+      LAGO_USE_AWS_S3: "true"
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - yaya-net
 
-  # Atomic CRM (Supabase-based)
-  # See services/crm/ for setup
-  # Ports: 54321 (API), 54323 (Studio)
+  lago-worker:
+    image: getlago/api:v1.20.1
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    environment:
+      LAGO_API_URL: http://lago-api:3000
+      DATABASE_URL: postgresql://${LAGO_DB_USER:-lago}:${LAGO_DB_PASSWORD:-lago_s3cur3}@postgres:5432/${LAGO_DB_NAME:-lago_db}
+      REDIS_URL: redis://redis:6379/1
+      REDIS_PASSWORD: ""
+      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:-changeme_generate_with_setup_sh}
+      RAILS_ENV: production
+      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:-changeme}
+      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:-changeme}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:-changeme}
+    depends_on:
+      lago-api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - yaya-net
 
-  # Lago Billing
-  # See services/lago/ for full lago docker setup
-  # Ports: 3001 (API), 80 (UI)
+  lago-front:
+    image: getlago/front:v1.20.1
+    environment:
+      API_URL: http://${HOST_IP:-localhost}:3001
+      APP_ENV: production
+      LAGO_DISABLE_SIGNUP: "false"
+    ports:
+      - "8080:80"
+    depends_on:
+      lago-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ── Supabase Stack (for Atomic CRM) ────────────────
+  supabase-db:
+    image: supabase/postgres:15.8.1.060
+    environment:
+      POSTGRES_USER: ${SUPABASE_DB_USER:-supabase_admin}
+      POSTGRES_PASSWORD: ${SUPABASE_DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${CRM_DB_NAME:-crm_db}
+    ports:
+      - "54322:5432"
+    volumes:
+      - supabasedata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SUPABASE_DB_USER:-supabase_admin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  supabase-auth:
+    image: supabase/gotrue:v2.170.0
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: http://${HOST_IP:-localhost}:54321
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgresql://${SUPABASE_DB_USER:-supabase_admin}:${SUPABASE_DB_PASSWORD:-changeme}@supabase-db:5432/${CRM_DB_NAME:-crm_db}?search_path=auth
+      GOTRUE_SITE_URL: http://${HOST_IP:-localhost}:54323
+      GOTRUE_URI_ALLOW_LIST: ""
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters}
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9999/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  supabase-rest:
+    image: postgrest/postgrest:v12.2.8
+    environment:
+      PGRST_DB_URI: postgresql://${SUPABASE_DB_USER:-supabase_admin}:${SUPABASE_DB_PASSWORD:-changeme}@supabase-db:5432/${CRM_DB_NAME:-crm_db}
+      PGRST_DB_SCHEMAS: public,storage,graphql_public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    ports:
+      - "54321:3000"
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  supabase-realtime:
+    image: supabase/realtime:v2.33.58
+    environment:
+      PORT: "4000"
+      DB_HOST: supabase-db
+      DB_PORT: "5432"
+      DB_USER: ${SUPABASE_DB_USER:-supabase_admin}
+      DB_PASSWORD: ${SUPABASE_DB_PASSWORD:-changeme}
+      DB_NAME: ${CRM_DB_NAME:-crm_db}
+      DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
+      DB_ENC_KEY: supabaserealtime
+      API_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters}
+      SECRET_KEY_BASE: ${SUPABASE_REALTIME_SECRET:-changeme_at_least_64_characters_long_for_production_use_please}
+      ERL_AFLAGS: "-proto_dist inet_tcp"
+      DNS_NODES: "''"
+      RLIMIT_NOFILE: "10000"
+      APP_NAME: realtime
+      SEED_SELF_HOST: "true"
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  supabase-studio:
+    image: supabase/studio:20241202-71e5240
+    environment:
+      STUDIO_PG_META_URL: http://supabase-meta:8080
+      POSTGRES_PASSWORD: ${SUPABASE_DB_PASSWORD:-changeme}
+      DEFAULT_ORGANIZATION_NAME: "Yaya Platform"
+      DEFAULT_PROJECT_NAME: "Atomic CRM"
+      SUPABASE_URL: http://supabase-rest:3000
+      SUPABASE_PUBLIC_URL: http://${HOST_IP:-localhost}:54321
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9}
+    ports:
+      - "54323:3000"
+    depends_on:
+      supabase-rest:
+        condition: service_healthy
+      supabase-meta:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  supabase-meta:
+    image: supabase/postgres-meta:v0.84.2
+    environment:
+      PG_META_PORT: "8080"
+      PG_META_DB_HOST: supabase-db
+      PG_META_DB_PORT: "5432"
+      PG_META_DB_NAME: ${CRM_DB_NAME:-crm_db}
+      PG_META_DB_USER: ${SUPABASE_DB_USER:-supabase_admin}
+      PG_META_DB_PASSWORD: ${SUPABASE_DB_PASSWORD:-changeme}
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - yaya-net
 
   # ── MCP Servers ─────────────────────────────────────
   postgres-mcp:
     image: crystaldba/postgres-mcp
     environment:
-      DATABASE_URI: postgresql://${POSTGRES_USER:-yaya}:${POSTGRES_PASSWORD:-yaya_s3cur3_2026}@postgres:5432/${POSTGRES_DB:-yaya}
+      DATABASE_URI: postgresql://${POSTGRES_USER:-yaya}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-yaya}
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  erpnext-mcp:
+    build:
+      context: ../../mcp-servers/erpnext-mcp
+      dockerfile: Dockerfile
+    environment:
+      ERPNEXT_URL: http://${HOST_IP:-localhost}:8080
+      ERPNEXT_API_KEY: ${ERPNEXT_API_KEY:-}
+      ERPNEXT_API_SECRET: ${ERPNEXT_API_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - yaya-net
 
 networks:
   yaya-net:
+    driver: bridge
 
 volumes:
   pgdata:
   redisdata:
   miniodata:
+  supabasedata:
