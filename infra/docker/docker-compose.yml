@@ -1,0 +1,144 @@
+# Yaya Platform — Full Stack Docker Compose
+# Usage: docker compose up -d
+# Requires: NVIDIA GPU with docker nvidia runtime for vLLM + Whisper
+
+version: "3.8"
+
+services:
+  # ── Database Layer ──────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-yaya}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yaya_s3cur3_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-yaya}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yaya}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - yaya-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - yaya-net
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-yaya_s3}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-yaya_s3_2026}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    networks:
+      - yaya-net
+
+  # ── AI Layer (GPU) ──────────────────────────────────
+  vllm:
+    image: vllm/vllm-openai:qwen3_5
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: >
+      --model /model
+      --served-model-name qwen3.5-27b
+      --host 0.0.0.0 --port 8000
+      --tensor-parallel-size 2
+      --max-model-len 32768
+      --gpu-memory-utilization 0.85
+      --quantization awq_marlin
+      --dtype float16
+      --enforce-eager
+      --enable-auto-tool-choice
+      --tool-call-parser qwen3_coder
+      --reasoning-parser qwen3
+      --language-model-only
+      --enable-prefix-caching
+      --api-key ${LLM_API_KEY:-megustalaia}
+    volumes:
+      - ${MODEL_PATH:-/home/yaya/models/Qwen3.5-27B-AWQ}:/model:ro
+    ports:
+      - "8000:8000"
+    shm_size: "8g"
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  whisper:
+    build:
+      context: ../../services/whisper
+      dockerfile: Dockerfile
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    environment:
+      WHISPER_MODEL: large-v3-turbo
+      WHISPER_DEVICE: cuda
+      WHISPER_COMPUTE: int8
+      WHISPER_GPU: "0"
+      WHISPER_PORT: "9100"
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ── Business Services ───────────────────────────────
+  # ERPNext (via frappe_docker)
+  # See services/erpnext/ for full frappe docker setup
+  # Ports: 8080 (web), 9000 (socketio)
+
+  # Atomic CRM (Supabase-based)
+  # See services/crm/ for setup
+  # Ports: 54321 (API), 54323 (Studio)
+
+  # Lago Billing
+  # See services/lago/ for full lago docker setup
+  # Ports: 3001 (API), 80 (UI)
+
+  # ── MCP Servers ─────────────────────────────────────
+  postgres-mcp:
+    image: crystaldba/postgres-mcp
+    environment:
+      DATABASE_URI: postgresql://${POSTGRES_USER:-yaya}:${POSTGRES_PASSWORD:-yaya_s3cur3_2026}@postgres:5432/${POSTGRES_DB:-yaya}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - yaya-net
+
+networks:
+  yaya-net:
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

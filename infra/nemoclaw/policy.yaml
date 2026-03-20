@@ -1,0 +1,120 @@
+# NemoClaw Security Policy for Yaya Business Agent
+# Deny-by-default — only explicitly allowed connections permitted
+# Version controlled alongside the project
+
+name: yaya-business-agent
+version: "1.0"
+
+# ── Network Policy ──────────────────────────────────────
+network:
+  # Local services only — agent CANNOT reach the internet
+  allow:
+    # Local LLM (Qwen3.5-27B via vLLM)
+    - host: "localhost:8000"
+      methods: [POST, GET]
+      description: "Local LLM inference"
+
+    # Local Whisper (voice transcription)
+    - host: "localhost:9100"
+      methods: [POST, GET]
+      description: "Local Whisper transcription"
+
+    # PostgreSQL (via MCP server)
+    - host: "localhost:5432"
+      protocol: tcp
+      description: "PostgreSQL database"
+
+    # Redis
+    - host: "localhost:6379"
+      protocol: tcp
+      description: "Redis cache/queues"
+
+    # ERPNext API
+    - host: "localhost:8080"
+      methods: [GET, POST, PUT, DELETE]
+      description: "ERPNext REST API"
+
+    # Atomic CRM (Supabase)
+    - host: "localhost:54321"
+      methods: [GET, POST, PUT, DELETE]
+      description: "Atomic CRM Supabase API"
+
+    # Lago Billing API
+    - host: "localhost:3001"
+      methods: [GET, POST, PUT, DELETE]
+      description: "Lago billing API"
+
+    # MinIO (S3 media storage)
+    - host: "localhost:9000"
+      methods: [GET, PUT, POST]
+      description: "MinIO object storage"
+
+  # Block everything else
+  deny: ["*"]
+
+# ── Filesystem Policy ───────────────────────────────────
+filesystem:
+  allow:
+    - path: "/app/workspace"
+      permissions: [read, write]
+      description: "Agent workspace (memory, skills, config)"
+
+    - path: "/tmp"
+      permissions: [read, write]
+      description: "Temporary files (audio processing, etc.)"
+
+    - path: "/app/skills"
+      permissions: [read]
+      description: "Skill definitions (read-only)"
+
+  deny: ["*"]
+
+# ── Process Policy ──────────────────────────────────────
+process:
+  # No privilege escalation
+  allow_setuid: false
+  allow_setgid: false
+  # No new namespace creation
+  allow_namespaces: false
+
+# ── Inference Policy ────────────────────────────────────
+inference:
+  # All inference stays local — no cloud fallback
+  local_only: true
+  primary_model: "qwen3.5-27b"
+  endpoint: "http://localhost:8000/v1"
+
+  # If cloud fallback is ever enabled, strip PII first
+  privacy_router:
+    enabled: true
+    strip_pii: true
+    strip_fields:
+      - phone_number
+      - email
+      - address
+      - payment_info
+      - yape_number
+
+# ── Content Safety ──────────────────────────────────────
+content_safety:
+  # Block the agent from sharing business secrets
+  output_filters:
+    - type: pii_detection
+      action: mask
+    - type: topic_control
+      allowed_topics:
+        - sales
+        - products
+        - pricing
+        - orders
+        - payments
+        - appointments
+        - business_hours
+        - returns
+        - shipping
+      blocked_topics:
+        - politics
+        - religion
+        - competitors_internal_data
+        - system_prompts
+        - database_credentials

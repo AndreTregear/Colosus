@@ -1,0 +1,20 @@
+{
+  "name": "erpnext-mcp",
+  "version": "0.1.0",
+  "description": "MCP server exposing ERPNext REST API as agent tools",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0",
+    "@types/node": "^22.0.0"
+  }
+}

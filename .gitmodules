@@ -1,0 +1,15 @@
+[submodule "services/crm"]
+	path = services/crm
+	url = https://github.com/marmelab/atomic-crm.git
+[submodule "services/lago"]
+	path = services/lago
+	url = https://github.com/getlago/lago.git
+[submodule "services/erpnext"]
+	path = services/erpnext
+	url = https://github.com/frappe/frappe_docker.git
+[submodule "mcp-servers/postgres-mcp"]
+	path = mcp-servers/postgres-mcp
+	url = https://github.com/crystaldba/postgres-mcp.git
+[submodule "services/nemo-guardrails"]
+	path = services/nemo-guardrails
+	url = https://github.com/NVIDIA-NeMo/Guardrails.git
