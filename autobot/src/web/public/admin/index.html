@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autobot Admin | Platform Control Center</title>
+  <link rel="stylesheet" href="/shared/style.css?v=3">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card animate-scaleIn">
+      <h1>Autobot Admin</h1>
+      <p>Platform Management Dashboard</p>
+      <input type="email" id="email-input" placeholder="Admin Email" autocomplete="email">
+      <input type="password" id="password-input" placeholder="Password" autocomplete="current-password" style="margin-top:12px;">
+      <button id="btn-login" class="btn btn-primary btn-lg" style="width:100%;margin-top:16px;">
+        <span>Sign In</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:8px;">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/>
+        </svg>
+      </button>
+      <p id="login-error" class="login-error" style="display:none;"></p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div class="app" id="app-main" style="display:none;">
+    <!-- Header -->
+    <header>
+      <div class="header-left">
+        <h1>Autobot</h1>
+        <span class="subtitle">Platform Admin</span>
+      </div>
+      <div class="header-right">
+        <!-- Theme Toggle -->
+        <button class="theme-toggle" id="theme-toggle" title="Toggle Theme">
+          <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+        
+        <!-- Profile Dropdown -->
+        <div class="profile-dropdown" id="profile-dropdown">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav>
+      <button class="nav-btn active" data-panel="dashboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Dashboard
+      </button>
+      <button class="nav-btn" data-panel="tenants">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        Tenants
+      </button>
+      <button class="nav-btn" data-panel="users">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+        Users
+      </button>
+      <button class="nav-btn" data-panel="queue">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+        </svg>
+        Queue
+      </button>
+      <button class="nav-btn" data-panel="usage">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M12 20V10M18 20V4M6 20v-4"/>
+        </svg>
+        Usage
+      </button>
+      <button class="nav-btn" data-panel="messages">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        Messages
+      </button>
+      <button class="nav-btn" data-panel="yape-payments">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+        Payments
+      </button>
+      <button class="nav-btn" data-panel="subscriptions">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+        </svg>
+        Billing
+      </button>
+      <button class="nav-btn" data-panel="plans">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        Plans
+      </button>
+      <button class="nav-btn" data-panel="system">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        System
+      </button>
+    </nav>
+
+    <main>
+      <!-- Dashboard Panel -->
+      <section id="panel-dashboard" class="panel active">
+        <!-- Quick Stats -->
+        <div class="quick-stats">
+          <div class="quick-stat" onclick="switchPanel('tenants')">
+            <div class="quick-stat-icon primary">🏢</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="dash-tenant-count">-</div>
+              <div class="quick-stat-label">Active Tenants</div>
+            </div>
+            <div class="quick-stat-change positive">+12%</div>
+          </div>
+          <div class="quick-stat" onclick="switchPanel('users')">
+            <div class="quick-stat-icon info">👥</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="dash-user-count">-</div>
+              <div class="quick-stat-label">Total Users</div>
+            </div>
+            <div class="quick-stat-change positive">+8%</div>
+          </div>
+          <div class="quick-stat" onclick="switchPanel('messages')">
+            <div class="quick-stat-icon success">💬</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="dash-message-count">-</div>
+              <div class="quick-stat-label">Messages Today</div>
+            </div>
+            <div class="quick-stat-change positive">+24%</div>
+          </div>
+          <div class="quick-stat" onclick="switchPanel('subscriptions')">
+            <div class="quick-stat-icon warning">💰</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="dash-revenue">-</div>
+              <div class="quick-stat-label">Monthly Revenue</div>
+            </div>
+            <div class="quick-stat-change positive">+15%</div>
+          </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+          <!-- System Health -->
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
+              System Health
+            </h3>
+            <div class="stats-grid" style="margin-top:16px;">
+              <div class="stat">
+                <span class="stat-value" id="dash-uptime">99.9%</span>
+                <span class="stat-label">Uptime</span>
+              </div>
+              <div class="stat">
+                <span class="stat-value" id="dash-active-connections">-</span>
+                <span class="stat-label">Connections</span>
+              </div>
+              <div class="stat">
+                <span class="stat-value" id="dash-failed-jobs">-</span>
+                <span class="stat-label">Failed Jobs</span>
+              </div>
+            </div>
+            <div style="margin-top:16px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <span style="font-size:13px;color:var(--text-muted);">Queue Load</span>
+                <span style="font-size:13px;font-weight:600;" id="dash-queue-load">-</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" id="dash-queue-bar" style="width:45%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              Recent Activity
+            </h3>
+            <div id="dash-activity-list" style="margin-top:16px;max-height:200px;overflow-y:auto;">
+              <p style="color:var(--text-muted);text-align:center;padding:20px;">Loading activity...</p>
+            </div>
+          </div>
+
+          <!-- Top Tenants -->
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              Top Tenants
+            </h3>
+            <div id="dash-top-tenants" style="margin-top:16px;">
+              <p style="color:var(--text-muted);text-align:center;padding:20px;">Loading...</p>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              Quick Actions
+            </h3>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px;">
+              <button class="btn btn-primary" onclick="switchPanel('tenants'); showAddTenantModal();">
+                + Add Tenant
+              </button>
+              <button class="btn btn-secondary" onclick="switchPanel('plans');">
+                Manage Plans
+              </button>
+              <button class="btn btn-secondary" onclick="refreshAllData();">
+                Refresh All
+              </button>
+              <button class="btn btn-info" onclick="exportData();">
+                Export Data
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tenants Panel -->
+      <section id="panel-tenants" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              All Tenants
+            </h2>
+            <div class="btn-group">
+              <button id="btn-add-tenant" class="btn btn-primary">+ Add Tenant</button>
+              <button id="btn-refresh-tenants" class="btn btn-secondary">Refresh</button>
+            </div>
+          </div>
+          <div class="filter-row">
+            <div class="search-input">
+              <input type="text" id="tenant-search" placeholder="Search tenants...">
+            </div>
+            <select id="tenant-status-filter">
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
+            </select>
+            <select id="tenant-connection-filter">
+              <option value="">All Connections</option>
+              <option value="connected">Connected</option>
+              <option value="disconnected">Disconnected</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Phone</th>
+                  <th>Status</th>
+                  <th>Connection</th>
+                  <th>Messages</th>
+                  <th>Uptime</th>
+                  <th>Plan</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tenants-body">
+                <tr><td colspan="8" class="empty">Loading tenants...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Users Panel -->
+      <section id="panel-users" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+              All Users
+            </h2>
+            <button id="btn-refresh-users" class="btn btn-secondary">Refresh</button>
+          </div>
+          <div class="filter-row">
+            <div class="search-input">
+              <input type="text" id="user-search" placeholder="Search users...">
+            </div>
+            <select id="user-role-filter">
+              <option value="">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="user">User</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Tenant</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-body">
+                <tr><td colspan="6" class="empty">Loading users...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Queue Panel -->
+      <section id="panel-queue" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              </svg>
+              Queue Statistics
+            </h2>
+            <button id="btn-refresh-queue" class="btn btn-secondary">Refresh</button>
+          </div>
+          <div class="stats-grid" id="queue-stats">
+            <div class="stat">
+              <span class="stat-value" id="q-waiting">0</span>
+              <span class="stat-label">Waiting</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="q-active">0</span>
+              <span class="stat-label">Active</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="q-completed">0</span>
+              <span class="stat-label">Completed</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="q-failed">0</span>
+              <span class="stat-label">Failed</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="q-delayed">0</span>
+              <span class="stat-label">Delayed</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="q-paused">0</span>
+              <span class="stat-label">Paused</span>
+            </div>
+          </div>
+          <div style="margin-top:24px;display:flex;gap:12px;">
+            <button class="btn btn-danger" id="btn-pause-queue">Pause All</button>
+            <button class="btn btn-success" id="btn-resume-queue">Resume All</button>
+            <button class="btn btn-secondary" id="btn-clean-queue">Clean Completed</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Failed Jobs</h2>
+            <div class="btn-group">
+              <button class="btn btn-secondary" id="btn-retry-all">Retry All</button>
+              <button class="btn btn-danger" id="btn-clear-failed">Clear All</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Job ID</th>
+                  <th>Tenant</th>
+                  <th>Type</th>
+                  <th>Error</th>
+                  <th>Failed At</th>
+                  <th>Attempts</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="failed-jobs-body">
+                <tr><td colspan="7" class="empty">No failed jobs.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Token Usage Panel -->
+      <section id="panel-usage" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <path d="M12 20V10M18 20V4M6 20v-4"/>
+              </svg>
+              Token Usage Summary
+            </h2>
+            <div class="btn-group">
+              <button id="btn-export-usage" class="btn btn-secondary">Export CSV</button>
+              <button id="btn-refresh-usage" class="btn btn-secondary">Refresh</button>
+            </div>
+          </div>
+          <div class="filter-row">
+            <select id="usage-period-filter">
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="all">All Time</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Requests</th>
+                  <th>Prompt Tokens</th>
+                  <th>Completion Tokens</th>
+                  <th>Total Tokens</th>
+                  <th>Est. Cost</th>
+                </tr>
+              </thead>
+              <tbody id="usage-summary-body">
+                <tr><td colspan="6" class="empty">No usage data.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Recent Usage</h2>
+            <div class="filter-row">
+              <select id="usage-tenant-filter">
+                <option value="">All Tenants</option>
+              </select>
+              <select id="usage-model-filter">
+                <option value="">All Models</option>
+                <option value="gpt-4">GPT-4</option>
+                <option value="gpt-3.5">GPT-3.5</option>
+              </select>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Model</th>
+                  <th>Prompt</th>
+                  <th>Completion</th>
+                  <th>Total</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody id="usage-detail-body">
+                <tr><td colspan="6" class="empty">No usage data.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Messages Panel -->
+      <section id="panel-messages" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              Message Log
+            </h2>
+            <button id="btn-refresh-admin-messages" class="btn btn-secondary">Refresh</button>
+          </div>
+          <div class="filter-row">
+            <select id="messages-tenant-filter">
+              <option value="">All Tenants</option>
+            </select>
+            <select id="messages-direction-filter">
+              <option value="">All Directions</option>
+              <option value="incoming">Incoming</option>
+              <option value="outgoing">Outgoing</option>
+            </select>
+            <input type="date" id="messages-date-from" placeholder="From">
+            <input type="date" id="messages-date-to" placeholder="To">
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Time</th>
+                  <th>Contact</th>
+                  <th>Direction</th>
+                  <th>Message</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="admin-messages-body">
+                <tr><td colspan="6" class="empty">No messages.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <button id="btn-msg-prev" class="btn btn-secondary" disabled>Previous</button>
+            <span class="page-info" id="msg-page-info">Page 1</span>
+            <button id="btn-msg-next" class="btn btn-secondary">Next</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Subscriptions Panel -->
+      <section id="panel-subscriptions" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+              </svg>
+              Subscriptions
+            </h2>
+            <div class="btn-group">
+              <button id="btn-assign-plan" class="btn btn-primary">Assign Plan</button>
+              <button id="btn-refresh-subscriptions" class="btn btn-secondary">Refresh</button>
+            </div>
+          </div>
+          <div class="filter-row">
+            <select id="sub-status-filter">
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="past_due">Past Due</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="trial">Trial</option>
+            </select>
+            <select id="sub-plan-filter">
+              <option value="">All Plans</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Plan</th>
+                  <th>Price</th>
+                  <th>Cycle</th>
+                  <th>Status</th>
+                  <th>Period</th>
+                  <th>Auto-Renew</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="subscriptions-body">
+                <tr><td colspan="8" class="empty">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Payments</h2>
+            <div class="btn-group">
+              <button id="btn-export-payments" class="btn btn-secondary">Export</button>
+              <button id="btn-refresh-payments" class="btn btn-secondary">Refresh</button>
+            </div>
+          </div>
+          <div class="filter-row">
+            <select id="payment-status-filter">
+              <option value="">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="expired">Expired</option>
+              <option value="refunded">Refunded</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Period</th>
+                  <th>Confirmed</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="payments-body">
+                <tr><td colspan="8" class="empty">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <button id="btn-pay-prev" class="btn btn-secondary" disabled>Previous</button>
+            <span class="page-info" id="pay-page-info">Page 1</span>
+            <button id="btn-pay-next" class="btn btn-secondary">Next</button>
+          </div>
+        </div>
+
+        <!-- Subscription Management Modal -->
+        <div id="subscription-modal" class="modal">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 id="subscription-modal-title">Assign Plan to Tenant</h3>
+              <button class="btn-icon" id="btn-close-sub-modal">&times;</button>
+            </div>
+            <div class="form-group">
+              <label>Tenant</label>
+              <select id="sub-tenant-select">
+                <option value="">Select a tenant...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Plan</label>
+              <select id="sub-plan-select">
+                <option value="">Select a plan...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="sub-skip-payment" checked>
+                Skip payment creation (admin-managed)
+              </label>
+            </div>
+            <div class="modal-actions">
+              <button class="btn btn-secondary" id="btn-cancel-sub-modal">Cancel</button>
+              <button class="btn btn-primary" id="btn-save-subscription">Assign Plan</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Yape Payments Panel -->
+      <section id="panel-yape-payments" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+              Unmatched Yape Notifications
+            </h2>
+            <button id="btn-refresh-unmatched" class="btn btn-secondary">Refresh</button>
+          </div>
+          <p style="color:var(--text-muted);margin-bottom:16px;font-size:13px;">
+            Yape notifications that could not be automatically matched to an order. Match them manually or dismiss.
+          </p>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Tenant</th>
+                  <th>Sender Name</th>
+                  <th>Amount</th>
+                  <th>Captured At</th>
+                  <th>Status</th>
+                  <th>Potential Matches</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="unmatched-body">
+                <tr><td colspan="8" class="empty">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <button id="btn-unmatched-prev" class="btn btn-secondary" disabled>Previous</button>
+            <span class="page-info" id="unmatched-page-info">Page 1</span>
+            <button id="btn-unmatched-next" class="btn btn-secondary">Next</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              Expired / Stale Orders
+            </h2>
+            <button id="btn-refresh-expired" class="btn btn-secondary">Refresh</button>
+          </div>
+          <p style="color:var(--text-muted);margin-bottom:16px;font-size:13px;">
+            Orders in payment_requested status for more than 24 hours. Cancel them to restore stock.
+          </p>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Tenant</th>
+                  <th>Customer</th>
+                  <th>Total</th>
+                  <th>Created At</th>
+                  <th>Reminders Sent</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="expired-orders-body">
+                <tr><td colspan="7" class="empty">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Match Payment Modal -->
+      <div id="match-modal" class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Match Payment</h3>
+            <button class="btn-icon" id="btn-close-match-modal">&times;</button>
+          </div>
+          <p style="margin-bottom:16px;color:var(--text-muted);" id="match-modal-info"></p>
+          <div id="match-modal-options" style="display:flex;flex-direction:column;gap:12px;">
+            <!-- Populated by JS -->
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" id="btn-cancel-match">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Plans Panel -->
+      <section id="panel-plans" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              Platform Plans
+            </h2>
+            <div class="btn-group">
+              <button id="btn-add-plan" class="btn btn-primary">+ Add Plan</button>
+              <button id="btn-refresh-plans" class="btn btn-secondary">Refresh</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Slug</th>
+                  <th>Price</th>
+                  <th>Cycle</th>
+                  <th>Status</th>
+                  <th>Sort</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="plans-body">
+                <tr><td colspan="8" class="empty">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Plan Features Configuration</h2>
+          <p style="color:var(--text-muted);margin-top:8px;">Configure which features are available for each plan tier.</p>
+          <div id="plan-features-config" style="margin-top:20px;">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- System Panel -->
+      <section id="panel-system" class="panel">
+        <div class="dashboard-grid">
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              System Settings
+            </h3>
+            <div class="setting-row" style="margin-top:16px;">
+              <label>
+                <div>
+                  <span>Maintenance Mode</span>
+                  <div class="setting-description">Disable access for all non-admin users</div>
+                </div>
+                <input type="checkbox" id="sys-maintenance">
+              </label>
+            </div>
+            <div class="setting-row">
+              <label>
+                <div>
+                  <span>Auto-Retry Failed Jobs</span>
+                  <div class="setting-description">Automatically retry failed queue jobs</div>
+                </div>
+                <input type="checkbox" id="sys-autoretry" checked>
+              </label>
+            </div>
+            <div class="setting-row">
+              <label>
+                <div>
+                  <span>Debug Logging</span>
+                  <div class="setting-description">Enable verbose logging for debugging</div>
+                </div>
+                <input type="checkbox" id="sys-debug">
+              </label>
+            </div>
+          </div>
+
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+              Server Info
+            </h3>
+            <div style="margin-top:16px;">
+              <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+                <span style="color:var(--text-muted);">Version</span>
+                <span id="sys-version">v2.0.0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+                <span style="color:var(--text-muted);">Node.js</span>
+                <span id="sys-node">-</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+                <span style="color:var(--text-muted);">Database</span>
+                <span class="badge badge-connected">Connected</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+                <span style="color:var(--text-muted);">Redis</span>
+                <span class="badge badge-connected">Connected</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:10px 0;">
+                <span style="color:var(--text-muted);">Memory Usage</span>
+                <span id="sys-memory">-</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+              Backup & Export
+            </h3>
+            <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px;">
+              <button class="btn btn-secondary" onclick="exportDatabase();">
+                Export Database
+              </button>
+              <button class="btn btn-secondary" onclick="exportLogs();">
+                Export System Logs
+              </button>
+              <button class="btn btn-secondary" onclick="createBackup();">
+                Create Full Backup
+              </button>
+            </div>
+          </div>
+
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Danger Zone
+            </h3>
+            <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px;">
+              <button class="btn btn-danger" onclick="clearCache();">
+                Clear System Cache
+              </button>
+              <button class="btn btn-danger" onclick="restartServer();">
+                Restart Server
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Plan Modal -->
+    <div id="plan-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="plan-modal-title">Add Plan</h3>
+          <button class="btn-icon" id="btn-close-plan-modal">&times;</button>
+        </div>
+        <div class="form-group">
+          <label>Plan Name</label>
+          <input type="text" id="plan-name" placeholder="e.g., Professional">
+        </div>
+        <div class="form-group">
+          <label>Slug (unique identifier)</label>
+          <input type="text" id="plan-slug" placeholder="e.g., pro">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Price</label>
+            <input type="number" id="plan-price" placeholder="49.90" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Billing Cycle</label>
+            <select id="plan-billing-cycle">
+              <option value="free">Free</option>
+              <option value="monthly" selected>Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="yearly">Yearly</option>
+              <option value="weekly">Weekly</option>
+              <option value="one_time">One Time</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="plan-description" rows="2" placeholder="Brief description of the plan..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Sort Order</label>
+            <input type="number" id="plan-sort-order" value="0">
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="plan-active">
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Features (comma-separated)</label>
+          <input type="text" id="plan-features" placeholder="unlimited_messages, ai_support, analytics">
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="btn-cancel-plan">Cancel</button>
+          <button class="btn btn-primary" id="btn-save-plan">Save Plan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tenant Modal -->
+    <div id="tenant-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="tenant-modal-title">Add Tenant</h3>
+          <button class="btn-icon" id="btn-close-tenant-modal">&times;</button>
+        </div>
+        <div class="form-group">
+          <label>Business Name</label>
+          <input type="text" id="tenant-name" placeholder="e.g., Acme Corp">
+        </div>
+        <div class="form-group">
+          <label>Slug (unique)</label>
+          <input type="text" id="tenant-slug" placeholder="e.g., acme">
+        </div>
+        <div class="form-group">
+          <label>Phone Number</label>
+          <input type="tel" id="tenant-phone" placeholder="+1234567890">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Admin Email</label>
+            <input type="email" id="tenant-admin-email" placeholder="admin@example.com">
+          </div>
+          <div class="form-group">
+            <label>Admin Password</label>
+            <input type="password" id="tenant-admin-password" placeholder="Min 8 characters">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Plan</label>
+          <select id="tenant-plan">
+            <option value="">Select a plan...</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="btn-cancel-tenant">Cancel</button>
+          <button class="btn btn-primary" id="btn-save-tenant">Create Tenant</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js?v=4"></script>
+</body>
+</html>

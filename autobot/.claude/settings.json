@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const bullmq = require\\(''bullmq''\\); console.log\\(''DelayedError:'', typeof bullmq.DelayedError\\); console.log\\(''exports:'', Object.keys\\(bullmq\\).filter\\(k => k.includes\\(''Error''\\) || k.includes\\(''Delay''\\)\\).join\\('', ''\\)\\)\")",
+      "Bash(npx tsx -e \"import { DelayedError } from ''bullmq''; console.log\\(''DelayedError available:'', typeof DelayedError\\);\")",
+      "Bash(node ./node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(node ./node_modules/vitest/vitest.mjs run)",
+      "Bash(npx --yes tsc --noEmit)",
+      "Bash(node -e \"require\\(''typescript''\\)\")",
+      "Bash(node node_modules/vitest/vitest.mjs run)",
+      "Bash(curl -s http://localhost:3000/api/tenants)",
+      "WebFetch(domain:www.better-auth.com)",
+      "Bash(npm install better-auth)",
+      "Bash(chmod +x /home/hola/autobot/start.sh /home/hola/autobot/stop.sh)",
+      "Bash(docker compose exec postgres psql -U autobot -d autobot -c 'SELECT id, email, name, role, \"\"tenantId\"\" FROM \"\"user\"\" ORDER BY \"\"createdAt\"\";')",
+      "Bash(docker compose exec postgres psql -U autobot -d autobot -c \"SELECT id, \"\"userId\"\", \"\"providerId\"\" FROM account ORDER BY \"\"createdAt\"\";\")",
+      "Bash(docker compose exec postgres psql -U autobot -d autobot -c \"SELECT id, token, \"\"expiresAt\"\" FROM session ORDER BY \"\"createdAt\"\" DESC LIMIT 5;\")",
+      "Bash(curl -s -c /tmp/autobot-cookies -X POST http://localhost:3000/api/auth/sign-in/email -H 'Content-Type: application/json' -d '{\"\"email\"\":\"\"admin@example.com\"\",\"\"password\"\":\"\"changeme\"\"}')",
+      "Bash(curl -s -b /tmp/autobot-cookies http://localhost:3000/api/admin/metrics)",
+      "Bash(curl -s -b /tmp/autobot-cookies -X POST http://localhost:3000/api/tenants/7edb77ce-1a76-43be-93b0-b0cb0494de5a/stop)",
+      "Bash(curl -s -D - -X POST http://localhost:3000/api/auth/sign-in/email -H 'Content-Type: application/json' -d '{\"\"email\"\":\"\"admin@example.com\"\",\"\"password\"\":\"\"changeme\"\"}')",
+      "Bash(curl -s -b /tmp/autobot-cookies http://localhost:3000/api/auth/get-session)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s -D - -b /tmp/autobot-cookies -X POST http://localhost:3000/api/tenants/cbe4b74c-75e8-4cdc-b4b5-df9e8a35949e/stop -H 'Origin: http://localhost:3000')",
+      "Bash(docker compose exec app cat /app/src/web/public/customer/app.js)",
+      "Bash(docker compose exec app grep -n 'signOut\\\\|startPolling\\\\|stopPolling\\\\|setInterval' /app/src/web/public/customer/app.js)",
+      "Bash(docker compose exec app grep -n 'status\\\\|qr\\\\|auth' /app/dist/web/server.js)",
+      "Bash(docker compose up -d --build)",
+      "Bash(curl -s -c /tmp/admin-cookies.txt -b /tmp/admin-cookies.txt -X POST http://localhost:3000/api/auth/sign-in/email -H 'Content-Type: application/json' -d '{\"\"email\"\":\"\"admin@example.com\"\",\"\"password\"\":\"\"changeme\"\"}')",
+      "Bash(curl -s -b /tmp/admin-cookies.txt http://localhost:3000/api/admin/metrics)",
+      "Bash(curl -s -b /tmp/admin-cookies.txt -X POST http://localhost:3000/api/tenants/cbe4b74c-75e8-4cdc-b4b5-df9e8a35949e/stop)",
+      "Bash(curl -s -b /tmp/admin-cookies.txt -X POST http://localhost:3000/api/tenants/cbe4b74c-75e8-4cdc-b4b5-df9e8a35949e/start)",
+      "Read(//home/yaya/AndroidStudioProjects/**)",
+      "Read(//home/**)",
+      "Bash(npm run build)"
+    ],
+    "additionalDirectories": [
+      "/home/hola/autobot/src/bot"
+    ]
+  }
+}

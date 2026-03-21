@@ -1,0 +1,134 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-yaya_prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}
+      POSTGRES_DB: ${POSTGRES_DB:-yaya}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yaya_prod}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - autobot-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - autobot-net
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-yaya_s3_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-yaya_s3cur3_m1n10_2024!}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - autobot-net
+
+  app:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yaya_prod}:${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}@postgres:5432/${POSTGRES_DB:-yaya}
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-generate-with-openssl-rand-base64-32}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # Admin user credentials for demo (change these in production!)
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_TEXT_API_KEY: ${AI_TEXT_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-deepseek-chat}
+      AI_MAX_TOKENS: ${AI_MAX_TOKENS:-1024}
+      S3_ENDPOINT: minio
+      S3_PORT: "9000"
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-yaya_s3_admin}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-yaya_s3cur3_m1n10_2024!}
+      S3_USE_SSL: "false"
+      # LangFuse observability (optional — set keys to enable)
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3001}
+    volumes:
+      - uploadsdata:/app/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - autobot-net
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/api/v1/health').then(r=>{if(!r.ok)throw 1}).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-yaya_prod}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}
+      PGDATABASE: ${POSTGRES_DB:-yaya}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c '
+        apk add --no-cache dcron &&
+        echo "0 3 * * * pg_dump -Fc > /backups/yaya_$$(date +\%Y\%m\%d_\%H\%M\%S).dump && find /backups -name yaya_*.dump -mtime +7 -delete 2>&1" | crontab - &&
+        echo "[backup] Cron scheduled: daily at 3am UTC" &&
+        crond -f -l 2
+      '
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - autobot-net
+
+networks:
+  autobot-net:
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  uploadsdata:

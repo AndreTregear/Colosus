@@ -1,0 +1,37 @@
+# Production overrides — adds Caddy reverse proxy with TLS.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Before running, place your certs in ./certs/ (never commit them):
+#   certs/cert.pem
+#   certs/key.pem
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - autobot-net
+
+  app:
+    environment:
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://yaya.sh}
+
+networks:
+  autobot-net:
+
+volumes:
+  caddy_data:
+  caddy_config:

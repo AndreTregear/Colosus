@@ -1,0 +1,35 @@
+<resources>
+    <string name="app_name">Yaya</string>
+
+    <!-- Validation -->
+    <string name="error_phone_required">Ingresa tu numero de telefono</string>
+    <string name="error_password_min_length">La contrasena debe tener al menos 6 caracteres</string>
+    <string name="error_passwords_mismatch">Las contrasenas no coinciden</string>
+    <string name="error_business_name_required">Ingresa el nombre de tu negocio</string>
+    <string name="error_business_type_required">Selecciona un tipo de negocio</string>
+    <string name="error_product_name_required">Ingresa el nombre del producto</string>
+    <string name="error_price_invalid">Ingresa un precio valido</string>
+    <string name="error_password_required">Ingresa tu contrasena</string>
+
+    <!-- Auth -->
+    <string name="error_login">Error al iniciar sesion</string>
+    <string name="error_register">Error al crear la cuenta</string>
+
+    <!-- Products -->
+    <string name="error_create_product">Error al crear el producto</string>
+    <string name="error_image_unsupported_format">Formato no soportado. Usa JPEG, PNG o WebP</string>
+    <string name="error_image_unreadable">No se pudo leer la imagen</string>
+
+    <!-- WhatsApp -->
+    <string name="error_whatsapp_connect">Error al conectar WhatsApp</string>
+    <string name="error_qr_load">No se pudo cargar el codigo QR</string>
+
+    <!-- General -->
+    <string name="error_processing">Error al procesar</string>
+    <string name="error_subscribe">Error al suscribirse</string>
+    <string name="error_audio_record">Error al grabar audio</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_select_time">Seleccionar hora</string>
+    <string name="dialog_select_timezone">Seleccionar zona horaria</string>
+</resources>

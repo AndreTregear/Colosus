@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autobot | Business Dashboard</title>
+  <link rel="stylesheet" href="/shared/style.css?v=3">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card animate-scaleIn">
+      <h1>Welcome to Autobot</h1>
+      <p>AI-powered WhatsApp sales for your business</p>
+      
+      <!-- Sign In Form -->
+      <div id="signin-form">
+        <input type="email" id="email-input" placeholder="Email address" autocomplete="email">
+        <input type="password" id="password-input" placeholder="Password" autocomplete="current-password" style="margin-top:12px;">
+        <button id="btn-login" class="btn btn-primary btn-lg" style="width:100%;margin-top:16px;">
+          <span>Sign In</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:8px;">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/>
+          </svg>
+        </button>
+        <p id="login-error" class="login-error" style="display:none;"></p>
+        <p style="text-align:center;margin-top:20px;color:var(--text-muted);">
+          Don't have an account? 
+          <a href="#" id="show-register" style="color:var(--info);font-weight:500;">Create one</a>
+        </p>
+      </div>
+
+      <!-- Register Form -->
+      <div id="register-form" style="display:none;">
+        <input type="text" id="reg-business" placeholder="Business Name" autocomplete="organization" style="margin-top:6px;">
+        <input type="text" id="reg-name" placeholder="Your Name" autocomplete="name" style="margin-top:12px;">
+        <input type="email" id="reg-email" placeholder="Email" autocomplete="email" style="margin-top:12px;">
+        <input type="password" id="reg-password" placeholder="Password (min 8 chars)" autocomplete="new-password" style="margin-top:12px;">
+        <button id="btn-register" class="btn btn-primary btn-lg" style="width:100%;margin-top:16px;">
+          Create Account
+        </button>
+        <p id="register-error" class="login-error" style="display:none;"></p>
+        <p id="register-success" class="login-success" style="display:none;"></p>
+        <p style="text-align:center;margin-top:20px;color:var(--text-muted);">
+          Already have an account? 
+          <a href="#" id="show-signin" style="color:var(--info);font-weight:500;">Sign In</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div class="app" id="app-main" style="display:none;">
+    <!-- Header -->
+    <header>
+      <div class="header-left">
+        <button class="hamburger" id="hamburger" aria-label="Toggle navigation">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+        <h1>Autobot</h1>
+        <span class="subtitle" id="business-name">Business Dashboard</span>
+      </div>
+      <div class="header-right">
+        <!-- Connection Status -->
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span id="connection-badge" class="badge badge-disconnected">Disconnected</span>
+          <span id="phone-number" class="phone"></span>
+        </div>
+        
+        <!-- Theme Toggle -->
+        <button class="theme-toggle tooltip" id="theme-toggle" data-tooltip="Toggle Theme" title="Toggle Theme">
+          <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+        
+        <!-- Profile Dropdown -->
+        <div class="profile-dropdown" id="profile-dropdown">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav>
+      <button class="nav-btn active" data-panel="home">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        Home
+      </button>
+      <button class="nav-btn" data-panel="connect">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        Connect
+      </button>
+      <button class="nav-btn" data-panel="products">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+        Products
+      </button>
+      <button class="nav-btn" data-panel="orders">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg>
+        Orders
+      </button>
+      <button class="nav-btn" data-panel="customers">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        Customers
+      </button>
+      <button class="nav-btn" data-panel="leads" id="nav-leads" style="display:none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+        </svg>
+        Leads
+      </button>
+      <button class="nav-btn" data-panel="messages">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        Messages
+      </button>
+      <button class="nav-btn" data-panel="analytics">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <path d="M12 20V10M18 20V4M6 20v-4"/>
+        </svg>
+        Analytics
+      </button>
+      <button class="nav-btn" data-panel="subscription">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+        </svg>
+        Subscription
+      </button>
+      <button class="nav-btn" data-panel="settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        Settings
+      </button>
+    </nav>
+    <div class="nav-backdrop" id="nav-backdrop"></div>
+
+    <main>
+      <!-- HOME DASHBOARD PANEL -->
+      <section id="panel-home" class="panel active">
+        <!-- Welcome Banner -->
+        <div class="card" style="background:linear-gradient(135deg,var(--primary),var(--info));border:none;color:#fff;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <h2 style="color:#fff;margin-bottom:8px;">Welcome back, <span id="welcome-name">Business Owner</span>!</h2>
+              <p style="color:rgba(255,255,255,0.9);">Here's what's happening with your business today.</p>
+            </div>
+            <div style="font-size:48px;opacity:0.3;">👋</div>
+          </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="quick-stats">
+          <div class="quick-stat">
+            <div class="quick-stat-icon success">💰</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="home-sales-today">S/0.00</div>
+              <div class="quick-stat-label">Sales Today</div>
+            </div>
+            <div class="quick-stat-change positive" id="home-sales-change">+0%</div>
+          </div>
+          <div class="quick-stat">
+            <div class="quick-stat-icon primary">📦</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="home-orders-today">0</div>
+              <div class="quick-stat-label">Orders Today</div>
+            </div>
+            <div class="quick-stat-change positive" id="home-orders-change">+0%</div>
+          </div>
+          <div class="quick-stat">
+            <div class="quick-stat-icon info">👥</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="home-customers">0</div>
+              <div class="quick-stat-label">Total Customers</div>
+            </div>
+            <div class="quick-stat-change positive" id="home-customers-change">+0</div>
+          </div>
+          <div class="quick-stat">
+            <div class="quick-stat-icon warning">💬</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="home-messages">0</div>
+              <div class="quick-stat-label">Messages Today</div>
+            </div>
+            <div class="quick-stat-change positive" id="home-messages-change">+0%</div>
+          </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+          <!-- Sales Chart -->
+          <div class="dashboard-widget" style="grid-column:span 2;">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20V10M18 20V4M6 20v-4"/>
+              </svg>
+              Sales Overview
+            </h3>
+            <div class="chart-placeholder" style="height:250px;margin-top:16px;">
+              <div class="chart-bar" style="height:60%" title="Mon"></div>
+              <div class="chart-bar" style="height:80%" title="Tue"></div>
+              <div class="chart-bar" style="height:45%" title="Wed"></div>
+              <div class="chart-bar" style="height:90%" title="Thu"></div>
+              <div class="chart-bar" style="height:70%" title="Fri"></div>
+              <div class="chart-bar" style="height:100%" title="Sat"></div>
+              <div class="chart-bar" style="height:85%" title="Sun"></div>
+            </div>
+            <div style="display:flex;justify-content:space-around;margin-top:12px;font-size:12px;color:var(--text-muted);">
+              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+          </div>
+
+          <!-- Recent Orders -->
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+              </svg>
+              Recent Orders
+            </h3>
+            <div id="home-recent-orders" style="margin-top:16px;">
+              <p style="color:var(--text-muted);text-align:center;padding:20px;">Loading orders...</p>
+            </div>
+          </div>
+
+          <!-- Top Products -->
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              Top Products
+            </h3>
+            <div id="home-top-products" style="margin-top:16px;">
+              <p style="color:var(--text-muted);text-align:center;padding:20px;">Loading products...</p>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              Quick Actions
+            </h3>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px;">
+              <button class="btn btn-primary" onclick="switchPanel('products'); showAddProductModal();">
+                + Add Product
+              </button>
+              <button class="btn btn-secondary" onclick="switchPanel('orders');">
+                View Orders
+              </button>
+              <button class="btn btn-secondary" onclick="switchPanel('customers');">
+                View Customers
+              </button>
+              <button class="btn btn-info" onclick="shareBusinessLink();">
+                Share Link
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Status Card -->
+        <div class="card" id="home-connection-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="display:flex;align-items:center;gap:16px;">
+              <div id="home-qr-preview" style="width:80px;height:80px;background:var(--bg);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;border:2px solid var(--border);">
+                <span style="font-size:32px;">📱</span>
+              </div>
+              <div>
+                <h3 style="margin-bottom:4px;">WhatsApp Connection</h3>
+                <p style="color:var(--text-muted);font-size:14px;" id="home-connection-status">Not connected</p>
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="switchPanel('connect');">
+              Connect
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Connect Panel -->
+      <section id="panel-connect" class="panel">
+        <div class="card">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            WhatsApp Connection
+          </h2>
+          <div id="qr-container" style="margin-top:20px;">
+            <div id="qr-loading" class="qr-placeholder">
+              <div style="text-align:center;">
+                <div style="font-size:48px;margin-bottom:12px;">⏳</div>
+                <p>Starting bot...</p>
+              </div>
+            </div>
+            <img id="qr-image" class="qr-image" alt="QR Code" style="display:none;">
+            <div id="qr-connected" class="qr-connected" style="display:none;">
+              <div class="check-icon">✓</div>
+              <p style="font-weight:600;">Connected to WhatsApp</p>
+              <p id="connected-phone" style="margin-top:8px;color:var(--text-muted);"></p>
+            </div>
+          </div>
+          <div class="controls-row">
+            <button id="btn-start" class="btn btn-success">Start Bot</button>
+            <button id="btn-stop" class="btn btn-danger">Stop Bot</button>
+            <button id="btn-reset" class="btn btn-secondary">Reset Connection</button>
+          </div>
+        </div>
+        
+        <div class="card">
+          <h2>Connection Stats</h2>
+          <div class="stats-grid" style="margin-top:20px;">
+            <div class="stat">
+              <span class="stat-value" id="stat-uptime">0s</span>
+              <span class="stat-label">Uptime</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-messages">0</span>
+              <span class="stat-label">Messages</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-products">0</span>
+              <span class="stat-label">Products</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-orders">0</span>
+              <span class="stat-label">Orders</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="stat-pending">0</span>
+              <span class="stat-label">Pending Pay</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Products Panel -->
+      <section id="panel-products" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+              </svg>
+              Product Catalog
+            </h2>
+            <div class="btn-group">
+              <button id="btn-add-product" class="btn btn-primary">+ Add Product</button>
+              <button id="btn-import-products" class="btn btn-secondary">Import</button>
+            </div>
+          </div>
+          <div class="filter-row">
+            <div class="search-input">
+              <input type="text" id="product-search" placeholder="Search products...">
+            </div>
+            <select id="product-category-filter">
+              <option value="">All Categories</option>
+            </select>
+            <select id="product-status-filter">
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Price</th>
+                  <th>Category</th>
+                  <th>Stock</th>
+                  <th>Status</th>
+                  <th>Sales</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="products-body">
+                <tr><td colspan="7" class="empty">No products yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Orders Panel -->
+      <section id="panel-orders" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+              </svg>
+              Orders
+            </h2>
+            <div class="filter-row" style="margin:0;">
+              <select id="order-status-filter">
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="payment_requested">Payment Requested</option>
+                <option value="paid">Paid</option>
+                <option value="preparing">Preparing</option>
+                <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <input type="date" id="order-date-from" placeholder="From">
+              <input type="date" id="order-date-to" placeholder="To">
+              <button id="btn-export-orders" class="btn btn-secondary">Export</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order #</th>
+                  <th>Customer</th>
+                  <th>Items</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="orders-body">
+                <tr><td colspan="7" class="empty">No orders yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Pending Payments</h2>
+          <div style="overflow-x:auto;margin-top:16px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Payment #</th>
+                  <th>Order #</th>
+                  <th>Customer</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Time</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="payments-body">
+                <tr><td colspan="7" class="empty">No pending payments.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Customers Panel -->
+      <section id="panel-customers" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              Customers
+            </h2>
+            <div class="btn-group">
+              <button id="btn-export-customers" class="btn btn-secondary">Export</button>
+              <button id="btn-refresh-customers" class="btn btn-secondary">Refresh</button>
+            </div>
+          </div>
+          <div class="filter-row">
+            <div class="search-input">
+              <input type="text" id="customer-search" placeholder="Search customers...">
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Phone</th>
+                  <th>Orders</th>
+                  <th>Total Spent</th>
+                  <th>Location</th>
+                  <th>Joined</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="customers-body">
+                <tr><td colspan="7" class="empty">No customers yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Leads Panel -->
+      <section id="panel-leads" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+              </svg>
+              Leads
+            </h2>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <span id="leads-count" style="font-size:13px;color:var(--text-muted);"></span>
+              <select id="lead-status-filter" class="form-control" style="width:auto;font-size:13px;">
+                <option value="">All Statuses</option>
+                <option value="new">New</option>
+                <option value="contacted">Contacted</option>
+                <option value="qualified">Qualified</option>
+                <option value="proposal">Proposal</option>
+                <option value="won">Won</option>
+                <option value="lost">Lost</option>
+              </select>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Company</th>
+                  <th>Contact</th>
+                  <th>Interest</th>
+                  <th>Score</th>
+                  <th>Status</th>
+                  <th>Source</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="leads-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Messages Panel -->
+      <section id="panel-messages" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              Message Log
+            </h2>
+            <div class="filter-row" style="margin:0;">
+              <select id="messages-customer-filter">
+                <option value="">All Customers</option>
+              </select>
+              <button id="btn-refresh-messages" class="btn btn-secondary">Refresh</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Customer</th>
+                  <th>Type</th>
+                  <th>Message</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="messages-body">
+                <tr><td colspan="5" class="empty">No messages yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <button id="btn-prev-page" class="btn btn-secondary" disabled>Previous</button>
+            <span class="page-info" id="page-info">Page 1</span>
+            <button id="btn-next-page" class="btn btn-secondary">Next</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Analytics Panel -->
+      <section id="panel-analytics" class="panel">
+        <div class="quick-stats">
+          <div class="quick-stat">
+            <div class="quick-stat-icon success">📈</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="analytics-total-sales">S/0.00</div>
+              <div class="quick-stat-label">Total Sales (30d)</div>
+            </div>
+          </div>
+          <div class="quick-stat">
+            <div class="quick-stat-icon primary">🛒</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="analytics-total-orders">0</div>
+              <div class="quick-stat-label">Total Orders</div>
+            </div>
+          </div>
+          <div class="quick-stat">
+            <div class="quick-stat-icon info">👥</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="analytics-new-customers">0</div>
+              <div class="quick-stat-label">New Customers</div>
+            </div>
+          </div>
+          <div class="quick-stat">
+            <div class="quick-stat-icon warning">💬</div>
+            <div class="quick-stat-content">
+              <div class="quick-stat-value" id="analytics-conversion">0%</div>
+              <div class="quick-stat-label">Conversion Rate</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="dashboard-widget" style="grid-column:span 2;">
+            <h3>Sales Trend</h3>
+            <div class="chart-placeholder" style="height:300px;margin-top:16px;">
+              <div class="chart-bar" style="height:40%"></div>
+              <div class="chart-bar" style="height:55%"></div>
+              <div class="chart-bar" style="height:45%"></div>
+              <div class="chart-bar" style="height:70%"></div>
+              <div class="chart-bar" style="height:60%"></div>
+              <div class="chart-bar" style="height:80%"></div>
+              <div class="chart-bar" style="height:75%"></div>
+              <div class="chart-bar" style="height:90%"></div>
+              <div class="chart-bar" style="height:85%"></div>
+              <div class="chart-bar" style="height:100%"></div>
+              <div class="chart-bar" style="height:95%"></div>
+              <div class="chart-bar" style="height:88%"></div>
+            </div>
+          </div>
+
+          <div class="dashboard-widget">
+            <h3>Sales by Category</h3>
+            <div id="analytics-categories" style="margin-top:16px;">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <div class="dashboard-widget">
+            <h3>Top Customers</h3>
+            <div id="analytics-top-customers" style="margin-top:16px;">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Subscription Panel -->
+      <section id="panel-subscription" class="panel">
+        <div class="card">
+          <h2>Your Subscription</h2>
+          <div class="stats-grid" style="margin-top:20px;">
+            <div class="stat">
+              <span class="stat-value" id="store-plan-name">-</span>
+              <span class="stat-label">Current Plan</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="store-messages-used">0</span>
+              <span class="stat-label">Messages Used</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="store-messages-limit">100</span>
+              <span class="stat-label">Monthly Limit</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="store-status">-</span>
+              <span class="stat-label">Status</span>
+            </div>
+          </div>
+          <div id="store-usage-bar" style="margin-top:24px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+              <span style="font-size:13px;color:var(--text-muted);">Usage</span>
+              <span style="font-size:13px;font-weight:600;" id="store-usage-text">0%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="store-usage-fill" style="width:0%"></div>
+            </div>
+          </div>
+          <div id="store-limit-warning" style="display:none;margin-top:20px;padding:16px;background:var(--danger-glow);border-radius:var(--radius);text-align:center;">
+            <p style="font-weight:600;margin-bottom:8px;">⚠️ Message Limit Reached</p>
+            <p style="font-size:14px;">You've reached your monthly message limit. Upgrade your plan to continue.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Available Plans</h2>
+          <div id="store-plans" class="plans-grid"></div>
+        </div>
+      </section>
+
+      <!-- Settings Panel -->
+      <section id="panel-settings" class="panel">
+        <div class="dashboard-grid">
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+              Business Mode
+            </h3>
+            <p style="font-size:12px;color:var(--text-muted);margin:12px 0 16px;">Choose how your AI assistant operates. This changes the tools and behavior available to your bot.</p>
+            <div class="mode-selector" id="mode-selector">
+              <label class="mode-option" data-mode="retail">
+                <input type="radio" name="business_mode" value="retail">
+                <div class="mode-card">
+                  <div class="mode-icon">🛍️</div>
+                  <div class="mode-info">
+                    <strong>Retail</strong>
+                    <span>Product catalog, cart, checkout, payments</span>
+                  </div>
+                </div>
+              </label>
+              <label class="mode-option" data-mode="service">
+                <input type="radio" name="business_mode" value="service">
+                <div class="mode-card">
+                  <div class="mode-icon">📅</div>
+                  <div class="mode-info">
+                    <strong>Service</strong>
+                    <span>Appointments, bookings, prepayment</span>
+                  </div>
+                </div>
+              </label>
+              <label class="mode-option" data-mode="delivery">
+                <input type="radio" name="business_mode" value="delivery">
+                <div class="mode-card">
+                  <div class="mode-icon">🚚</div>
+                  <div class="mode-info">
+                    <strong>Delivery</strong>
+                    <span>Orders with rider coordination</span>
+                  </div>
+                </div>
+              </label>
+              <label class="mode-option" data-mode="lead_capture">
+                <input type="radio" name="business_mode" value="lead_capture">
+                <div class="mode-card">
+                  <div class="mode-icon">🎯</div>
+                  <div class="mode-info">
+                    <strong>Lead Capture</strong>
+                    <span>Qualify leads, capture contacts, list services</span>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 12L2.5 7.5"/>
+              </svg>
+              Bot Settings
+            </h3>
+            <div class="setting-row" style="margin-top:16px;">
+              <label>
+                <div>
+                  <span>Auto-Reply Enabled</span>
+                  <div class="setting-description">Automatically respond to customer messages</div>
+                </div>
+                <input type="checkbox" id="toggle-autoreply" checked>
+              </label>
+            </div>
+            <div class="setting-row">
+              <label>
+                <div>
+                  <span>AI Assistant Enabled</span>
+                  <div class="setting-description">Use AI to handle customer conversations</div>
+                </div>
+                <input type="checkbox" id="toggle-ai" checked>
+              </label>
+            </div>
+            <div class="setting-row">
+              <label>
+                <div>
+                  <span>Order Confirmations</span>
+                  <div class="setting-description">Send confirmation messages for new orders</div>
+                </div>
+                <input type="checkbox" id="toggle-confirmations" checked>
+              </label>
+            </div>
+          </div>
+
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              AI Configuration
+            </h3>
+            <div class="form-group" style="margin-top:16px;">
+              <label>System Prompt</label>
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Customize how your AI assistant responds to customers</p>
+              <textarea id="system-prompt" rows="6" placeholder="Enter custom instructions for your AI..."></textarea>
+            </div>
+            <button id="btn-save-prompt" class="btn btn-primary" style="margin-top:12px;">Save Changes</button>
+          </div>
+
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              Business Information
+            </h3>
+            <div class="form-group" style="margin-top:16px;">
+              <label>Business Name</label>
+              <input type="text" id="setting-business-name" placeholder="Your business name">
+            </div>
+            <div class="form-group">
+              <label>Business Phone</label>
+              <input type="tel" id="setting-business-phone" placeholder="+1234567890">
+            </div>
+            <div class="form-group">
+              <label>Currency</label>
+              <select id="setting-currency">
+                <option value="PEN">Soles (S/)</option>
+                <option value="USD">US Dollar ($)</option>
+                <option value="EUR">Euro (€)</option>
+              </select>
+            </div>
+            <button id="btn-save-business" class="btn btn-primary" style="margin-top:12px;">Save Changes</button>
+          </div>
+
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              API Key
+            </h3>
+            <p style="font-size:12px;color:var(--text-muted);margin:12px 0 16px;">Use this key to integrate with external services.</p>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="api-key-display" readonly style="flex:1;font-family:monospace;font-size:13px;" value="••••••••••••••••">
+              <button class="btn btn-sm btn-secondary tooltip" id="btn-toggle-key" data-tooltip="Show/Hide">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              <button class="btn btn-sm btn-secondary tooltip" id="btn-copy-key" data-tooltip="Copy">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </div>
+            <button class="btn btn-sm btn-danger" id="btn-rotate-key" style="margin-top:12px;width:100%;">Rotate API Key</button>
+          </div>
+
+          <div class="dashboard-widget">
+            <h3>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Danger Zone
+            </h3>
+            <div style="margin-top:16px;">
+              <button class="btn btn-danger" onclick="clearAllData();" style="width:100%;margin-bottom:12px;">
+                Clear All Data
+              </button>
+              <button class="btn btn-secondary" onclick="exportAllData();" style="width:100%;">
+                Export All Data
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Product Modal -->
+    <div id="product-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="product-modal-title">Add Product</h3>
+          <button id="product-modal-close" class="btn-icon">&times;</button>
+        </div>
+        <form id="product-form">
+          <input type="hidden" id="product-id">
+          <div class="form-group">
+            <label for="product-name">Product Name *</label>
+            <input type="text" id="product-name" required placeholder="e.g., Premium Coffee">
+          </div>
+          <div class="form-group">
+            <label for="product-description">Description</label>
+            <textarea id="product-description" rows="2" placeholder="Brief description..."></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="product-price">Price *</label>
+              <input type="number" id="product-price" required step="0.01" min="0" placeholder="0.00">
+            </div>
+            <div class="form-group">
+              <label for="product-category">Category</label>
+              <input type="text" id="product-category" placeholder="e.g., Beverages">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="product-type">Type</label>
+              <select id="product-type">
+                <option value="physical">Physical Product</option>
+                <option value="digital">Digital Product</option>
+                <option value="service">Service</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="product-stock">Stock (blank = unlimited)</label>
+              <input type="number" id="product-stock" min="0" placeholder="∞">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Product Image</label>
+            <div id="image-preview" style="display:none;margin-bottom:12px;">
+              <img id="image-preview-img" style="max-width:200px;max-height:150px;border-radius:var(--radius);border:1px solid var(--border);">
+              <button type="button" id="btn-remove-image" class="btn btn-danger btn-sm" style="margin-left:12px;">Remove</button>
+            </div>
+            <input type="file" id="product-image-file" accept="image/jpeg,image/png,image/webp" style="padding:8px 0;">
+            <input type="hidden" id="product-image-path">
+          </div>
+          <div class="modal-actions">
+            <button type="button" id="product-modal-cancel" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Product</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js?v=4"></script>
+</body>
+</html>

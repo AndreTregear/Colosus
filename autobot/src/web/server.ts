@@ -1,0 +1,207 @@
+import express from 'express';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { toNodeHandler } from 'better-auth/node';
+import { auth } from '../auth/auth.js';
+import { requireSession, requireAdmin } from './middleware/session-auth.js';
+import { logger } from '../shared/logger.js';
+import { BETTER_AUTH_URL, UPLOADS_DIR } from '../config.js';
+
+// ── Route imports ──
+import { rulesRouter } from './routes/api-rules.js';
+import { messagesRouter } from './routes/api-messages.js';
+import { statusRouter } from './routes/api-status.js';
+import { qrRouter } from './routes/api-qr.js';
+import { registerRouter } from './routes/api-register.js';
+import { accountRouter } from './routes/api-account.js';
+import { tenantsRouter } from './routes/api-tenants.js';
+import { webRouter } from './routes/api-web.js';
+import { adminRouter } from './routes/api-admin.js';
+import { queueRouter } from './routes/api-queue.js';
+import { subscriptionsRouter } from './routes/api-subscriptions.js';
+import { customerSubscriptionsRouter, mobileCreatorRouter } from './routes/api-customer-subscriptions.js';
+import { creatorPlansRouter } from './routes/api-creator-plans.js';
+import { platformPlansRouter, adminPlansRouter } from './routes/api-platform-plans.js';
+import { merchantAIRouter } from './routes/api-merchant-ai.js';
+import { yapeRouter } from './routes/api-yape.js';
+import { calendarRouter } from './routes/api-calendar.js';
+import { mobileAuthRouter } from './routes/api-mobile-auth.js';
+import { mobileRouter } from './routes/api-mobile.js';
+import { mobileEventsRouter } from './routes/api-mobile-events.js';
+import { mediaRouter } from './routes/media-routes.js';
+import { streamRouter } from '../media/streaming.js';
+import { encryptionRouter } from './routes/encryption-routes.js';
+import { warehouseRouter } from './routes/warehouse-routes.js';
+import { aiUsageAdminRouter } from './routes/api-ai-usage.js';
+import { businessIntelligenceRouter } from './routes/api-business-intelligence.js';
+import { leadsRouter } from './routes/api-leads.js';
+import { websiteLeadsRouter } from './routes/api-website-leads.js';
+import { simulateRouter } from './routes/api-simulate.js';
+import { redeployRouter } from './routes/api-redeploy.js';
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err);
+  // Give time for logs to flush, then exit
+  setTimeout(() => process.exit(1), 1000);
+});
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export function createWebServer(port: number = 3000): void {
+  const app = express();
+  app.set('trust proxy', 1); // trust first proxy (Caddy / Cloudflare)
+
+  // ── Security headers ──
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '0');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    if (process.env.NODE_ENV === 'production' && !(_req.hostname === 'localhost' || _req.hostname === '127.0.0.1')) {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
+
+  // ── CORS — restrict to known origins ──
+  const allowedOrigins = BETTER_AUTH_URL
+    ? [BETTER_AUTH_URL]
+    : ['http://localhost:3000', 'http://localhost:' + port];
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, server-to-server)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+  }));
+
+  app.use(express.json({ limit: '1mb' }));
+
+  // ── Rate limiting ──
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later' },
+    skip: (req) => req.path === '/v1/health' || req.path.startsWith('/internal/'),
+  });
+  app.use('/api/', globalLimiter);
+
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { error: 'Too many auth attempts, please try again later' },
+  });
+  app.use('/api/auth/', authLimiter);
+  app.use('/api/register', authLimiter);
+  app.use('/api/v1/mobile/auth', authLimiter);
+
+  const leadsLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 5,
+    message: { error: 'Too many submissions, please try again later' },
+  });
+  app.use('/api/website/leads', leadsLimiter);
+
+  // Static frontend files
+  app.use(express.static(path.resolve(__dirname, 'public')));
+
+  // Serve uploaded media files (product images, etc.)
+  app.use('/media', express.static(path.resolve(UPLOADS_DIR)));
+
+  // ── Better Auth handler (sign-in, sign-up, sign-out, session) ──
+  app.all('/api/auth/{*splat}', toNodeHandler(auth));
+
+  // ── Health check (no auth) ──
+  app.get('/api/v1/health', (_req, res) => {
+    res.json({ ok: true });
+  });
+
+  // ── Internal dev routes (no auth — admin use only, port 3000 should not be public-facing) ──
+  app.use('/api/internal', queueRouter);
+
+  // ── Public routes (no auth required) ──
+  app.use('/api/register', registerRouter);
+  app.use('/api/plans', platformPlansRouter);
+  app.use('/api/v1/yape', yapeRouter);
+  app.use('/api/v1/mobile/auth', mobileAuthRouter);
+  app.use('/api/website/leads', websiteLeadsRouter);
+
+  // ── Darwin Sales Lab (unauthenticated — for buyer agent simulation) ──
+  app.use('/api/v1/simulate', simulateRouter);
+  app.use('/api/v1/darwin', redeployRouter); // secret-based auth, separate from session-based admin
+
+  // ── Admin routes (session + admin role) ──
+  app.use('/api/rules', requireSession, requireAdmin, rulesRouter);
+  app.use('/api/messages', requireSession, requireAdmin, messagesRouter);
+  app.use('/api/status', requireSession, requireAdmin, statusRouter);
+  app.use('/api/qr', requireSession, requireAdmin, qrRouter);
+  app.use('/api/admin', requireSession, requireAdmin, adminRouter);
+  app.use('/api/admin/plans', requireSession, requireAdmin, adminPlansRouter);
+  app.use('/api/admin/ai-usage', requireSession, requireAdmin, aiUsageAdminRouter);
+  app.use('/api/tenants', requireSession, requireAdmin, tenantsRouter);
+  app.use('/api/queue', requireSession, requireAdmin, queueRouter);
+
+  // ── Tenant routes (auth middleware applied inside routers) ──
+  app.use('/api/account', requireSession, accountRouter);
+  app.use('/api/business', requireSession, businessIntelligenceRouter);
+  app.use('/api/web', webRouter);
+  app.use('/api/subscription', subscriptionsRouter);
+  app.use('/api/creator/subscriptions', customerSubscriptionsRouter);
+  app.use('/api/creator/plans', creatorPlansRouter);
+  app.use('/api/calendar', calendarRouter);
+  app.use('/api/merchant-ai', merchantAIRouter);
+  app.use('/api/leads', requireSession, leadsRouter);
+
+  // ── Media Server routes ──
+  app.use('/api/v1/media', mediaRouter);
+  app.use('/api/v1/stream', streamRouter);
+
+  // ── Encryption routes ──
+  app.use('/api/v1/encryption', encryptionRouter);
+
+  // ── Data Warehouse routes ──
+  app.use('/api/v1/warehouse', warehouseRouter);
+
+  // ── Mobile / Device routes (auth middleware inside routers) ──
+  app.use('/api/v1/mobile', mobileRouter);
+  app.use('/api/v1/mobile/events', mobileEventsRouter);
+  app.use('/api/v1/creator', mobileCreatorRouter);
+
+  // SPA fallback — serve appropriate index.html based on route
+  app.get('/admin/{*splat}', (_req, res) => {
+    res.sendFile(path.resolve(__dirname, 'public/admin/index.html'));
+  });
+
+  app.get('/customer/{*splat}', (_req, res) => {
+    res.sendFile(path.resolve(__dirname, 'public/customer/index.html'));
+  });
+
+  // Root fallback (exclude /media paths so missing files return 404)
+  app.get('/{*splat}', (req, res, next) => {
+    if (req.path.startsWith('/media/')) return next();
+    res.sendFile(path.resolve(__dirname, 'public/index.html'));
+  });
+
+  // Global error handler — must be LAST (after all routes including SPA fallbacks)
+  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    logger.error({ err: err.message }, 'Unhandled route error');
+    res.status(500).json({ error: 'Internal server error' });
+  });
+
+  app.listen(port, () => {
+    logger.info(`Dashboard running at http://localhost:${port}`);
+  });
+}
