@@ -1,0 +1,38 @@
+# Kokoro TTS - GPU-accelerated, parallel-ready
+# Run standalone: docker compose up -d
+# Scale: docker compose up -d --scale tts=3
+
+version: "3.8"
+
+services:
+  tts:
+    build: .
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]  # Share GPU 0 with Whisper
+              capabilities: [gpu]
+    ports:
+      - "9200:9200"
+    environment:
+      TTS_PORT: "9200"
+      TTS_DEVICE: cuda
+      TTS_API_KEY: ${TTS_API_KEY:-megustalaia}
+      TTS_DEFAULT_VOICE: af_heart
+      TTS_DEFAULT_LANG: a
+      TTS_OUTPUT_DIR: /data/voice-output
+    volumes:
+      - tts-cache:/root/.cache
+      - voice-output:/data/voice-output
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9200/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  tts-cache:
+  voice-output:

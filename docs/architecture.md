@@ -70,7 +70,7 @@ Yaya Platform is a conversational CEO assistant that helps Latin American small 
 │                      AI Layer (GPU)                       │
 │                                                           │
 │  ┌────────────────────────┐  ┌─────────────────────────┐ │
-│  │  vLLM                  │  │  Whisper                 │ │
+│  │  vLLM                  │  │  Whisper (STT)           │ │
 │  │                        │  │                          │ │
 │  │  Model: Qwen3.5-27B   │  │  Model: large-v3-turbo   │ │
 │  │  Quant: AWQ Marlin     │  │  Compute: int8           │ │
@@ -82,12 +82,24 @@ Yaya Platform is a conversational CEO assistant that helps Latin American small 
 │  │  Port: 8000            │  │  GET  /health            │ │
 │  │  OpenAI-compatible API │  │                          │ │
 │  └────────────────────────┘  └─────────────────────────┘ │
+│                                                           │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Kokoro TTS (Text-to-Speech)                        │  │
+│  │                                                      │  │
+│  │  Model: Kokoro 82M params       License: Apache 2.0 │  │
+│  │  Runtime: kokoro-web Docker      API: OpenAI-compat  │  │
+│  │  Endpoint: POST /api/v1/audio/speech                 │  │
+│  │  Port: 9200 (→ 3000 internal)                        │  │
+│  │  Voices: 18+ (Spanish, English, French, etc.)        │  │
+│  └────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────┘
 ```
 
 - **vLLM** serves Qwen3.5-27B-AWQ via an OpenAI-compatible API on port 8000. Uses tensor parallelism across 2 GPUs with prefix caching for repeated conversation contexts. Native tool-calling support via `qwen3_coder` parser enables the agent to invoke MCP tools directly.
 
 - **Whisper** (faster-whisper) transcribes Spanish voice notes from WhatsApp. Runs on GPU 0 with int8 quantization. The Flask server accepts audio files and returns transcribed text.
+
+- **Kokoro TTS** synthesizes natural speech from text. 82M parameter model running via kokoro-web Docker image. Exposes an OpenAI-compatible `/api/v1/audio/speech` endpoint on port 9200. Supports 18+ voices across Spanish, English, French, Hindi, Japanese, and Chinese. Near-instant generation, top-ranked in TTS Arena.
 
 ### MCP Server Layer
 
@@ -107,12 +119,13 @@ Yaya Platform is a conversational CEO assistant that helps Latin American small 
 │  └──────┬───────┘ └──────┬───────┘ └────────┬─────────┘ │
 │         │                │                   │           │
 │  ┌──────┴───────┐ ┌──────┴───────┐ ┌────────┴─────────┐ │
-│  │ payments-mcp │ │ postgres-mcp │ │                   │ │
-│  │              │ │              │ │                   │ │
-│  │ submit_proof │ │ SQL queries  │ │                   │ │
-│  │ check_status │ │ Index tuning │ │                   │ │
-│  │ list_pending │ │ Health check │ │                   │ │
-│  └──────────────┘ └──────────────┘ └───────────────────┘ │
+│  │ payments-mcp │ │ postgres-mcp │ │   voice-mcp      │ │
+│  │              │ │              │ │                  │ │
+│  │ submit_proof │ │ SQL queries  │ │ transcribe_audio │ │
+│  │ check_status │ │ Index tuning │ │ synthesize_speech│ │
+│  │ list_pending │ │ Health check │ │ voice_reply      │ │
+│  │              │ │              │ │ detect_language   │ │
+│  └──────────────┘ └──────────────┘ └──────────────────┘ │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -190,8 +203,9 @@ MCP (Model Context Protocol) servers expose business system APIs as structured t
 │  │ ALLOW:           │  │  ALLOW:                        │ │
 │  │  localhost:8000  │  │   /app/workspace  (rw)         │ │
 │  │  localhost:9100  │  │   /tmp            (rw)         │ │
-│  │  localhost:5432  │  │   /app/skills     (ro)         │ │
-│  │  localhost:6379  │  │   /app/mcp-servers (ro)        │ │
+│  │  localhost:9200  │  │   /app/skills     (ro)         │ │
+│  │  localhost:5432  │  │   /app/mcp-servers (ro)        │ │
+│  │  localhost:6379  │  │                                │ │
 │  │  localhost:9000  │  │                                │ │
 │  │  localhost:3001  │  │  DENY: *                       │ │
 │  │  localhost:8080  │  └────────────────────────────────┘ │
@@ -225,7 +239,8 @@ MCP (Model Context Protocol) servers expose business system APIs as structured t
 | 8080  | Lago Frontend      | HTTP     | Billing admin dashboard         |
 | 9000  | MinIO API          | HTTP     | S3-compatible object storage    |
 | 9001  | MinIO Console      | HTTP     | MinIO admin dashboard           |
-| 9100  | Whisper            | HTTP     | Voice transcription API         |
+| 9100  | Whisper            | HTTP     | Voice transcription API (STT)   |
+| 9200  | Kokoro TTS         | HTTP     | Voice synthesis API (TTS)       |
 | 3001  | Lago API           | HTTP     | Billing REST API                |
 | 3002  | Payment Validator  | HTTP     | Mobile app webhook (planned)   |
 | 54321 | Supabase REST      | HTTP     | PostgREST API for CRM          |
@@ -283,18 +298,45 @@ Each client also gets:
 11. Response sent back via WhatsApp
 ```
 
-## Data Flow: Voice Note
+## Data Flow: Voice Note (Full Loop)
 
 ```
-1. Customer sends voice note via WhatsApp
-   │
-2. OpenClaw receives audio file
-   │
-3. Audio → Whisper API (POST /transcribe)
-   │
-4. Whisper returns Spanish text transcription
-   │
-5. Transcribed text enters normal message flow (step 4 above)
+Voice Note In:
+  1. Customer sends voice note via WhatsApp (.ogg audio)
+     │
+  2. OpenClaw receives audio file
+     │
+  3. voice-mcp transcribe_audio → Whisper API (:9100 POST /transcribe)
+     │
+  4. Whisper returns Spanish text transcription
+     │
+  5. Transcribed text enters normal message flow (step 4 above)
+
+Processing:
+  6. Spanish text → vLLM Qwen3.5-27B (:8000) → Response text
+     │
+  7. Agent decides modality: voice, text, or both (yaya-voice skill)
+
+Voice Note Out (if voice response):
+  8. voice-mcp voice_reply → Kokoro TTS (:9200 POST /api/v1/audio/speech)
+     │
+  9. Kokoro returns audio (MP3)
+     │
+  10. ffmpeg converts MP3 → OGG Opus (WhatsApp voice note format)
+      │
+  11. whatsapp-mcp send_media → voice note delivered to customer
+```
+
+```
+Full Voice Pipeline:
+
+  WhatsApp .ogg → Whisper (GPU, :9100) → Spanish text
+                                             │
+                                     Qwen3.5-27B (:8000)
+                                             │
+                                       Response text
+                                             │
+                  Kokoro TTS (:9200) → .mp3 → ffmpeg → .ogg opus → WhatsApp
 ```
 
 ## Data Flow: Payment Validation
@@ -320,7 +362,8 @@ Each client also gets:
 | Security     | NemoClaw + OpenShell           | —         | Apache 2.0 |
 | Agent        | OpenClaw                       | —         | Proprietary|
 | LLM          | Qwen3.5-27B AWQ (via vLLM)    | latest    | Apache 2.0 |
-| Voice        | faster-whisper large-v3-turbo  | latest    | MIT        |
+| Voice STT    | faster-whisper large-v3-turbo  | latest    | MIT        |
+| Voice TTS    | Kokoro (82M) via kokoro-web    | latest    | Apache 2.0 |
 | CRM          | Atomic CRM (Supabase)          | latest    | MIT        |
 | ERP          | ERPNext (Frappe)               | v15       | GPL        |
 | Billing      | Lago                           | v1.20.1   | AGPL       |

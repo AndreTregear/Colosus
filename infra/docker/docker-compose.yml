@@ -131,6 +131,24 @@ services:
     networks:
       - yaya-net
 
+  tts:
+    image: ghcr.io/eduardolat/kokoro-web:latest
+    environment:
+      KW_SECRET_API_KEY: ${TTS_API_KEY:-megustalaia}
+    ports:
+      - "9200:3000"
+    volumes:
+      - tts-cache:/kokoro/cache
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
   # ── Lago Billing ────────────────────────────────────
   lago-api:
     image: getlago/api:v1.20.1
@@ -390,3 +408,4 @@ volumes:
   redisdata:
   miniodata:
   supabasedata:
+  tts-cache:
