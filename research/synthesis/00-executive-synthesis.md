@@ -2,8 +2,8 @@
 
 **Classification:** Strategic — Series A Investor Briefing  
 **Date:** March 21, 2026  
-**Version:** 4.0 (auto-updated)  
-**Synthesized from:** 21 research documents across market, competitive, fintech, risk, strategy, and technology verticals  
+**Version:** 5.0 (auto-updated)  
+**Synthesized from:** 24 research documents across market, competitive, fintech, risk, strategy, and technology verticals  
 
 ---
 
@@ -323,6 +323,59 @@ This flywheel is now technically validated: Nubefact's API handles step 1, the p
 
 ---
 
-*This synthesis is auto-generated from 21 research documents totaling ~140,000 words of primary analysis. Source documents are organized under `/research/market/`, `/research/competitive/`, `/research/fintech/`, `/research/risks/`, `/research/strategy/`, and `/research/technology/`. Each claim is traceable to specific sourced data points within these documents.*
+## 12. NEW INSIGHTS — MARCH 21, 2026 EXPANSION (CYCLE 2)
 
-*Last updated: March 21, 2026 (v4.0 — added SUNAT/Nubefact integration, B2B vs B2C WhatsApp commerce, and regulatory sandbox Peru/Colombia)*
+### 12.1 Peru INEI Microenterprise Census Data (market/07)
+
+Foundational market data now fully mapped from INEI sources. Key findings:
+
+- **Scale confirmed:** 3.54M formal enterprises (Q4 2024), ~6M total MYPEs including informal. 93.9% are microenterprises — this is overwhelmingly a micro-business economy
+- **Informality worsening:** 86.8% in 2024, up from 82.6% in 2018. Formalization is *declining* (-3.1% formal vs. +1.2% informal in 2024) — traditional approaches to digitizing SMBs that require formalization as a prerequisite are structurally failing
+- **Necessity entrepreneurship growing:** 52.4% started out of necessity in 2024 (up from 48.8% in 2019), meaning over half the target market has constrained budgets and risk tolerance
+- **Record-keeping gap:** 75.3% of MYPEs keep zero financial records — this is the core problem Yaya solves
+- **Demographics:** 51% women-owned, average age 43.9, 73.4% secondary education or below — UX must be voice-friendly, low-literacy accessible
+- **WhatsApp penetration:** 26M users, 4.4M WhatsApp Business users with 45% YoY growth (highest in LATAM)
+- **Pricing ceiling:** At S/860/month average formal worker income, pricing must stay below S/30/month (~$8) for mass adoption. Our S/49 Starter tier may need a lower entry point or the free tier must deliver enough value to build habit before conversion
+- **TAM refinement:** 3–4M addressable, SAM 1.5–2M (WhatsApp Business users who could benefit from AI tools)
+
+### 12.2 Magie Brazil Scaling Case Study (competitive/05)
+
+Critical precedent for WhatsApp-native AI business tools in LATAM. Key findings:
+
+- **Validated model:** Magie (São Paulo) scaled to R$2B+ transacted and 400K+ users as a WhatsApp-first financial assistant — proving the channel works for financial services at scale in LATAM
+- **Technical approach:** LLM + OCR + STT pipeline with multi-model orchestration. Started with manual concierge ("Wizard of Oz") before automating — validates the human-in-the-loop launch strategy
+- **B2B pivot:** Pivoted to B2B white-label in January 2026, suggesting the pure-consumer WhatsApp finance model has monetization challenges — reinforces Yaya's SMB focus as the right positioning
+- **Funding trajectory:** R$6M pre-seed (Canary) → $5.1M seed (Lux Capital) → $5M follow-on = $10M+ total. Shows LATAM WhatsApp-AI can attract top-tier VC
+- **Cultural insight:** Brazil's 99% WhatsApp penetration + voice message culture + phone theft anxiety all drove adoption. Peru shares the WhatsApp penetration (92%) but may differ on voice-first behavior — needs A/B testing
+- **Key lessons to replicate:** (1) Start manual, automate gradually; (2) invite-only creates exclusivity; (3) high-income users first for unit economics, then expand down-market; (4) WhatsApp is trust infrastructure, not just distribution
+- **Key lessons to avoid:** (1) Don't depend on a single revenue model; (2) pure consumer plays struggle to monetize in LATAM; (3) financial features trigger heavy regulation — plan for it from Day 1
+
+### 12.3 AI Literacy Among Peruvian SMB Owners (market/08)
+
+The adoption barrier is real but navigable. Key findings:
+
+- **Digital access exists:** 79% internet usage, 95.4% household cellphone coverage, 89% access internet via mobile — infrastructure is not the barrier
+- **AI adoption lagging:** Only 28% AI adoption rate in Peru vs. 42% LATAM average — but 70% view AI positively, suggesting a perception-to-action gap, not a rejection
+- **The literacy mismatch:** Micro-entrepreneurs don't need to understand AI — they need tools that work within their existing behavior (WhatsApp voice notes, photo sharing, simple text commands). "AI literacy" should be redefined as "can you talk to a chatbot?" not "do you understand machine learning?"
+- **WhatsApp as the great equalizer:** Building on WhatsApp eliminates 80%+ of the adoption barrier — no new app download, no new interface to learn, no new login credentials. The 26M existing WhatsApp users already have the "literacy" to use Yaya
+- **Progressive onboarding recommended:** 5-phase feature rollout starting with simplest value (reminders, basic record-keeping) before introducing complex features (invoicing, analytics)
+- **Peer learning is critical:** In Peru's high-trust interpersonal networks (*confianza*), adoption spreads through demonstration, not advertising. The accountant channel and beauty salon network effects are validated by this research
+- **Voice-first is essential:** With 73.4% having secondary education or below, voice input/output should be a first-class feature, not an afterthought
+
+### Cross-Document Insight: The Pricing-Literacy-Trust Triangle
+
+The three new documents reveal a critical constraint triangle:
+
+1. **INEI data** shows pricing must stay very low (S/30/month or below for mass market) and that 75% keep no records at all
+2. **Magie's experience** shows you can start premium and expand down-market, but pure consumer models struggle to monetize
+3. **AI literacy research** shows the barrier isn't technology access but behavioral change — and WhatsApp is the bridge
+
+**Strategic implication:** Yaya's free tier isn't just a marketing funnel — it's the *product* for 80%+ of the market. The business model must work with a very small conversion rate (3–5%) to paid tiers, compensated by embedded finance revenue from the transaction data generated by *all* users (free and paid). Magie's B2B pivot reinforces that the real monetization is in the data and financial services layer, not subscriptions.
+
+**Updated market model:** With INEI's 4.4M WhatsApp Business users as the immediate SAM, even a 1% penetration (44K users) with 5% paid conversion (2,200 paying) at S/49/month = S/108K/month (~$29K MRR). Embedded finance on the full 44K user base could add 2–3× that in revenue-share income.
+
+---
+
+*This synthesis is auto-generated from 24 research documents totaling ~155,000 words of primary analysis. Source documents are organized under `/research/market/`, `/research/competitive/`, `/research/fintech/`, `/research/risks/`, `/research/strategy/`, and `/research/technology/`. Each claim is traceable to specific sourced data points within these documents.*
+
+*Last updated: March 21, 2026 (v5.0 — added INEI microenterprise census, Magie Brazil case study, AI literacy among Peruvian SMB owners)*
