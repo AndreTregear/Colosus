@@ -1,21 +1,22 @@
 #!/usr/bin/env node
 /**
- * Invoicing MCP Server
- * Electronic invoicing with country-adapter pattern.
- * v1: Peru (SUNAT) via PSE provider REST API.
+ * Invoicing MCP Server — Multi-Country Provider Adapter Pattern
+ *
+ * Supports: Peru (APISUNAT.pe), Mexico (Facturapi), Colombia (MATIAS), Panama (eFacturaPTY)
+ * Country selection via INVOICE_COUNTRY env var (default: PE).
  *
  * Tools:
- *  - create_invoice: Create and submit factura/boleta
- *  - create_credit_note: Issue nota de crédito
- *  - create_debit_note: Issue nota de débito
- *  - void_invoice: Submit comunicación de baja
- *  - get_daily_summary: Generate resumen diario for boletas
- *  - lookup_ruc: Validate RUC and get empresa data
- *  - lookup_dni: Validate DNI number
- *  - get_invoice_status: Check status of a submitted invoice
- *  - list_invoices: List issued invoices with filters
- *  - get_tax_obligations: Get obligations for a business regime
- *  - calculate_tax: Calculate IGV and renta owed
+ *  1. create_invoice       — Create and submit invoice/receipt
+ *  2. create_credit_note   — Issue credit note against existing document
+ *  3. create_debit_note    — Issue debit note against existing document
+ *  4. void_invoice         — Void/annul a document
+ *  5. get_daily_summary    — Generate daily summary (Peru boletas batch)
+ *  6. lookup_tax_id        — Validate tax ID (RUC/RFC/NIT/RUC-PA)
+ *  7. get_invoice_status   — Check status of submitted document
+ *  8. list_invoices        — List issued invoices with filters
+ *  9. get_tax_obligations  — Get obligations for a business regime
+ * 10. calculate_tax        — Calculate tax owed for given revenue
+ * 11. health_check         — Check provider connectivity
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -25,953 +26,12 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
-// ── Environment Configuration ────────────────────────────
+import { getAdapter, listAdapters } from "./adapters/registry.js";
+import type { InvoiceData, LineItem } from "./types.js";
+
+// ── Configuration ────────────────────────────────────────
 
 const INVOICE_COUNTRY = process.env.INVOICE_COUNTRY || "PE";
-const INVOICE_PSE_PROVIDER = process.env.INVOICE_PSE_PROVIDER || "apisunat";
-const INVOICE_RUC = process.env.INVOICE_RUC || "";
-const INVOICE_ENVIRONMENT = process.env.INVOICE_ENVIRONMENT || "beta";
-
-// APISUNAT.pe config
-const APISUNAT_TOKEN = process.env.APISUNAT_TOKEN || "";
-const APISUNAT_BASE_URL = "https://back.apisunat.com";
-
-// Gosocket config
-const GOSOCKET_API_URL = process.env.GOSOCKET_API_URL || "";
-const GOSOCKET_API_KEY = process.env.GOSOCKET_API_KEY || "";
-
-// Legacy fallback (existing INVOICE_PSE_URL still works if set)
-const INVOICE_PSE_URL = process.env.INVOICE_PSE_URL || "";
-const INVOICE_PSE_TOKEN = process.env.INVOICE_PSE_TOKEN || "";
-
-// ── Types ────────────────────────────────────────────────
-
-interface Address {
-  street: string;
-  district?: string;
-  city: string;
-  state: string;
-  country: string;
-  postal_code?: string;
-  ubigeo?: string;
-}
-
-interface CustomerData {
-  tax_id: string;
-  tax_id_type: string;
-  legal_name: string;
-  trade_name?: string;
-  address?: Address;
-  email?: string;
-}
-
-interface LineItem {
-  description: string;
-  quantity: number;
-  unit_code: string;
-  unit_price: number;
-  tax_type?: string;
-  tax_rate?: number;
-  discount?: number;
-  item_code?: string;
-}
-
-interface InvoiceData {
-  document_type: string;
-  series?: string;
-  currency: string;
-  exchange_rate?: number;
-  issue_date?: string;
-  due_date?: string;
-  customer: CustomerData;
-  items: LineItem[];
-  notes?: string;
-  purchase_order?: string;
-  payment_terms?: string;
-}
-
-interface CreditNoteData {
-  reference_document: string;
-  reference_type: string;
-  reason_code: string;
-  reason: string;
-  currency: string;
-  customer: CustomerData;
-  items: LineItem[];
-  notes?: string;
-}
-
-interface DebitNoteData {
-  reference_document: string;
-  reference_type: string;
-  reason_code: string;
-  reason: string;
-  currency: string;
-  customer: CustomerData;
-  items: LineItem[];
-  notes?: string;
-}
-
-interface VoidData {
-  document_id: string;
-  document_type: string;
-  reason: string;
-  void_date?: string;
-}
-
-interface DocumentResult {
-  success: boolean;
-  document_id: string;
-  hash?: string;
-  cdr_code?: string;
-  cdr_description?: string;
-  pdf_url?: string;
-  xml_url?: string;
-  sunat_response?: Record<string, unknown>;
-}
-
-interface TaxIdInfo {
-  valid: boolean;
-  tax_id: string;
-  legal_name?: string;
-  trade_name?: string;
-  state?: string;
-  address?: string;
-  regime?: string;
-}
-
-interface ExchangeRateResult {
-  from: string;
-  to: string;
-  date: string;
-  buy_rate: number;
-  sell_rate: number;
-}
-
-interface DocumentTypeInfo {
-  code: string;
-  name: string;
-  description: string;
-}
-
-interface TaxRateInfo {
-  tax_type: string;
-  rate: number;
-  description: string;
-}
-
-interface TaxObligation {
-  obligation: string;
-  frequency: string;
-  form?: string;
-  description: string;
-}
-
-interface TaxCalculationParams {
-  regime: string;
-  monthly_revenue: number;
-  monthly_purchases: number;
-  annual_revenue?: number;
-}
-
-interface TaxCalculationResult {
-  regime: string;
-  igv_ventas: number;
-  igv_compras: number;
-  igv_a_pagar: number;
-  renta_mensual: number;
-  total_mensual: number;
-  breakdown: Record<string, unknown>;
-}
-
-// ── Country Adapter Interface ────────────────────────────
-
-interface CountryAdapter {
-  readonly countryCode: string;
-  readonly countryName: string;
-  readonly currency: string;
-
-  createInvoice(data: InvoiceData): Promise<DocumentResult>;
-  createCreditNote(data: CreditNoteData): Promise<DocumentResult>;
-  createDebitNote(data: DebitNoteData): Promise<DocumentResult>;
-  voidInvoice(data: VoidData): Promise<DocumentResult>;
-  getDailySummary(date: string): Promise<DocumentResult>;
-
-  validateTaxId(taxId: string): Promise<TaxIdInfo>;
-  lookupDni(dni: string): Promise<TaxIdInfo>;
-  getExchangeRate(from: string, to: string, date?: string): Promise<ExchangeRateResult>;
-
-  getDocumentTypes(): DocumentTypeInfo[];
-  getTaxRates(): TaxRateInfo[];
-  getTaxObligations(regime: string): TaxObligation[];
-  calculateTax(params: TaxCalculationParams): TaxCalculationResult;
-}
-
-// ── PSE Provider Abstraction ─────────────────────────────
-
-interface PSEProvider {
-  readonly name: string;
-  sendInvoice(payload: any): Promise<any>;
-  sendCreditNote(payload: any): Promise<any>;
-  sendDebitNote(payload: any): Promise<any>;
-  voidDocument(payload: any): Promise<any>;
-  sendSummary(payload: any): Promise<any>;
-  lookupRuc(ruc: string): Promise<any>;
-  lookupDni(dni: string): Promise<any>;
-  getStatus(documentId: string): Promise<any>;
-  listInvoices(params: URLSearchParams): Promise<any>;
-  getExchangeRate(date: string): Promise<any>;
-  getPdf(hash: string): Promise<any>;
-}
-
-// ── APISUNAT.pe Provider ─────────────────────────────────
-
-let apisunatSessionToken: string | null = null;
-let apisunatTokenExpiry = 0;
-
-async function apisunatAuth(): Promise<string> {
-  // Use static token if provided
-  if (APISUNAT_TOKEN) return APISUNAT_TOKEN;
-
-  // Session token still valid (refresh 5 min before expiry)
-  if (apisunatSessionToken && Date.now() < apisunatTokenExpiry - 300_000) {
-    return apisunatSessionToken;
-  }
-
-  throw new Error(
-    "APISUNAT_TOKEN not configured. Set the bearer token from apisunat.pe."
-  );
-}
-
-async function apisunatFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
-  const token = await apisunatAuth();
-  const url = `${APISUNAT_BASE_URL}${endpoint}`;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-    ...(options.headers as Record<string, string> || {}),
-  };
-
-  const res = await fetch(url, { ...options, headers });
-  if (!res.ok) {
-    const text = await res.text();
-    let detail = text;
-    try {
-      const parsed = JSON.parse(text);
-      detail = parsed.message || parsed.error || text;
-    } catch { /* raw text */ }
-    throw new Error(`APISUNAT ${res.status}: ${detail}`);
-  }
-  return res.json();
-}
-
-const apisunatProvider: PSEProvider = {
-  name: "apisunat",
-
-  async sendInvoice(payload: any) {
-    return apisunatFetch("/api/v1/invoice/send", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  async sendCreditNote(payload: any) {
-    return apisunatFetch("/api/v1/invoice/send", {
-      method: "POST",
-      body: JSON.stringify({ ...payload, tipo_de_comprobante: 7 }),
-    });
-  },
-
-  async sendDebitNote(payload: any) {
-    return apisunatFetch("/api/v1/invoice/send", {
-      method: "POST",
-      body: JSON.stringify({ ...payload, tipo_de_comprobante: 8 }),
-    });
-  },
-
-  async voidDocument(payload: any) {
-    return apisunatFetch("/api/v1/invoice/send", {
-      method: "POST",
-      body: JSON.stringify({ ...payload, operacion: "generar_anulacion" }),
-    });
-  },
-
-  async sendSummary(payload: any) {
-    return apisunatFetch("/api/v1/invoice/send", {
-      method: "POST",
-      body: JSON.stringify({ ...payload, operacion: "generar_resumen" }),
-    });
-  },
-
-  async lookupRuc(ruc: string) {
-    return apisunatFetch(`/api/v1/ruc/${ruc}`);
-  },
-
-  async lookupDni(dni: string) {
-    return apisunatFetch(`/api/v1/dni/${dni}`);
-  },
-
-  async getStatus(documentId: string) {
-    return apisunatFetch(`/api/v1/invoice/status/${documentId}`);
-  },
-
-  async listInvoices(params: URLSearchParams) {
-    return apisunatFetch(`/api/v1/invoice/list?${params.toString()}`);
-  },
-
-  async getExchangeRate(date: string) {
-    return apisunatFetch(`/api/v1/exchange-rate?date=${date}`);
-  },
-
-  async getPdf(hash: string) {
-    return apisunatFetch(`/api/v1/invoice/pdf/${hash}`);
-  },
-};
-
-// ── Gosocket Provider (stub — endpoints to be filled when activated) ──
-
-async function gosocketFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
-  if (!GOSOCKET_API_URL) {
-    throw new Error("GOSOCKET_API_URL not configured. Set the Gosocket API base URL.");
-  }
-  if (!GOSOCKET_API_KEY) {
-    throw new Error("GOSOCKET_API_KEY not configured. Set the Gosocket API key.");
-  }
-
-  const url = `${GOSOCKET_API_URL}${endpoint}`;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "X-Api-Key": GOSOCKET_API_KEY,
-    ...(options.headers as Record<string, string> || {}),
-  };
-
-  const res = await fetch(url, { ...options, headers });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Gosocket ${res.status}: ${text}`);
-  }
-  return res.json();
-}
-
-const gosocketProvider: PSEProvider = {
-  name: "gosocket",
-
-  async sendInvoice(payload: any) {
-    // Gosocket endpoint TBD — stub maps to expected structure
-    return gosocketFetch("/api/invoices", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  async sendCreditNote(payload: any) {
-    return gosocketFetch("/api/credit-notes", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  async sendDebitNote(payload: any) {
-    return gosocketFetch("/api/debit-notes", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  async voidDocument(payload: any) {
-    return gosocketFetch("/api/void", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  async sendSummary(payload: any) {
-    return gosocketFetch("/api/summaries", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
-  async lookupRuc(ruc: string) {
-    return gosocketFetch(`/api/ruc/${ruc}`);
-  },
-
-  async lookupDni(dni: string) {
-    return gosocketFetch(`/api/dni/${dni}`);
-  },
-
-  async getStatus(documentId: string) {
-    return gosocketFetch(`/api/invoices/${documentId}/status`);
-  },
-
-  async listInvoices(params: URLSearchParams) {
-    return gosocketFetch(`/api/invoices?${params.toString()}`);
-  },
-
-  async getExchangeRate(date: string) {
-    return gosocketFetch(`/api/exchange-rate?date=${date}`);
-  },
-
-  async getPdf(hash: string) {
-    return gosocketFetch(`/api/invoices/${hash}/pdf`);
-  },
-};
-
-// ── Provider Selection ───────────────────────────────────
-
-function getPSEProvider(): PSEProvider {
-  switch (INVOICE_PSE_PROVIDER.toLowerCase()) {
-    case "apisunat":
-      return apisunatProvider;
-    case "gosocket":
-      return gosocketProvider;
-    default:
-      throw new Error(
-        `Unknown INVOICE_PSE_PROVIDER "${INVOICE_PSE_PROVIDER}". Use "apisunat" or "gosocket".`
-      );
-  }
-}
-
-// Legacy pseFetch — used by adapter methods that haven't been migrated to provider pattern
-async function pseFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
-  const provider = INVOICE_PSE_PROVIDER.toLowerCase();
-
-  // Route through the selected provider
-  if (provider === "apisunat") {
-    return apisunatFetch(`/api/v1${endpoint}`, options);
-  }
-  if (provider === "gosocket") {
-    return gosocketFetch(`/api${endpoint}`, options);
-  }
-
-  // Fallback to legacy direct URL
-  if (!INVOICE_PSE_URL) {
-    throw new Error("No PSE provider configured. Set INVOICE_PSE_PROVIDER or INVOICE_PSE_URL.");
-  }
-  const url = `${INVOICE_PSE_URL}${endpoint}`;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(INVOICE_PSE_TOKEN ? { Authorization: `Bearer ${INVOICE_PSE_TOKEN}` } : {}),
-    ...(options.headers as Record<string, string> || {}),
-  };
-
-  const res = await fetch(url, { ...options, headers });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`PSE API ${res.status}: ${text}`);
-  }
-  return res.json();
-}
-
-// ── Peru Adapter ─────────────────────────────────────────
-
-const IGV_RATE = 0.18;
-const UIT_2025 = 5150;
-
-const PERU_DOCUMENT_TYPES: DocumentTypeInfo[] = [
-  { code: "01", name: "Factura", description: "Invoice for businesses with RUC — grants crédito fiscal IGV" },
-  { code: "03", name: "Boleta de Venta", description: "Receipt for end consumers (DNI or anonymous)" },
-  { code: "07", name: "Nota de Crédito", description: "Credit note — void, discount, or correct a factura/boleta" },
-  { code: "08", name: "Nota de Débito", description: "Debit note — interest, penalties, or price increase" },
-  { code: "09", name: "Guía de Remisión Remitente", description: "Dispatch guide issued by sender" },
-  { code: "31", name: "Guía de Remisión Transportista", description: "Dispatch guide issued by carrier" },
-];
-
-const PERU_TAX_RATES: TaxRateInfo[] = [
-  { tax_type: "IGV", rate: 18, description: "Impuesto General a las Ventas — 18% sobre valor venta" },
-  { tax_type: "ICBPER", rate: 0.50, description: "Impuesto al Consumo de Bolsas Plásticas — S/0.50 por bolsa" },
-  { tax_type: "EXO", rate: 0, description: "Exonerado de IGV (productos de primera necesidad, según Apéndice I TUO IGV)" },
-  { tax_type: "INA", rate: 0, description: "Inafecto al IGV (educación, salud, etc.)" },
-  { tax_type: "GRA", rate: 0, description: "Gratuita (transferencia gratuita, IGV asumido por emisor)" },
-];
-
-function getPeruTaxObligations(regime: string): TaxObligation[] {
-  const upper = regime.toUpperCase();
-  switch (upper) {
-    case "NRUS":
-      return [
-        { obligation: "Cuota fija mensual", frequency: "Mensual", form: "Formulario 1611", description: "Pago único de S/20 (Cat.1) o S/50 (Cat.2) que cubre renta e IGV" },
-        { obligation: "Emisión de boletas", frequency: "Por operación", description: "Solo puede emitir boletas de venta y tickets, NO facturas" },
-      ];
-    case "RER":
-      return [
-        { obligation: "Declaración IGV-Renta", frequency: "Mensual", form: "PDT 621 / Formulario Virtual 621", description: "Declarar y pagar IGV (18%) + Renta (1.5% ingresos netos)" },
-        { obligation: "Registro de Compras", frequency: "Mensual", description: "Mantener actualizado el Registro de Compras" },
-        { obligation: "Registro de Ventas", frequency: "Mensual", description: "Mantener actualizado el Registro de Ventas" },
-        { obligation: "Emisión de CPE", frequency: "Por operación", description: "Facturas, boletas, notas de crédito/débito electrónicas" },
-      ];
-    case "RMT":
-      return [
-        { obligation: "Declaración IGV-Renta mensual", frequency: "Mensual", form: "PDT 621 / Formulario Virtual 621", description: "Declarar y pagar IGV (18%) + Renta (1% hasta 300 UIT, 1.5% si excede)" },
-        { obligation: "Declaración Renta Anual", frequency: "Anual", form: "Formulario Virtual 710", description: "Declaración anual con escala progresiva: 10% hasta 15 UIT, 29.5% exceso" },
-        { obligation: "Libros contables simplificados", frequency: "Mensual", description: "Registro de Ventas, Registro de Compras, Libro Diario Simplificado (hasta 300 UIT)" },
-        { obligation: "Emisión de CPE", frequency: "Por operación", description: "Todos los comprobantes electrónicos incluyendo guías de remisión" },
-      ];
-    case "RG":
-    case "GENERAL":
-      return [
-        { obligation: "Declaración IGV-Renta mensual", frequency: "Mensual", form: "PDT 621 / Formulario Virtual 621", description: "Declarar y pagar IGV (18%) + pagos a cuenta Renta (1.5% o coeficiente)" },
-        { obligation: "Declaración Renta Anual", frequency: "Anual", form: "Formulario Virtual 710", description: "Renta neta × 29.5%, menos pagos a cuenta realizados durante el año" },
-        { obligation: "Contabilidad completa", frequency: "Mensual", description: "Libro Diario, Mayor, Inventarios y Balances, Registro Compras, Registro Ventas, Caja y Bancos" },
-        { obligation: "Emisión de CPE", frequency: "Por operación", description: "Todos los comprobantes electrónicos" },
-        { obligation: "DAOT", frequency: "Anual", form: "Formulario Virtual 3500", description: "Declaración Anual de Operaciones con Terceros (si operaciones > 2 UIT con un tercero)" },
-      ];
-    default:
-      throw new Error(`Unknown regime: ${regime}. Valid regimes: NRUS, RER, RMT, RG`);
-  }
-}
-
-function calculatePeruTax(params: TaxCalculationParams): TaxCalculationResult {
-  const { regime, monthly_revenue, monthly_purchases } = params;
-  const upper = regime.toUpperCase();
-
-  const igv_ventas = Math.round(monthly_revenue * IGV_RATE * 100) / 100;
-  const igv_compras = Math.round(monthly_purchases * IGV_RATE * 100) / 100;
-
-  switch (upper) {
-    case "NRUS": {
-      // Cuota fija — no IGV/renta calculation needed
-      const cuota = monthly_revenue <= 5000 ? 20 : 50;
-      return {
-        regime: "NRUS",
-        igv_ventas: 0,
-        igv_compras: 0,
-        igv_a_pagar: 0,
-        renta_mensual: cuota,
-        total_mensual: cuota,
-        breakdown: {
-          cuota_fija: cuota,
-          categoria: monthly_revenue <= 5000 ? 1 : 2,
-          nota: "Cuota fija incluye renta e IGV. No se declara IGV por separado.",
-          limite_mensual_compras: monthly_revenue <= 5000 ? 5000 : 8000,
-          limite_mensual_ventas: monthly_revenue <= 5000 ? 5000 : 8000,
-        },
-      };
-    }
-    case "RER": {
-      const igv_a_pagar = Math.max(0, Math.round((igv_ventas - igv_compras) * 100) / 100);
-      const renta_mensual = Math.round(monthly_revenue * 0.015 * 100) / 100;
-      return {
-        regime: "RER",
-        igv_ventas,
-        igv_compras,
-        igv_a_pagar,
-        renta_mensual,
-        total_mensual: Math.round((igv_a_pagar + renta_mensual) * 100) / 100,
-        breakdown: {
-          base_imponible_ventas: monthly_revenue,
-          base_imponible_compras: monthly_purchases,
-          tasa_igv: "18%",
-          tasa_renta: "1.5%",
-          credito_fiscal: igv_compras,
-        },
-      };
-    }
-    case "RMT": {
-      const igv_a_pagar = Math.max(0, Math.round((igv_ventas - igv_compras) * 100) / 100);
-      const annual_revenue = params.annual_revenue || monthly_revenue * 12;
-      const renta_rate = annual_revenue <= 300 * UIT_2025 ? 0.01 : 0.015;
-      const renta_mensual = Math.round(monthly_revenue * renta_rate * 100) / 100;
-      return {
-        regime: "RMT",
-        igv_ventas,
-        igv_compras,
-        igv_a_pagar,
-        renta_mensual,
-        total_mensual: Math.round((igv_a_pagar + renta_mensual) * 100) / 100,
-        breakdown: {
-          base_imponible_ventas: monthly_revenue,
-          base_imponible_compras: monthly_purchases,
-          tasa_igv: "18%",
-          tasa_renta: `${renta_rate * 100}%`,
-          renta_rate_reason: annual_revenue <= 300 * UIT_2025
-            ? `Ingresos anuales estimados (S/${annual_revenue.toLocaleString()}) ≤ 300 UIT (S/${(300 * UIT_2025).toLocaleString()}) → tasa 1%`
-            : `Ingresos anuales estimados (S/${annual_revenue.toLocaleString()}) > 300 UIT (S/${(300 * UIT_2025).toLocaleString()}) → tasa 1.5%`,
-          credito_fiscal: igv_compras,
-          renta_anual_escala: "10% hasta 15 UIT + 29.5% exceso",
-        },
-      };
-    }
-    case "RG":
-    case "GENERAL": {
-      const igv_a_pagar = Math.max(0, Math.round((igv_ventas - igv_compras) * 100) / 100);
-      const renta_mensual = Math.round(monthly_revenue * 0.015 * 100) / 100;
-      return {
-        regime: "RG",
-        igv_ventas,
-        igv_compras,
-        igv_a_pagar,
-        renta_mensual,
-        total_mensual: Math.round((igv_a_pagar + renta_mensual) * 100) / 100,
-        breakdown: {
-          base_imponible_ventas: monthly_revenue,
-          base_imponible_compras: monthly_purchases,
-          tasa_igv: "18%",
-          tasa_renta_pago_a_cuenta: "1.5% (o coeficiente si mayor)",
-          credito_fiscal: igv_compras,
-          tasa_renta_anual: "29.5% sobre renta neta",
-          nota: "El pago a cuenta mensual se usa como crédito contra la renta anual",
-        },
-      };
-    }
-    default:
-      throw new Error(`Unknown regime: ${regime}. Valid regimes: NRUS, RER, RMT, RG`);
-  }
-}
-
-const peruAdapter: CountryAdapter = {
-  countryCode: "PE",
-  countryName: "Peru",
-  currency: "PEN",
-
-  async createInvoice(data: InvoiceData): Promise<DocumentResult> {
-    const seriesPrefix = data.document_type === "01" ? "F" : "B";
-    const defaultSeries = data.document_type === "01"
-      ? (process.env.INVOICE_SERIES_FACTURA || "F001")
-      : (process.env.INVOICE_SERIES_BOLETA || "B001");
-    const series = data.series || defaultSeries;
-
-    // Calculate line totals and taxes
-    const lines = data.items.map((item, idx) => {
-      const taxType = item.tax_type || "IGV";
-      const taxRate = item.tax_rate ?? (taxType === "IGV" ? IGV_RATE : 0);
-      const subtotal = Math.round(item.quantity * item.unit_price * 100) / 100;
-      const discount = Math.round((item.discount || 0) * item.quantity * 100) / 100;
-      const taxableAmount = subtotal - discount;
-      const taxAmount = Math.round(taxableAmount * taxRate * 100) / 100;
-
-      return {
-        numero: idx + 1,
-        codigo: item.item_code || "",
-        descripcion: item.description,
-        cantidad: item.quantity,
-        unidad_medida: item.unit_code,
-        valor_unitario: item.unit_price,
-        precio_unitario: Math.round(item.unit_price * (1 + taxRate) * 100) / 100,
-        subtotal: taxableAmount,
-        igv: taxAmount,
-        total: Math.round((taxableAmount + taxAmount) * 100) / 100,
-        tipo_afectacion: taxType === "IGV" ? "10" : taxType === "EXO" ? "20" : taxType === "INA" ? "30" : "10",
-      };
-    });
-
-    const totalGravada = lines.reduce((sum, l) => sum + l.subtotal, 0);
-    const totalIgv = lines.reduce((sum, l) => sum + l.igv, 0);
-    const totalVenta = lines.reduce((sum, l) => sum + l.total, 0);
-
-    const payload = {
-      operacion: "generar_comprobante",
-      tipo_de_comprobante: parseInt(data.document_type),
-      serie: series,
-      moneda: data.currency === "USD" ? 2 : 1,
-      tipo_cambio: data.exchange_rate || 1,
-      fecha_de_emision: data.issue_date || new Date().toISOString().split("T")[0],
-      fecha_de_vencimiento: data.due_date || null,
-      cliente_tipo_de_documento: data.customer.tax_id_type === "RUC" ? 6 : data.customer.tax_id_type === "DNI" ? 1 : 0,
-      cliente_numero_de_documento: data.customer.tax_id,
-      cliente_denominacion: data.customer.legal_name,
-      cliente_direccion: data.customer.address
-        ? `${data.customer.address.street}, ${data.customer.address.district || ""}, ${data.customer.address.city}`
-        : "",
-      cliente_email: data.customer.email || "",
-      observaciones: data.notes || "",
-      orden_compra: data.purchase_order || "",
-      condiciones_de_pago: data.payment_terms || "",
-      total_gravada: Math.round(totalGravada * 100) / 100,
-      total_igv: Math.round(totalIgv * 100) / 100,
-      total_venta: Math.round(totalVenta * 100) / 100,
-      items: lines.map((l) => ({
-        unidad_de_medida: l.unidad_medida,
-        codigo: l.codigo,
-        descripcion: l.descripcion,
-        cantidad: l.cantidad,
-        valor_unitario: l.valor_unitario,
-        precio_unitario: l.precio_unitario,
-        subtotal: l.subtotal,
-        tipo_de_igv: l.tipo_afectacion,
-        igv: l.igv,
-        total: l.total,
-        anticipo_regularizacion: false,
-      })),
-      ruc_emisor: INVOICE_RUC,
-      ambiente: INVOICE_ENVIRONMENT === "production" ? 1 : 0,
-    };
-
-    const pse = getPSEProvider();
-    const result = await pse.sendInvoice(payload);
-
-    return {
-      success: result.aceptada_por_sunat !== false,
-      document_id: result.numero || `${series}-${result.correlativo}`,
-      hash: result.hash || result.digest_value || null,
-      cdr_code: result.sunat_code?.toString() || null,
-      cdr_description: result.sunat_description || result.sunat_note || null,
-      pdf_url: result.enlace_del_pdf || result.pdf_url || null,
-      xml_url: result.enlace_del_xml || result.xml_url || null,
-      sunat_response: result,
-    };
-  },
-
-  async createCreditNote(data: CreditNoteData): Promise<DocumentResult> {
-    const refPrefix = data.reference_document.startsWith("F") ? "FC" : "BC";
-    const series = `${refPrefix}01`;
-
-    const lines = data.items.map((item, idx) => {
-      const taxRate = item.tax_rate ?? IGV_RATE;
-      const subtotal = Math.round(item.quantity * item.unit_price * 100) / 100;
-      const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
-      return {
-        numero: idx + 1,
-        codigo: item.item_code || "",
-        descripcion: item.description,
-        cantidad: item.quantity,
-        unidad_medida: item.unit_code,
-        valor_unitario: item.unit_price,
-        precio_unitario: Math.round(item.unit_price * (1 + taxRate) * 100) / 100,
-        subtotal,
-        igv: taxAmount,
-        total: Math.round((subtotal + taxAmount) * 100) / 100,
-        tipo_de_igv: "10",
-      };
-    });
-
-    const totalGravada = lines.reduce((sum, l) => sum + l.subtotal, 0);
-    const totalIgv = lines.reduce((sum, l) => sum + l.igv, 0);
-    const totalVenta = lines.reduce((sum, l) => sum + l.total, 0);
-
-    const payload = {
-      operacion: "generar_comprobante",
-      tipo_de_comprobante: 7,
-      serie: series,
-      moneda: data.currency === "USD" ? 2 : 1,
-      fecha_de_emision: new Date().toISOString().split("T")[0],
-      cliente_tipo_de_documento: data.customer.tax_id_type === "RUC" ? 6 : 1,
-      cliente_numero_de_documento: data.customer.tax_id,
-      cliente_denominacion: data.customer.legal_name,
-      tipo_de_nota_de_credito: parseInt(data.reason_code) || 1,
-      documento_que_se_modifica_tipo: parseInt(data.reference_type),
-      documento_que_se_modifica_serie_numero: data.reference_document,
-      motivo: data.reason,
-      total_gravada: Math.round(totalGravada * 100) / 100,
-      total_igv: Math.round(totalIgv * 100) / 100,
-      total_venta: Math.round(totalVenta * 100) / 100,
-      items: lines,
-      ruc_emisor: INVOICE_RUC,
-      ambiente: INVOICE_ENVIRONMENT === "production" ? 1 : 0,
-    };
-
-    const pse = getPSEProvider();
-    const result = await pse.sendCreditNote(payload);
-
-    return {
-      success: result.aceptada_por_sunat !== false,
-      document_id: result.numero || `${series}-${result.correlativo}`,
-      hash: result.hash || null,
-      cdr_code: result.sunat_code?.toString() || null,
-      cdr_description: result.sunat_description || null,
-      pdf_url: result.enlace_del_pdf || null,
-      xml_url: result.enlace_del_xml || null,
-      sunat_response: result,
-    };
-  },
-
-  async createDebitNote(data: DebitNoteData): Promise<DocumentResult> {
-    const refPrefix = data.reference_document.startsWith("F") ? "FD" : "BD";
-    const series = `${refPrefix}01`;
-
-    const lines = data.items.map((item, idx) => {
-      const taxRate = item.tax_rate ?? IGV_RATE;
-      const subtotal = Math.round(item.quantity * item.unit_price * 100) / 100;
-      const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
-      return {
-        numero: idx + 1,
-        codigo: item.item_code || "",
-        descripcion: item.description,
-        cantidad: item.quantity,
-        unidad_medida: item.unit_code,
-        valor_unitario: item.unit_price,
-        precio_unitario: Math.round(item.unit_price * (1 + taxRate) * 100) / 100,
-        subtotal,
-        igv: taxAmount,
-        total: Math.round((subtotal + taxAmount) * 100) / 100,
-        tipo_de_igv: "10",
-      };
-    });
-
-    const totalGravada = lines.reduce((sum, l) => sum + l.subtotal, 0);
-    const totalIgv = lines.reduce((sum, l) => sum + l.igv, 0);
-    const totalVenta = lines.reduce((sum, l) => sum + l.total, 0);
-
-    const payload = {
-      operacion: "generar_comprobante",
-      tipo_de_comprobante: 8,
-      serie: series,
-      moneda: data.currency === "USD" ? 2 : 1,
-      fecha_de_emision: new Date().toISOString().split("T")[0],
-      cliente_tipo_de_documento: data.customer.tax_id_type === "RUC" ? 6 : 1,
-      cliente_numero_de_documento: data.customer.tax_id,
-      cliente_denominacion: data.customer.legal_name,
-      tipo_de_nota_de_debito: parseInt(data.reason_code) || 1,
-      documento_que_se_modifica_tipo: parseInt(data.reference_type),
-      documento_que_se_modifica_serie_numero: data.reference_document,
-      motivo: data.reason,
-      total_gravada: Math.round(totalGravada * 100) / 100,
-      total_igv: Math.round(totalIgv * 100) / 100,
-      total_venta: Math.round(totalVenta * 100) / 100,
-      items: lines,
-      ruc_emisor: INVOICE_RUC,
-      ambiente: INVOICE_ENVIRONMENT === "production" ? 1 : 0,
-    };
-
-    const pse = getPSEProvider();
-    const result = await pse.sendDebitNote(payload);
-
-    return {
-      success: result.aceptada_por_sunat !== false,
-      document_id: result.numero || `${series}-${result.correlativo}`,
-      hash: result.hash || null,
-      cdr_code: result.sunat_code?.toString() || null,
-      cdr_description: result.sunat_description || null,
-      pdf_url: result.enlace_del_pdf || null,
-      xml_url: result.enlace_del_xml || null,
-      sunat_response: result,
-    };
-  },
-
-  async voidInvoice(data: VoidData): Promise<DocumentResult> {
-    const payload = {
-      operacion: "generar_anulacion",
-      tipo_de_comprobante: parseInt(data.document_type),
-      serie_numero: data.document_id,
-      motivo: data.reason,
-      fecha_de_comunicacion: data.void_date || new Date().toISOString().split("T")[0],
-      ruc_emisor: INVOICE_RUC,
-      ambiente: INVOICE_ENVIRONMENT === "production" ? 1 : 0,
-    };
-
-    const pse = getPSEProvider();
-    const result = await pse.voidDocument(payload);
-
-    return {
-      success: result.aceptada_por_sunat !== false,
-      document_id: data.document_id,
-      cdr_code: result.sunat_code?.toString() || null,
-      cdr_description: result.sunat_description || result.ticket || null,
-      sunat_response: result,
-    };
-  },
-
-  async getDailySummary(date: string): Promise<DocumentResult> {
-    const payload = {
-      operacion: "generar_resumen",
-      fecha_de_emision: date,
-      fecha_de_comunicacion: new Date().toISOString().split("T")[0],
-      ruc_emisor: INVOICE_RUC,
-      ambiente: INVOICE_ENVIRONMENT === "production" ? 1 : 0,
-    };
-
-    const pse = getPSEProvider();
-    const result = await pse.sendSummary(payload);
-
-    return {
-      success: result.aceptada_por_sunat !== false,
-      document_id: result.ticket || result.numero || "",
-      cdr_code: result.sunat_code?.toString() || null,
-      cdr_description: result.sunat_description || "Resumen enviado. Usar ticket para consultar estado.",
-      sunat_response: result,
-    };
-  },
-
-  async validateTaxId(ruc: string): Promise<TaxIdInfo> {
-    if (!/^\d{11}$/.test(ruc)) {
-      return { valid: false, tax_id: ruc, legal_name: "Invalid RUC format (must be 11 digits)" };
-    }
-    try {
-      const pse = getPSEProvider();
-      const result = await pse.lookupRuc(ruc);
-      return {
-        valid: true,
-        tax_id: ruc,
-        legal_name: result.razon_social || result.nombre_o_razon_social || "",
-        trade_name: result.nombre_comercial || "",
-        state: result.estado || result.estado_contribuyente || "",
-        address: result.direccion || result.domicilio_fiscal || "",
-        regime: result.regimen || "",
-      };
-    } catch {
-      return { valid: false, tax_id: ruc, legal_name: "Could not validate RUC" };
-    }
-  },
-
-  async lookupDni(dni: string): Promise<TaxIdInfo> {
-    if (!/^\d{8}$/.test(dni)) {
-      return { valid: false, tax_id: dni, legal_name: "Invalid DNI format (must be 8 digits)" };
-    }
-    try {
-      const pse = getPSEProvider();
-      const result = await pse.lookupDni(dni);
-      const nombre = result.nombre_completo
-        || [result.nombres, result.apellido_paterno, result.apellido_materno].filter(Boolean).join(" ")
-        || "";
-      return {
-        valid: true,
-        tax_id: dni,
-        legal_name: nombre,
-      };
-    } catch {
-      return { valid: false, tax_id: dni, legal_name: "Could not validate DNI" };
-    }
-  },
-
-  async getExchangeRate(from: string, to: string, date?: string): Promise<ExchangeRateResult> {
-    const queryDate = date || new Date().toISOString().split("T")[0];
-    try {
-      const pse = getPSEProvider();
-      const result = await pse.getExchangeRate(queryDate);
-      return {
-        from,
-        to,
-        date: queryDate,
-        buy_rate: result.compra || result.buy || 0,
-        sell_rate: result.venta || result.sell || 0,
-      };
-    } catch {
-      return { from, to, date: queryDate, buy_rate: 0, sell_rate: 0 };
-    }
-  },
-
-  getDocumentTypes(): DocumentTypeInfo[] {
-    return PERU_DOCUMENT_TYPES;
-  },
-
-  getTaxRates(): TaxRateInfo[] {
-    return PERU_TAX_RATES;
-  },
-
-  getTaxObligations(regime: string): TaxObligation[] {
-    return getPeruTaxObligations(regime);
-  },
-
-  calculateTax(params: TaxCalculationParams): TaxCalculationResult {
-    return calculatePeruTax(params);
-  },
-};
-
-// ── Adapter Registry ─────────────────────────────────────
-
-const adapters: Record<string, CountryAdapter> = {
-  PE: peruAdapter,
-};
-
-function getAdapter(): CountryAdapter {
-  const adapter = adapters[INVOICE_COUNTRY];
-  if (!adapter) {
-    throw new Error(
-      `No adapter for country "${INVOICE_COUNTRY}". Available: ${Object.keys(adapters).join(", ")}`
-    );
-  }
-  return adapter;
-}
 
 // ── Tool Definitions ─────────────────────────────────────
 
@@ -979,24 +39,26 @@ const TOOLS = [
   {
     name: "create_invoice",
     description:
-      "Create and submit an electronic invoice (factura or boleta). For factura (01): customer needs RUC. For boleta (03): customer needs DNI or can be anonymous. Returns SUNAT response, PDF link, and XML hash.",
+      "Create and submit an electronic invoice or receipt. Document type depends on country: Peru (factura 01/boleta 03), Mexico (CFDI ingreso), Colombia (FE), Panama (factura interna). Returns tax authority response, PDF link, and document hash.",
     inputSchema: {
       type: "object" as const,
       properties: {
         document_type: {
           type: "string",
-          enum: ["01", "03"],
-          description: "01 = Factura (requires RUC), 03 = Boleta (requires DNI or anonymous)",
+          enum: ["invoice", "receipt"],
+          description: "invoice = factura/CFDI/FE (business-to-business), receipt = boleta (consumer, Peru only)",
         },
-        customer_tax_id: { type: "string", description: "Customer RUC (11 digits) or DNI (8 digits)" },
-        customer_tax_id_type: {
+        customer_tax_id: { type: "string", description: "Customer tax ID (RUC, RFC, NIT, cédula)" },
+        customer_doc_type: {
           type: "string",
-          enum: ["RUC", "DNI", "CE"],
-          description: "Type of customer ID document",
+          enum: ["RUC", "DNI", "CE", "RFC", "NIT", "RUC-PA", "PASSPORT"],
+          description: "Customer ID document type",
         },
-        customer_name: { type: "string", description: "Customer legal name (razón social)" },
+        customer_name: { type: "string", description: "Customer legal name" },
         customer_address: { type: "string", description: "Customer address (optional)" },
-        customer_email: { type: "string", description: "Customer email for sending PDF (optional)" },
+        customer_email: { type: "string", description: "Customer email (optional)" },
+        customer_tax_system: { type: "string", description: "Mexico only: customer tax regime code (e.g., 601)" },
+        customer_postal_code: { type: "string", description: "Mexico only: customer postal code (required for CFDI 4.0)" },
         items: {
           type: "array",
           items: {
@@ -1004,46 +66,45 @@ const TOOLS = [
             properties: {
               description: { type: "string", description: "Item description" },
               quantity: { type: "number", description: "Quantity" },
-              unit_price: { type: "number", description: "Unit price before IGV (valor unitario)" },
+              unit_price: { type: "number", description: "Unit price before tax" },
+              tax_rate: { type: "number", description: "Tax rate as decimal (0.18 for IGV, 0.16 for IVA, 0.07 for ITBMS). Default: country standard rate" },
               unit_code: { type: "string", description: "Unit code: NIU (units), ZZ (service), KGM (kg). Default: NIU" },
-              tax_type: { type: "string", enum: ["IGV", "EXO", "INA", "GRA"], description: "Tax type (default: IGV)" },
-              item_code: { type: "string", description: "Internal item code (optional)" },
+              tax_type: { type: "string", description: "Tax type: IGV, IVA, ITBMS, EXO, INA, GRA. Default: country standard" },
+              item_code: { type: "string", description: "Internal item/product code (optional)" },
             },
             required: ["description", "quantity", "unit_price"],
           },
-          description: "Line items for the invoice",
+          description: "Line items",
         },
-        currency: { type: "string", enum: ["PEN", "USD"], description: "Currency (default: PEN)" },
-        exchange_rate: { type: "number", description: "Exchange rate if USD (optional)" },
+        currency: { type: "string", description: "ISO 4217 currency code (PEN, MXN, COP, USD, PAB). Default: country standard" },
+        payment_method: { type: "string", description: "Payment method/terms (optional)" },
         notes: { type: "string", description: "Invoice notes/observations (optional)" },
+        series: { type: "string", description: "Document series (optional, auto-assigned if omitted)" },
         due_date: { type: "string", description: "Payment due date ISO format (optional)" },
+        exchange_rate: { type: "number", description: "Exchange rate for foreign currency (optional)" },
         purchase_order: { type: "string", description: "Customer purchase order number (optional)" },
-        payment_terms: { type: "string", description: "Payment terms description (optional)" },
+        cfdi_use: { type: "string", description: "Mexico only: CFDI use code (default: G03)" },
+        payment_form: { type: "string", description: "Mexico only: payment form code (default: 01 = cash)" },
       },
-      required: ["document_type", "customer_tax_id", "customer_tax_id_type", "customer_name", "items"],
+      required: ["document_type", "customer_tax_id", "customer_doc_type", "customer_name", "items"],
     },
   },
   {
     name: "create_credit_note",
     description:
-      "Issue a credit note (nota de crédito) against an existing factura or boleta. Used for: void (01), correction (02), discount (03), or other adjustments.",
+      "Issue a credit note against an existing invoice. Used for: voids, corrections, discounts, returns. Requires reference to original document.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        reference_document: { type: "string", description: "Original document ID (e.g., F001-00000001)" },
-        reference_type: {
-          type: "string",
-          enum: ["01", "03"],
-          description: "Type of referenced document: 01 = Factura, 03 = Boleta",
-        },
+        reference_document: { type: "string", description: "Original document number (e.g., F001-00000001, UUID)" },
+        reference_document_type: { type: "string", description: "Type of referenced document (01, 03, I, FE)" },
         reason_code: {
           type: "string",
-          enum: ["01", "02", "03", "04", "05", "06"],
-          description: "Reason: 01=Anulación, 02=Corrección por error, 03=Descuento, 04=Devolución, 05=Bonificación, 06=Otros",
+          description: "Reason code. Peru: 01=void, 02=correction, 03=discount. Mexico: 01=NC de documentos relacionados",
         },
         reason: { type: "string", description: "Description of why the credit note is issued" },
-        customer_tax_id: { type: "string", description: "Customer RUC or DNI" },
-        customer_tax_id_type: { type: "string", enum: ["RUC", "DNI", "CE"] },
+        customer_tax_id: { type: "string", description: "Customer tax ID" },
+        customer_doc_type: { type: "string", enum: ["RUC", "DNI", "CE", "RFC", "NIT", "RUC-PA"] },
         customer_name: { type: "string", description: "Customer legal name" },
         items: {
           type: "array",
@@ -1054,37 +115,33 @@ const TOOLS = [
               quantity: { type: "number" },
               unit_price: { type: "number" },
               unit_code: { type: "string" },
+              tax_rate: { type: "number" },
             },
             required: ["description", "quantity", "unit_price"],
           },
           description: "Items being credited",
         },
-        currency: { type: "string", enum: ["PEN", "USD"], description: "Currency (default: PEN)" },
+        currency: { type: "string", description: "Currency (default: country standard)" },
       },
-      required: ["reference_document", "reference_type", "reason_code", "reason", "customer_tax_id", "customer_tax_id_type", "customer_name", "items"],
+      required: ["reference_document", "reference_document_type", "reason_code", "reason", "customer_tax_id", "customer_doc_type", "customer_name", "items"],
     },
   },
   {
     name: "create_debit_note",
     description:
-      "Issue a debit note (nota de débito) against an existing factura or boleta. Used for: interest (01), penalties (02), or price increases (03).",
+      "Issue a debit note against an existing invoice. Used for: interest charges, penalties, price increases.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        reference_document: { type: "string", description: "Original document ID (e.g., F001-00000001)" },
-        reference_type: {
-          type: "string",
-          enum: ["01", "03"],
-          description: "Type of referenced document: 01 = Factura, 03 = Boleta",
-        },
+        reference_document: { type: "string", description: "Original document number" },
+        reference_document_type: { type: "string", description: "Type of referenced document" },
         reason_code: {
           type: "string",
-          enum: ["01", "02", "03"],
-          description: "Reason: 01=Intereses por mora, 02=Penalidades, 03=Aumento en el valor",
+          description: "Reason code. Peru: 01=interest, 02=penalties, 03=price increase",
         },
         reason: { type: "string", description: "Description of why the debit note is issued" },
-        customer_tax_id: { type: "string", description: "Customer RUC or DNI" },
-        customer_tax_id_type: { type: "string", enum: ["RUC", "DNI", "CE"] },
+        customer_tax_id: { type: "string", description: "Customer tax ID" },
+        customer_doc_type: { type: "string", enum: ["RUC", "DNI", "CE", "RFC", "NIT", "RUC-PA"] },
         customer_name: { type: "string", description: "Customer legal name" },
         items: {
           type: "array",
@@ -1095,30 +152,27 @@ const TOOLS = [
               quantity: { type: "number" },
               unit_price: { type: "number" },
               unit_code: { type: "string" },
+              tax_rate: { type: "number" },
             },
             required: ["description", "quantity", "unit_price"],
           },
           description: "Items being debited",
         },
-        currency: { type: "string", enum: ["PEN", "USD"], description: "Currency (default: PEN)" },
+        currency: { type: "string", description: "Currency (default: country standard)" },
       },
-      required: ["reference_document", "reference_type", "reason_code", "reason", "customer_tax_id", "customer_tax_id_type", "customer_name", "items"],
+      required: ["reference_document", "reference_document_type", "reason_code", "reason", "customer_tax_id", "customer_doc_type", "customer_name", "items"],
     },
   },
   {
     name: "void_invoice",
     description:
-      "Submit a comunicación de baja to void/annul an invoice. Must be done within 7 days of issuance. For facturas, submits directly. For boletas, included in resumen diario.",
+      "Void/annul an existing invoice. Peru: comunicación de baja (within 7 days). Mexico: cancelación CFDI. Colombia: nota de crédito. Panama: anulación via PAC.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        document_id: { type: "string", description: "Document ID to void (e.g., F001-00000001)" },
-        document_type: {
-          type: "string",
-          enum: ["01", "03"],
-          description: "Document type: 01 = Factura, 03 = Boleta",
-        },
-        reason: { type: "string", description: "Reason for voiding the invoice" },
+        document_id: { type: "string", description: "Document ID or number to void" },
+        document_type: { type: "string", description: "Document type code (01, 03, I, FE)" },
+        reason: { type: "string", description: "Reason for voiding" },
       },
       required: ["document_id", "document_type", "reason"],
     },
@@ -1126,46 +180,34 @@ const TOOLS = [
   {
     name: "get_daily_summary",
     description:
-      "Generate and submit a resumen diario for boletas issued on a given date. Boletas are batched and sent to SUNAT in a daily summary rather than individually. Returns a ticket number to check status.",
+      "Generate daily summary for batch submission (Peru: resumen diario for boletas). Not applicable in Mexico/Colombia/Panama where documents are sent individually.",
     inputSchema: {
       type: "object" as const,
       properties: {
         date: {
           type: "string",
-          description: "Date for the summary in ISO format (e.g., 2025-01-15). Must be submitted by next business day.",
+          description: "Date for the summary in ISO format (e.g., 2026-03-21)",
         },
       },
       required: ["date"],
     },
   },
   {
-    name: "lookup_ruc",
+    name: "lookup_tax_id",
     description:
-      "Validate a RUC number and get business information from SUNAT: razón social, nombre comercial, dirección fiscal, estado del contribuyente, and régimen tributario. Use before issuing a factura.",
+      "Validate a tax ID and get entity information. Peru: RUC (11 digits) or DNI (8 digits). Mexico: RFC (12-13 chars). Colombia: NIT (9-10 digits). Panama: RUC (various formats).",
     inputSchema: {
       type: "object" as const,
       properties: {
-        ruc: { type: "string", description: "RUC number (11 digits)" },
+        tax_id: { type: "string", description: "Tax ID to validate (RUC, RFC, NIT, cédula)" },
       },
-      required: ["ruc"],
-    },
-  },
-  {
-    name: "lookup_dni",
-    description:
-      "Validate a DNI number and get the person's full name from RENIEC. Use before issuing a boleta to an identified consumer.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        dni: { type: "string", description: "DNI number (8 digits)" },
-      },
-      required: ["dni"],
+      required: ["tax_id"],
     },
   },
   {
     name: "get_invoice_status",
     description:
-      "Check the status of a submitted invoice or ticket (for resumen diario / comunicación de baja). Returns CDR status from SUNAT.",
+      "Check the status of a submitted document. Returns tax authority acceptance/rejection and response details.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -1177,23 +219,19 @@ const TOOLS = [
   {
     name: "list_invoices",
     description:
-      "List issued invoices with optional filters. Returns document ID, type, customer, total, date, and SUNAT status.",
+      "List issued invoices with optional filters by date, type, status, or customer.",
     inputSchema: {
       type: "object" as const,
       properties: {
         from_date: { type: "string", description: "Start date filter, ISO format (optional)" },
         to_date: { type: "string", description: "End date filter, ISO format (optional)" },
-        document_type: {
-          type: "string",
-          enum: ["01", "03", "07", "08"],
-          description: "Filter by document type (optional)",
-        },
+        document_type: { type: "string", description: "Filter by document type code (optional)" },
         status: {
           type: "string",
-          enum: ["accepted", "rejected", "pending", "voided"],
-          description: "Filter by SUNAT status (optional)",
+          enum: ["accepted", "rejected", "pending"],
+          description: "Filter by status (optional)",
         },
-        customer_tax_id: { type: "string", description: "Filter by customer RUC/DNI (optional)" },
+        customer_tax_id: { type: "string", description: "Filter by customer tax ID (optional)" },
         limit: { type: "number", description: "Max results (default 20)" },
       },
       required: [],
@@ -1202,14 +240,13 @@ const TOOLS = [
   {
     name: "get_tax_obligations",
     description:
-      "For a given business tax regime (NRUS, RER, RMT, RG), return all obligations: what to declare, when, which forms to use, and what books to keep. Useful for onboarding and compliance reminders.",
+      "Get tax obligations for a given business regime. Peru: NRUS/RER/RMT/RG. Mexico: RESICO/GENERAL. Colombia: SIMPLE/ORDINARIO. Panama: NATURAL/JURIDICA.",
     inputSchema: {
       type: "object" as const,
       properties: {
         regime: {
           type: "string",
-          enum: ["NRUS", "RER", "RMT", "RG"],
-          description: "Tax regime: NRUS, RER, RMT (Régimen MYPE Tributario), or RG (Régimen General)",
+          description: "Tax regime code (country-specific)",
         },
       },
       required: ["regime"],
@@ -1218,68 +255,99 @@ const TOOLS = [
   {
     name: "calculate_tax",
     description:
-      "Given a tax regime and monthly revenue/purchases, calculate IGV payable and renta (income tax) owed. Returns breakdown with crédito fiscal, rates applied, and total monthly obligation.",
+      "Calculate tax payable for a given regime, monthly revenue, and purchases. Returns tax breakdown including sales tax, income tax, and total monthly obligation.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        regime: {
-          type: "string",
-          enum: ["NRUS", "RER", "RMT", "RG"],
-          description: "Tax regime",
-        },
-        monthly_revenue: {
-          type: "number",
-          description: "Monthly sales revenue (base imponible, before IGV) in PEN",
-        },
-        monthly_purchases: {
-          type: "number",
-          description: "Monthly purchases (base imponible, before IGV) in PEN",
-        },
-        annual_revenue: {
-          type: "number",
-          description: "Estimated annual revenue in PEN (optional, used for RMT rate determination). If omitted, monthly × 12.",
-        },
+        regime: { type: "string", description: "Tax regime code" },
+        monthly_revenue: { type: "number", description: "Monthly sales revenue (before tax)" },
+        monthly_purchases: { type: "number", description: "Monthly purchases (before tax)" },
+        annual_revenue: { type: "number", description: "Estimated annual revenue (optional, used for rate determination)" },
       },
       required: ["regime", "monthly_revenue", "monthly_purchases"],
     },
   },
+  {
+    name: "health_check",
+    description:
+      "Check invoicing provider connectivity and authentication status. Returns country, provider, environment, and auth status.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];
+
+// ── Default Tax Rates by Country ─────────────────────────
+
+function getDefaultTaxRate(country: string): number {
+  switch (country) {
+    case "PE": return 0.18;  // IGV
+    case "MX": return 0.16;  // IVA
+    case "CO": return 0.19;  // IVA
+    case "PA": return 0.07;  // ITBMS
+    default: return 0.18;
+  }
+}
+
+// ── Build InvoiceData from Tool Args ─────────────────────
+
+function buildItems(args: Record<string, any>, country: string): LineItem[] {
+  const defaultRate = getDefaultTaxRate(country);
+  return (args.items || []).map((item: any) => ({
+    description: item.description,
+    quantity: item.quantity,
+    unit_price: item.unit_price,
+    tax_rate: item.tax_rate ?? defaultRate,
+    unit_code: item.unit_code || "NIU",
+    tax_type: item.tax_type,
+    item_code: item.item_code,
+    discount: item.discount,
+  }));
+}
+
+function buildCustomer(args: Record<string, any>): InvoiceData["customer"] {
+  return {
+    tax_id: args.customer_tax_id,
+    doc_type: args.customer_doc_type,
+    name: args.customer_name,
+    address: args.customer_address
+      ? { street: args.customer_address, city: "", state: "", country: INVOICE_COUNTRY }
+      : undefined,
+    email: args.customer_email,
+    tax_system: args.customer_tax_system,
+  };
+}
 
 // ── Tool Handlers ────────────────────────────────────────
 
 async function handleTool(name: string, args: Record<string, any>): Promise<string> {
-  const adapter = getAdapter();
+  const adapter = getAdapter(INVOICE_COUNTRY);
 
   switch (name) {
     case "create_invoice": {
       const data: InvoiceData = {
         document_type: args.document_type,
-        currency: args.currency || "PEN",
-        exchange_rate: args.exchange_rate,
-        due_date: args.due_date,
+        customer: buildCustomer(args),
+        items: buildItems(args, INVOICE_COUNTRY),
+        currency: args.currency || adapter.currency,
+        payment_method: args.payment_method,
         notes: args.notes,
+        series: args.series,
+        issue_date: args.issue_date,
+        due_date: args.due_date,
+        exchange_rate: args.exchange_rate,
         purchase_order: args.purchase_order,
-        payment_terms: args.payment_terms,
-        customer: {
-          tax_id: args.customer_tax_id,
-          tax_id_type: args.customer_tax_id_type,
-          legal_name: args.customer_name,
-          address: args.customer_address ? { street: args.customer_address, city: "", state: "", country: "PE" } : undefined,
-          email: args.customer_email,
-        },
-        items: (args.items || []).map((item: any) => ({
-          description: item.description,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          unit_code: item.unit_code || "NIU",
-          tax_type: item.tax_type || "IGV",
-          item_code: item.item_code,
-        })),
+        cfdi_use: args.cfdi_use,
+        payment_form: args.payment_form,
       };
 
-      // Validate: factura requires RUC, boleta requires DNI or can be anonymous
-      if (args.document_type === "01" && args.customer_tax_id_type !== "RUC") {
-        throw new Error("Factura (01) requires customer with RUC. Use boleta (03) for DNI/anonymous customers.");
+      // Peru validation: factura requires RUC, boleta requires DNI
+      if (INVOICE_COUNTRY === "PE") {
+        if (args.document_type === "invoice" && args.customer_doc_type !== "RUC") {
+          throw new Error("Peru factura requires customer with RUC. Use 'receipt' for DNI/anonymous customers.");
+        }
       }
 
       const result = await adapter.createInvoice(data);
@@ -1287,57 +355,41 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
     }
 
     case "create_credit_note": {
-      const data: CreditNoteData = {
+      const data: InvoiceData = {
+        document_type: "credit_note",
+        customer: buildCustomer(args),
+        items: buildItems(args, INVOICE_COUNTRY),
+        currency: args.currency || adapter.currency,
         reference_document: args.reference_document,
-        reference_type: args.reference_type,
+        reference_document_type: args.reference_document_type,
         reason_code: args.reason_code,
         reason: args.reason,
-        currency: args.currency || "PEN",
-        customer: {
-          tax_id: args.customer_tax_id,
-          tax_id_type: args.customer_tax_id_type,
-          legal_name: args.customer_name,
-        },
-        items: (args.items || []).map((item: any) => ({
-          description: item.description,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          unit_code: item.unit_code || "NIU",
-        })),
       };
       const result = await adapter.createCreditNote(data);
       return JSON.stringify(result, null, 2);
     }
 
     case "create_debit_note": {
-      const data: DebitNoteData = {
+      const data: InvoiceData = {
+        document_type: "debit_note",
+        customer: buildCustomer(args),
+        items: buildItems(args, INVOICE_COUNTRY),
+        currency: args.currency || adapter.currency,
         reference_document: args.reference_document,
-        reference_type: args.reference_type,
+        reference_document_type: args.reference_document_type,
         reason_code: args.reason_code,
         reason: args.reason,
-        currency: args.currency || "PEN",
-        customer: {
-          tax_id: args.customer_tax_id,
-          tax_id_type: args.customer_tax_id_type,
-          legal_name: args.customer_name,
-        },
-        items: (args.items || []).map((item: any) => ({
-          description: item.description,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          unit_code: item.unit_code || "NIU",
-        })),
       };
       const result = await adapter.createDebitNote(data);
       return JSON.stringify(result, null, 2);
     }
 
     case "void_invoice": {
-      const result = await adapter.voidInvoice({
-        document_id: args.document_id,
-        document_type: args.document_type,
-        reason: args.reason,
-      });
+      const result = await adapter.voidInvoice(
+        args.document_id,
+        args.document_type,
+        args.reason
+      );
       return JSON.stringify(result, null, 2);
     }
 
@@ -1346,33 +398,25 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
       return JSON.stringify(result, null, 2);
     }
 
-    case "lookup_ruc": {
-      const result = await adapter.validateTaxId(args.ruc);
-      return JSON.stringify(result, null, 2);
-    }
-
-    case "lookup_dni": {
-      const result = await adapter.lookupDni(args.dni);
+    case "lookup_tax_id": {
+      const result = await adapter.lookupTaxId(args.tax_id);
       return JSON.stringify(result, null, 2);
     }
 
     case "get_invoice_status": {
-      const pse = getPSEProvider();
-      const result = await pse.getStatus(args.document_id);
+      const result = await adapter.getInvoiceStatus(args.document_id);
       return JSON.stringify(result, null, 2);
     }
 
     case "list_invoices": {
-      const params = new URLSearchParams();
-      if (args.from_date) params.set("from", args.from_date);
-      if (args.to_date) params.set("to", args.to_date);
-      if (args.document_type) params.set("type", args.document_type);
-      if (args.status) params.set("status", args.status);
-      if (args.customer_tax_id) params.set("customer", args.customer_tax_id);
-      params.set("limit", String(args.limit || 20));
-
-      const pse = getPSEProvider();
-      const result = await pse.listInvoices(params);
+      const result = await adapter.listInvoices({
+        from_date: args.from_date,
+        to_date: args.to_date,
+        document_type: args.document_type,
+        status: args.status,
+        customer_tax_id: args.customer_tax_id,
+        limit: args.limit,
+      });
       return JSON.stringify(result, null, 2);
     }
 
@@ -1380,6 +424,7 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
       const obligations = adapter.getTaxObligations(args.regime);
       return JSON.stringify({
         country: adapter.countryCode,
+        country_name: adapter.countryName,
         regime: args.regime,
         obligations,
       }, null, 2);
@@ -1395,6 +440,16 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
       return JSON.stringify(result, null, 2);
     }
 
+    case "health_check": {
+      const result = await adapter.healthCheck();
+      const countries = listAdapters();
+      return JSON.stringify({
+        ...result,
+        active_country: INVOICE_COUNTRY,
+        available_countries: countries,
+      }, null, 2);
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -1403,7 +458,7 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
 // ── MCP Server Setup ─────────────────────────────────────
 
 const server = new Server(
-  { name: "invoicing-mcp", version: "0.1.0" },
+  { name: "invoicing-mcp", version: "1.0.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -1429,7 +484,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`Invoicing MCP server running on stdio (country: ${INVOICE_COUNTRY}, provider: ${INVOICE_PSE_PROVIDER}, env: ${INVOICE_ENVIRONMENT})`);
+  const adapter = getAdapter(INVOICE_COUNTRY);
+  console.error(
+    `Invoicing MCP v1.0.0 | ${adapter.countryName} (${adapter.countryCode}) | Provider: ${adapter.providerName} | Country env: ${INVOICE_COUNTRY}`
+  );
 }
 
 main().catch(console.error);

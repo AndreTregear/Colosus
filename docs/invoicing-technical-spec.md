@@ -409,15 +409,45 @@ interface Address {
 
 ### 3.1 Environment Variables
 
+**Global:**
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INVOICE_COUNTRY` | `PE` | ISO 3166-1 alpha-2 country code |
-| `INVOICE_PSE_URL` | — | PSE/PAC provider REST API base URL |
-| `INVOICE_PSE_TOKEN` | — | API authentication token |
-| `INVOICE_RUC` | — | Business tax ID (RUC for Peru) |
-| `INVOICE_ENVIRONMENT` | `beta` | `beta` for testing, `production` for live |
-| `INVOICE_SERIES_FACTURA` | `F001` | Default series for facturas |
-| `INVOICE_SERIES_BOLETA` | `B001` | Default series for boletas |
+| `INVOICE_COUNTRY` | `PE` | ISO 3166-1 alpha-2: PE, MX, CO, PA |
+| `INVOICE_SERIES_FACTURA` | `F001` | Default series for facturas (Peru) |
+| `INVOICE_SERIES_BOLETA` | `B001` | Default series for boletas (Peru) |
+
+**Peru (APISUNAT.pe):**
+
+| Variable | Description |
+|----------|-------------|
+| `APISUNAT_EMAIL` | Login email |
+| `APISUNAT_PASSWORD` | Login password |
+| `APISUNAT_RUC` | Issuer RUC (11 digits) |
+| `APISUNAT_RAZON_SOCIAL` | Issuer legal name |
+| `APISUNAT_ENVIRONMENT` | `beta` (default) or `production` |
+
+**Mexico (Facturapi):**
+
+| Variable | Description |
+|----------|-------------|
+| `FACTURAPI_API_KEY` | `sk_test_...` or `sk_live_...` |
+
+**Colombia (MATIAS):**
+
+| Variable | Description |
+|----------|-------------|
+| `MATIAS_CLIENT_ID` | OAuth client ID |
+| `MATIAS_CLIENT_SECRET` | OAuth client secret |
+
+**Panama (eFacturaPTY):**
+
+| Variable | Description |
+|----------|-------------|
+| `EFACTURA_API_URL` | API base URL |
+| `EFACTURA_USER` | API username |
+| `EFACTURA_PASSWORD` | API password |
+| `EFACTURA_ENVIRONMENT` | `1` (production) or `2` (test, default) |
 
 ### 3.2 Docker Integration
 
@@ -428,29 +458,30 @@ invoicing-mcp:
     dockerfile: Dockerfile
   environment:
     INVOICE_COUNTRY: PE
-    INVOICE_PSE_URL: ${INVOICE_PSE_URL}
-    INVOICE_PSE_TOKEN: ${INVOICE_PSE_TOKEN}
-    INVOICE_RUC: ${INVOICE_RUC}
-    INVOICE_ENVIRONMENT: ${INVOICE_ENVIRONMENT:-beta}
+    APISUNAT_EMAIL: ${APISUNAT_EMAIL}
+    APISUNAT_PASSWORD: ${APISUNAT_PASSWORD}
+    APISUNAT_RUC: ${APISUNAT_RUC}
+    APISUNAT_RAZON_SOCIAL: ${APISUNAT_RAZON_SOCIAL}
+    APISUNAT_ENVIRONMENT: ${APISUNAT_ENVIRONMENT:-beta}
   networks:
     - yaya-net
 ```
 
 ### 3.3 MCP Tool Summary
 
-| Tool | Description | Regime |
-|------|------------|--------|
-| `create_invoice` | Create factura (01) or boleta (03) | RER, RMT, RG |
-| `create_credit_note` | Issue nota de crédito (07) | RER, RMT, RG |
-| `create_debit_note` | Issue nota de débito (08) | RER, RMT, RG |
-| `void_invoice` | Submit comunicación de baja | RER, RMT, RG |
-| `get_daily_summary` | Generate resumen diario for boletas | RER, RMT, RG |
-| `lookup_ruc` | Validate RUC and get empresa data | All |
-| `lookup_dni` | Validate DNI number | All |
-| `get_invoice_status` | Check submission status | RER, RMT, RG |
-| `list_invoices` | List issued invoices with filters | RER, RMT, RG |
-| `get_tax_obligations` | Get obligations for a regime | All |
-| `calculate_tax` | Calculate IGV and renta owed | All |
+| Tool | Description | Countries |
+|------|------------|-----------|
+| `create_invoice` | Create invoice or receipt | PE, MX, CO, PA |
+| `create_credit_note` | Issue credit note against existing document | PE, MX, CO, PA |
+| `create_debit_note` | Issue debit note against existing document | PE, MX, CO, PA |
+| `void_invoice` | Void/annul a document | PE, MX, CO, PA |
+| `get_daily_summary` | Generate daily batch summary (Peru boletas) | PE (others: n/a) |
+| `lookup_tax_id` | Validate RUC/RFC/NIT/cédula and get entity data | PE, MX, CO, PA |
+| `get_invoice_status` | Check document submission status | PE, MX, CO, PA |
+| `list_invoices` | List issued invoices with filters | PE, MX, CO, PA |
+| `get_tax_obligations` | Get obligations for a business regime | PE, MX, CO, PA |
+| `calculate_tax` | Calculate tax payable for given revenue | PE, MX, CO, PA |
+| `health_check` | Check provider connectivity and auth | PE, MX, CO, PA |
 
 ---
 
@@ -508,14 +539,158 @@ Minus: pagos a cuenta mensuales realizados
 
 ---
 
-## 6. Future Roadmap
+## 6. Multi-Country Provider Adapters (v1.0)
 
-| Phase | Scope | Timeline |
-|-------|-------|----------|
-| **v1** | Peru — Factura, Boleta, Nota Crédito/Débito via PSE | Current |
-| **v1.1** | Peru — Guía de Remisión, Resumen Diario automation | +1 month |
-| **v1.2** | Peru — Direct SUNAT submission (no PSE dependency) | +3 months |
-| **v2** | Mexico — CFDI 4.0 via PAC | +4 months |
-| **v3** | Colombia — DIAN electronic invoicing | +6 months |
-| **v4** | Ecuador — SRI electronic invoicing | +8 months |
-| **v5** | Argentina — AFIP/ARCA WSFE | +10 months |
+As of v1.0, the invoicing MCP server uses a **Provider Adapter Pattern** supporting 4 countries with dedicated API providers. All Gosocket references have been removed.
+
+### 6.1 File Structure
+
+```
+mcp-servers/invoicing-mcp/src/
+├── index.ts                        # MCP server (tools + routing)
+├── types.ts                        # Universal shared types
+└── adapters/
+    ├── base.ts                     # Abstract adapter interface
+    ├── registry.ts                 # Adapter registry (factory)
+    ├── peru-apisunat.ts            # Peru via APISUNAT.pe (FULL)
+    ├── mexico-facturapi.ts         # Mexico via Facturapi (stub)
+    ├── colombia-matias.ts          # Colombia via MATIAS API (stub)
+    └── panama-efactura.ts          # Panama via eFacturaPTY (stub)
+```
+
+### 6.2 Provider Summary
+
+| Country | Provider | API Base | Auth | Tax | Status |
+|---------|----------|----------|------|-----|--------|
+| **Peru (PE)** | APISUNAT.pe | `back.apisunat.com` | JWT (email/password login) | IGV 18% | **FULL** |
+| **Mexico (MX)** | Facturapi | `facturapi.io/v2` | API Key (Bearer) | IVA 16% | Stub |
+| **Colombia (CO)** | MATIAS API | `api.matias-api.com` | OAuth 2.0 (client credentials) | IVA 19% | Stub |
+| **Panama (PA)** | eFacturaPTY | Configurable | User/password login | ITBMS 7% | Stub |
+
+### 6.3 Peru — APISUNAT.pe (Full Implementation)
+
+**Provider**: APISUNAT.pe (also known as apisunat.com / Lucode)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/auth/login` | POST | Auth with email/password → JWT token |
+| `/api/v1/invoice/send` | POST | Send invoice/credit note/debit note/void/summary |
+| `/api/v1/invoice/xml` | POST | Generate XML only (no SUNAT submission) |
+| `/api/v1/invoice/pdf/{hash}` | GET | Get PDF for a document |
+| `/api/v1/invoice/status/{id}` | GET | Check document status |
+| `/api/v1/invoice/list` | GET | List invoices with filters |
+| `/api/v1/ruc/{ruc}` | GET | RUC lookup (business info) |
+| `/api/v1/dni/{dni}` | GET | DNI lookup (person name) |
+
+**Key details**:
+- Document types: 01=Factura, 03=Boleta, 07=Nota Crédito, 08=Nota Débito
+- Series: F###-NNNNNNNN (factura), B###-NNNNNNNN (boleta)
+- Environment: beta (free testing, 20 docs/month) or production (paid plans from S/8)
+- No digital certificate needed (PSE uses their own)
+- Plans: S/8 (100 docs), S/15 (200), S/21 (300), S/35 (700)
+
+**Environment variables**:
+```
+APISUNAT_EMAIL=your@email.com
+APISUNAT_PASSWORD=yourpassword
+APISUNAT_RUC=20123456789
+APISUNAT_RAZON_SOCIAL=Mi Empresa S.A.C.
+APISUNAT_ENVIRONMENT=beta    # or production
+```
+
+### 6.4 Mexico — Facturapi (Stub)
+
+**Provider**: Facturapi (facturapi.io)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v2/invoices` | POST | Create CFDI (ingreso, egreso, pago) |
+| `/v2/customers` | POST | Create/validate customer |
+| `/v2/invoices/{id}/pdf` | GET | Download PDF |
+| `/v2/invoices/{id}/xml` | GET | Download XML |
+| `/v2/invoices/{id}/zip` | GET | Download ZIP (PDF + XML) |
+| `/v2/invoices/{id}` | DELETE | Cancel CFDI (with motive code) |
+
+**Key details**:
+- CFDI 4.0, timbrado by PAC (Proveedor Autorizado de Certificación)
+- Cancel motives: 01=con relación, 02=sin relación, 03=no se realizó, 04=global
+- Test keys: `sk_test_...`, Live keys: `sk_live_...`
+- Complemento de Pago for payment tracking
+
+**Environment variables**:
+```
+FACTURAPI_API_KEY=sk_test_xxxxx    # or sk_live_xxxxx
+```
+
+### 6.5 Colombia — MATIAS API (Stub)
+
+**Provider**: MATIAS API (matias-api.com)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/oauth/token` | POST | OAuth 2.0 token (client credentials) |
+| `/invoice` | POST | Create FE, NC, ND, DS, NE |
+| `/invoice/{key}/status` | GET | Check document status |
+
+**Key details**:
+- Tax authority: DIAN (Dirección de Impuestos y Aduanas Nacionales)
+- CUFE (Código Único de Factura Electrónica) per document
+- Document types: FE (factura), NC (nota crédito), ND (nota débito), DS (documento soporte), NE (nómina)
+- Plans from 96,000 COP/year (500 docs)
+- DIAN does not support direct void — requires nota de crédito
+
+**Environment variables**:
+```
+MATIAS_CLIENT_ID=your_client_id
+MATIAS_CLIENT_SECRET=your_client_secret
+```
+
+### 6.6 Panama — eFacturaPTY (Stub)
+
+**Provider**: eFacturaPTY
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/auth/login` | POST | Auth with user/password |
+| `/fe/invoice` | POST | Send invoice (XML + signature + PAC auth) |
+| `/fe/status/{cufe}` | GET | Check by CUFE |
+| `/fe/void` | POST | Void document |
+
+**Key details**:
+- Tax authority: DGI (Dirección General de Ingresos)
+- CUFE (Código Único de Factura Electrónica) per document
+- ITBMS rates: 7% general, 10% alcohol/hospitality, 15% tobacco
+- Environments: 1=production, 2=test
+- PAB (Balboa) at parity with USD (both legal tender)
+- Panama uses territorial tax system (only local-source income taxed)
+
+**Environment variables**:
+```
+EFACTURA_API_URL=https://api.efacturapty.com
+EFACTURA_USER=your_user
+EFACTURA_PASSWORD=your_password
+EFACTURA_ENVIRONMENT=2    # 1=production, 2=test
+```
+
+### 6.7 Adding a New Country
+
+To add a new country adapter:
+
+1. Create `adapters/{country}-{provider}.ts` implementing `CountryAdapter` from `base.ts`
+2. Register it in `adapters/registry.ts`
+3. Set `INVOICE_COUNTRY={code}` to activate
+
+The MCP tools (index.ts) require **no changes** — they delegate to the adapter.
+
+---
+
+## 7. Roadmap
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| **v1.0** | Peru via APISUNAT.pe (full), MX/CO/PA stubs | **Current** |
+| **v1.1** | Mexico via Facturapi (activate) | Next |
+| **v1.2** | Colombia via MATIAS (activate) | Planned |
+| **v1.3** | Panama via eFacturaPTY (activate) | Planned |
+| **v2.0** | Ecuador — SRI electronic invoicing | Future |
+| **v2.1** | Argentina — AFIP/ARCA WSFE | Future |
