@@ -2,8 +2,8 @@
 
 **Classification:** Strategic — Series A Investor Briefing  
 **Date:** March 21, 2026  
-**Version:** 3.0 (auto-updated)  
-**Synthesized from:** 18 research documents across market, competitive, fintech, risk, strategy, and technology verticals  
+**Version:** 4.0 (auto-updated)  
+**Synthesized from:** 21 research documents across market, competitive, fintech, risk, strategy, and technology verticals  
 
 ---
 
@@ -274,6 +274,55 @@ These are the questions our research has identified but cannot fully answer with
 
 ---
 
-*This synthesis is auto-generated from 18 research documents totaling ~120,000 words of primary analysis. Source documents are organized under `/research/market/`, `/research/competitive/`, `/research/fintech/`, `/research/risks/`, `/research/strategy/`, and `/research/technology/`. Each claim is traceable to specific sourced data points within these documents.*
+## 11. NEW INSIGHTS — MARCH 21, 2026 EXPANSION
 
-*Last updated: March 21, 2026*
+### 11.1 SUNAT/Nubefact Technical Integration (technology/06)
+
+The technical path to SUNAT-compliant invoicing is now fully mapped. **Nubefact emerges as the optimal PSE/OSE partner** due to its REST/JSON API (no XML wrangling), competitive SMB pricing (S/70/month for 500 documents), reseller program enabling white-label invoicing, and included digital certificate. Key findings:
+
+- **Integration timeline:** 12–18 weeks with phased rollout (sandbox → homologation → production)
+- **Gross margin potential:** 80–90% on invoicing feature — Nubefact's per-document cost (~S/0.14) vs. Yaya's subscription pricing creates excellent unit economics
+- **WhatsApp conversational flow:** Invoice generation via natural language ("Factura a Juan, 3 camisas a S/45") is technically feasible with the Nubefact API's simple JSON payload structure
+- **Alternative PSEs reviewed:** Efact, Alegra, Bsale, Bizlinks — Nubefact wins on API simplicity and SMB pricing
+- **Critical risk:** SUNAT homologation requires passing all test scenarios; plan 4–6 weeks for this process alone
+- **Strategic implication:** Invoicing is the wedge feature that drives adoption (compliance pull) and generates the transaction data that powers the embedded finance roadmap
+
+### 11.2 B2B vs B2C WhatsApp Commerce (market/06)
+
+The analysis reveals a **"prosumer" opportunity** that validates Yaya's positioning. Key findings:
+
+- **Market sizing:** $18.2B LATAM conversational commerce (2026), with WhatsApp mediating 72% of all conversational transactions
+- **B2C dominance today:** Most WhatsApp commerce in LATAM is B2C (catalog sharing, order-taking, customer support), but this is a crowded space with thin margins
+- **B2B emerging fast:** Supplier ordering, inventory management, and wholesale coordination via WhatsApp are growing rapidly — and largely unserved by technology
+- **The prosumer sweet spot:** Microentrepreneurs who are simultaneously buyers (B2B: ordering from suppliers) and sellers (B2C: selling to end customers) represent Yaya's ideal ICP — they need both models in one tool
+- **Unit economics favor B2B:** Higher ARPU ($150–800/month vs. $100–200 B2C), lower churn (2–4% vs. 5–8%), longer customer lifespans
+- **Case study validation:** Meesho (India, $1.4B GMV), Sabi (Africa, $300M valuation), and Yavendió (Peru, 7K+ customers) prove both models work at scale
+- **Strategic recommendation:** Start prosumer-first (B2C features for SMBs who also buy from suppliers), then layer B2B supply chain features in Phase 2. This hybrid approach captures both sides of the microentrepreneur's daily workflow
+
+### 11.3 Regulatory Sandbox — Peru & Colombia (risks/03)
+
+The regulatory sandbox landscape is now **more favorable than previously assessed**, particularly after Peru's November 2025 reform. Key findings:
+
+- **Peru's sandbox transformation:** The failed 2021 sandbox (only 1 participant — BCP's CriptoCocos) has been replaced by Resolution SBS N° 04142-2025, which opens participation to fintechs and startups for the first time. This is directly relevant if Yaya launches embedded finance features
+- **Colombia's mature ecosystem:** A 7-year head start with dual architecture (laArenera supervision sandbox + Espacio Controlado de Prueba regulatory sandbox), 15+ completed projects, and participation by major players (Nequi 20M users, RappiPay, Bancolombia/Wenia). This validates Colombia as the second-market expansion choice
+- **Platform qualification:** Yaya's potential financial features (payment facilitation, micro-lending referrals, AI financial advisory) would likely trigger sandbox eligibility in both countries
+- **Timeline reality:** 3–5 years Peru, 2–4 years Colombia from sandbox application to full financial license — this informs the embedded finance roadmap timing
+- **Regional context:** Mexico's Ley Fintech, Brazil's triple sandbox + Pix, and Chile's CMF approach all offer expansion pathway models
+- **Strategic implication:** Begin sandbox application preparation in parallel with Phase 2 (Month 9–18), targeting Peru's SBS sandbox for embedded finance features. Colombia's more mature framework de-risks the second-market entry
+
+### Cross-Document Insight: The Invoicing → Finance → Platform Flywheel
+
+The three new documents collectively reinforce a critical strategic sequence:
+
+1. **SUNAT invoicing** (via Nubefact) is the wedge — compliance pull drives adoption at near-zero CAC
+2. **Prosumer B2B/B2C** features create daily engagement stickiness — the user manages both buying and selling in one WhatsApp thread
+3. **Regulatory sandbox** opens the path to embedded finance — the transaction data from invoicing + commerce creates the credit scoring dataset
+4. **Embedded finance** (working capital, invoice factoring) becomes the high-margin revenue engine
+
+This flywheel is now technically validated: Nubefact's API handles step 1, the prosumer model validates step 2, and Peru's reformed sandbox enables steps 3–4. The 12–18 month integration timeline for Nubefact aligns with the Phase 1 beachhead timeline, and sandbox application prep can begin in parallel during Phase 2.
+
+---
+
+*This synthesis is auto-generated from 21 research documents totaling ~140,000 words of primary analysis. Source documents are organized under `/research/market/`, `/research/competitive/`, `/research/fintech/`, `/research/risks/`, `/research/strategy/`, and `/research/technology/`. Each claim is traceable to specific sourced data points within these documents.*
+
+*Last updated: March 21, 2026 (v4.0 — added SUNAT/Nubefact integration, B2B vs B2C WhatsApp commerce, and regulatory sandbox Peru/Colombia)*
