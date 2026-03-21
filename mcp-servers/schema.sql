@@ -270,3 +270,59 @@ INSERT INTO business.expense_categories (name, description) VALUES
     ('maintenance',   'Mantenimiento y reparaciones'),
     ('other',         'Otros gastos')
 ON CONFLICT (name) DO NOTHING;
+
+-- ══════════════════════════════════════════════════════════
+-- LEDGER ENTRIES (yaya-ledger: simplified daily sales tracking)
+-- ══════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS business.ledger_entries (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    business_id UUID,  -- NULL for single-business setups; FK if multi-tenant
+    entry_type TEXT NOT NULL CHECK (entry_type IN (
+        'sale', 'batch_sale', 'day_total',
+        'cash_out', 'cash_in',
+        'opening', 'closing', 'adjustment'
+    )),
+    amount NUMERIC(12,2) NOT NULL,
+    payment_method TEXT DEFAULT 'efectivo' CHECK (payment_method IN (
+        'efectivo', 'yape', 'plin', 'transferencia', 'tarjeta', 'mixto', 'fiado'
+    )),
+    items JSONB,            -- [{"name":"arroz","qty":3,"price":3.50}, ...]
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    business_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    source TEXT DEFAULT 'chat' CHECK (source IN ('chat', 'voice', 'photo', 'cron', 'api')),
+    raw_message TEXT,
+    confidence NUMERIC(3,2) DEFAULT 1.00,
+    is_deleted BOOLEAN DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_ledger_biz_date ON business.ledger_entries(business_id, business_date);
+CREATE INDEX IF NOT EXISTS idx_ledger_type ON business.ledger_entries(entry_type);
+CREATE INDEX IF NOT EXISTS idx_ledger_date ON business.ledger_entries(business_date);
+
+-- ══════════════════════════════════════════════════════════
+-- DAILY SUMMARIES (pre-computed for fast lookups)
+-- ══════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS business.daily_summaries (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    business_id UUID,
+    business_date DATE NOT NULL,
+    total_sales NUMERIC(12,2) DEFAULT 0,
+    total_efectivo NUMERIC(12,2) DEFAULT 0,
+    total_yape NUMERIC(12,2) DEFAULT 0,
+    total_plin NUMERIC(12,2) DEFAULT 0,
+    total_other_digital NUMERIC(12,2) DEFAULT 0,
+    total_fiado NUMERIC(12,2) DEFAULT 0,
+    transaction_count INTEGER DEFAULT 0,
+    opening_balance NUMERIC(12,2),
+    closing_balance NUMERIC(12,2),
+    expected_cash NUMERIC(12,2),
+    cash_difference NUMERIC(12,2),
+    cash_outs NUMERIC(12,2) DEFAULT 0,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(business_id, business_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_summary_biz_date ON business.daily_summaries(business_id, business_date);
