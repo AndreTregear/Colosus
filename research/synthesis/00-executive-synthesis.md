@@ -2,8 +2,8 @@
 
 **Classification:** Strategic — Series A Investor Briefing  
 **Date:** March 21, 2026  
-**Version:** 5.0 (auto-updated)  
-**Synthesized from:** 24 research documents across market, competitive, fintech, risk, strategy, and technology verticals  
+**Version:** 6.0 (auto-updated)  
+**Synthesized from:** 27 research documents across market, competitive, fintech, risk, strategy, and technology verticals  
 
 ---
 
@@ -376,6 +376,61 @@ The three new documents reveal a critical constraint triangle:
 
 ---
 
-*This synthesis is auto-generated from 24 research documents totaling ~155,000 words of primary analysis. Source documents are organized under `/research/market/`, `/research/competitive/`, `/research/fintech/`, `/research/risks/`, `/research/strategy/`, and `/research/technology/`. Each claim is traceable to specific sourced data points within these documents.*
+## 13. VERTICAL DEEP-DIVES — MARCH 21, 2026 EXPANSION (CYCLE 3)
 
-*Last updated: March 21, 2026 (v5.0 — added INEI microenterprise census, Magie Brazil case study, AI literacy among Peruvian SMB owners)*
+### 13.1 Construction Vertical (market/09) — Strategic Priority: 4.5/5
+
+Construction emerges as a **top-tier vertical opportunity**, potentially rivaling beauty salons for Phase 2 entry:
+
+- **Market scale:** 5.6% of GDP (~$16–17B), growing 3.5–4.6% annually. 100K+ micro-enterprises, 60–75% informal (autoconstrucción)
+- **WhatsApp already dominant:** 55% of construction MSMEs use WhatsApp for customer communication, 48% for supplier coordination — the behavior exists, the tools don't
+- **Zero competition:** No WhatsApp-native construction tech exists in Peru at the micro/SME level
+- **Government tailwind:** S/2.4B in housing programs (Techo Propio, MiVivienda) in 2025 creating demand for small construction firms
+- **Clear use cases:** Quote generation, materials ordering from ferreterías, worker scheduling, project cost tracking, SUNAT invoicing
+- **ARPU potential:** Higher than beauty salons due to larger transaction sizes and materials procurement volume
+- **Key risk:** Extreme informality and low digital literacy among field workers (maestros de obra). Platform must work for the contractor who manages via WhatsApp, not require adoption by all workers
+
+### 13.2 Agriculture Vertical (market/10) — Strategic Priority: Phase 3+
+
+Agriculture is a massive but harder market, best suited for later entry:
+
+- **Sector scale:** ~6% of GDP, 4.3M workers, 2.2M agricultural units. Largest employer after services
+- **The acopiador opportunity:** Intermediaries who buy from farmers and sell to wholesale markets are the primary beachhead — high WhatsApp usage, high daily transaction volume, zero digital tools. These middlemen process dozens of transactions daily and track everything in paper notebooks
+- **Coffee/cacao cooperatives:** Strong secondary entry point — cooperatives need shared business management (member tracking, quality records, export documentation) and have higher willingness to pay
+- **Technology barrier:** Rural connectivity gaps, extreme informality, seasonal income, lower smartphone penetration outside urban areas
+- **Revenue potential:** S/6–20M TAM, but longer sales cycles and higher CAC than urban verticals
+- **Strategic recommendation:** Phase 3+ opportunity. Pilot with 2–3 coffee cooperatives in San Martín/Junín. The acopiador segment could be tested earlier if a natural distribution channel emerges
+
+### 13.3 Education/Tutoring Vertical (market/11) — Strategic Priority: Strong Phase 2 Candidate
+
+Education micro-enterprises represent a high-ARPU, underserved vertical:
+
+- **Market structure:** 112,724 educational service points in Peru (MINEDU 2025), 28% private enrollment. The target is the 15,000–25,000 small academias, tutoring centers, and language schools
+- **The "academia" phenomenon:** Small tutoring businesses (pre-university, English, math) with 1–5 employees manage everything via WhatsApp groups — enrollment, scheduling, payment collection, parent communication
+- **Primary pain point:** Payment delinquency — small academias struggle with cash collection and tracking who has paid. Automated Yape/Plin payment reminders via WhatsApp are an immediate value proposition
+- **Higher ARPU:** S/80–120/month estimated, significantly above beauty salons, because education businesses have recurring monthly revenue and higher transaction complexity
+- **Revenue potential:** $1.1M–$2.8M annual at 10–15% penetration of addressable market
+- **Competitive gap:** No WhatsApp-native AI solution exists for Peruvian education micro-enterprises
+- **Language schools as beachhead:** English academies (ICPNA, Británico model trickle-down to small independents) are booming, tech-forward, and concentrated in Lima
+- **Strategic recommendation:** Strong Phase 2 candidate alongside restaurants. Start with small English academies in Lima districts
+
+### Cross-Document Insight: Revised Vertical Prioritization Matrix
+
+With three new vertical deep-dives, the expansion sequence can now be data-informed:
+
+| Priority | Vertical | Phase | Est. ARPU | Addressable | Key Advantage |
+|----------|----------|-------|-----------|-------------|---------------|
+| 1 | Beauty Salons | Phase 1 | S/49–79 | 30K–50K | Lowest CAC, tightest networks, proven no-show ROI |
+| 2 | Construction | Phase 2 | S/79–149 | 100K+ | Largest addressable, government tailwind, zero competition |
+| 3 | Education/Tutoring | Phase 2 | S/80–120 | 15K–25K | Highest ARPU, recurring revenue, payment delinquency pain |
+| 4 | Restaurants | Phase 2 | S/49–99 | 80K–120K | Anti-Rappi narrative, high volume |
+| 5 | Agriculture (acopiadores) | Phase 3 | S/30–60 | 50K–100K | Massive but harder, connectivity barriers |
+| 6 | Agriculture (cooperatives) | Phase 3 | S/100–200 | 2K–5K | High ARPU but small market, export documentation value |
+
+**Key insight:** Construction should be elevated to co-equal Phase 2 priority alongside restaurants. The combination of market size (100K+ micro-enterprises), zero competition, government investment tailwind, and existing WhatsApp behavior makes it arguably the strongest vertical after the beauty salon beachhead. Education is a smaller but higher-ARPU niche that could be tested with minimal additional feature development.
+
+---
+
+*This synthesis is auto-generated from 27 research documents totaling ~175,000 words of primary analysis. Source documents are organized under `/research/market/`, `/research/competitive/`, `/research/fintech/`, `/research/risks/`, `/research/strategy/`, and `/research/technology/`. Each claim is traceable to specific sourced data points within these documents.*
+
+*Last updated: March 21, 2026 (v6.0 — added construction, agriculture, and education/tutoring vertical deep-dives)*
