@@ -242,7 +242,8 @@ BEGIN
     FOR t IN
         SELECT unnest(ARRAY[
             'contacts', 'deals', 'appointments',
-            'expenses', 'fiados'
+            'expenses', 'fiados', 'suppliers',
+            'supplier_products', 'purchase_orders', 'reorder_points'
         ])
     LOOP
         EXECUTE format(
@@ -326,3 +327,174 @@ CREATE TABLE IF NOT EXISTS business.daily_summaries (
 );
 
 CREATE INDEX IF NOT EXISTS idx_summary_biz_date ON business.daily_summaries(business_id, business_date);
+
+-- ══════════════════════════════════════════════════════════
+-- SUPPLIERS (yaya-suppliers: supplier & procurement management)
+-- ══════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS business.suppliers (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    contact_id UUID REFERENCES business.contacts(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    phone TEXT,
+    whatsapp TEXT,
+    address TEXT,
+    category TEXT CHECK (category IN (
+        'distribuidor', 'mayorista', 'fabricante',
+        'mercado', 'importador', 'artesano', 'otro'
+    )),
+    payment_terms TEXT DEFAULT 'contado' CHECK (payment_terms IN (
+        'contado', 'credito_7', 'credito_15', 'credito_30',
+        'credito_60', 'consignacion', 'mixto'
+    )),
+    credit_limit NUMERIC(12,2),
+    delivery_days TEXT[],
+    lead_time_days INTEGER DEFAULT 1,
+    minimum_order NUMERIC(12,2),
+    notes TEXT,
+    rating NUMERIC(3,2) DEFAULT 5.0,
+    is_active BOOLEAN DEFAULT TRUE,
+    deactivated_reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_suppliers_contact ON business.suppliers(contact_id);
+CREATE INDEX IF NOT EXISTS idx_suppliers_category ON business.suppliers(category);
+CREATE INDEX IF NOT EXISTS idx_suppliers_active ON business.suppliers(is_active);
+CREATE INDEX IF NOT EXISTS idx_suppliers_name_trgm ON business.suppliers USING gin (name gin_trgm_ops);
+
+-- SUPPLIER PRODUCTS
+CREATE TABLE IF NOT EXISTS business.supplier_products (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    supplier_id UUID NOT NULL REFERENCES business.suppliers(id) ON DELETE CASCADE,
+    product_name TEXT NOT NULL,
+    product_code TEXT,
+    unit TEXT DEFAULT 'unidad',
+    current_price NUMERIC(12,2),
+    currency TEXT DEFAULT 'PEN',
+    last_price_update TIMESTAMPTZ,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sp_supplier ON business.supplier_products(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_sp_product_trgm ON business.supplier_products USING gin (product_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_sp_code ON business.supplier_products(product_code);
+
+-- PRICE HISTORY
+CREATE TABLE IF NOT EXISTS business.price_history (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    supplier_product_id UUID NOT NULL REFERENCES business.supplier_products(id) ON DELETE CASCADE,
+    price NUMERIC(12,2) NOT NULL,
+    currency TEXT DEFAULT 'PEN',
+    source TEXT DEFAULT 'po',
+    recorded_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ph_product ON business.price_history(supplier_product_id, recorded_at DESC);
+
+-- PURCHASE ORDERS
+CREATE TABLE IF NOT EXISTS business.purchase_orders (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    supplier_id UUID NOT NULL REFERENCES business.suppliers(id) ON DELETE RESTRICT,
+    po_number TEXT,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN (
+        'draft', 'sent', 'confirmed', 'partial',
+        'delivered', 'paid', 'cancelled', 'disputed'
+    )),
+    order_date TIMESTAMPTZ DEFAULT now(),
+    expected_delivery DATE,
+    actual_delivery TIMESTAMPTZ,
+    subtotal NUMERIC(12,2) DEFAULT 0,
+    tax_amount NUMERIC(12,2) DEFAULT 0,
+    total NUMERIC(12,2) DEFAULT 0,
+    currency TEXT DEFAULT 'PEN',
+    payment_method TEXT,
+    payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN (
+        'pending', 'partial', 'paid', 'credit'
+    )),
+    notes TEXT,
+    sent_via TEXT,
+    sent_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_po_supplier ON business.purchase_orders(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_po_status ON business.purchase_orders(status);
+CREATE INDEX IF NOT EXISTS idx_po_date ON business.purchase_orders(order_date DESC);
+CREATE INDEX IF NOT EXISTS idx_po_delivery ON business.purchase_orders(expected_delivery);
+
+-- PO LINE ITEMS
+CREATE TABLE IF NOT EXISTS business.po_line_items (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    po_id UUID NOT NULL REFERENCES business.purchase_orders(id) ON DELETE CASCADE,
+    supplier_product_id UUID REFERENCES business.supplier_products(id) ON DELETE SET NULL,
+    product_name TEXT NOT NULL,
+    quantity NUMERIC(12,3) NOT NULL,
+    unit TEXT DEFAULT 'unidad',
+    unit_price NUMERIC(12,2) NOT NULL,
+    total NUMERIC(12,2) NOT NULL,
+    received_quantity NUMERIC(12,3) DEFAULT 0,
+    quality_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_poli_po ON business.po_line_items(po_id);
+
+-- DELIVERY RECEIPTS
+CREATE TABLE IF NOT EXISTS business.delivery_receipts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    po_id UUID NOT NULL REFERENCES business.purchase_orders(id) ON DELETE CASCADE,
+    received_at TIMESTAMPTZ DEFAULT now(),
+    received_by TEXT,
+    is_complete BOOLEAN DEFAULT TRUE,
+    discrepancy_notes TEXT,
+    quality_issues TEXT,
+    photo_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dr_po ON business.delivery_receipts(po_id);
+
+-- SUPPLIER COMPLAINTS
+CREATE TABLE IF NOT EXISTS business.supplier_complaints (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    supplier_id UUID NOT NULL REFERENCES business.suppliers(id) ON DELETE CASCADE,
+    po_id UUID REFERENCES business.purchase_orders(id) ON DELETE SET NULL,
+    complaint_type TEXT NOT NULL CHECK (complaint_type IN (
+        'late_delivery', 'short_delivery', 'quality',
+        'wrong_product', 'overcharge', 'damaged', 'other'
+    )),
+    description TEXT NOT NULL,
+    severity TEXT DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    status TEXT DEFAULT 'open' CHECK (status IN (
+        'open', 'in_progress', 'resolved', 'unresolved'
+    )),
+    resolution TEXT,
+    credit_amount NUMERIC(12,2),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    resolved_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_sc_supplier ON business.supplier_complaints(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_sc_status ON business.supplier_complaints(status);
+
+-- REORDER POINTS
+CREATE TABLE IF NOT EXISTS business.reorder_points (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    product_name TEXT NOT NULL,
+    product_code TEXT,
+    preferred_supplier_id UUID REFERENCES business.suppliers(id) ON DELETE SET NULL,
+    minimum_stock NUMERIC(12,3) NOT NULL,
+    reorder_quantity NUMERIC(12,3) NOT NULL,
+    unit TEXT DEFAULT 'unidad',
+    check_frequency TEXT DEFAULT 'weekly' CHECK (check_frequency IN (
+        'daily', 'weekly', 'monthly'
+    )),
+    last_checked TIMESTAMPTZ,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
