@@ -253,7 +253,10 @@ interface YayaApiService {
         @Body request: ToggleFlowRequest
     ): Response<OkResponse>
 
-    // ── Yape sync (keep existing) ────────────────────
+    // ── Yape sync ────────────────────────────────────
+    // Compatible with both the full autobot backend and the standalone
+    // yape-listener service (services/yape-listener). The yape-listener
+    // accepts these same paths as backward-compatible aliases.
 
     @POST("api/v1/yape/payments/sync")
     suspend fun syncPayment(@Body request: PaymentSyncRequest): Response<PaymentSyncResponse>
