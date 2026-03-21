@@ -1,7 +1,7 @@
 {
-  "name": "payments-mcp",
+  "name": "whatsapp-mcp",
   "version": "0.1.0",
-  "description": "MCP server for payment validation against ERPNext orders and Postgres",
+  "description": "MCP server for outbound WhatsApp messaging via OpenClaw gateway",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -10,13 +10,11 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "pg": "^8.13.0"
+    "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "devDependencies": {
     "tsx": "^4.21.0",
     "typescript": "^5.9.0",
-    "@types/node": "^22.0.0",
-    "@types/pg": "^8.11.0"
+    "@types/node": "^22.0.0"
   }
 }

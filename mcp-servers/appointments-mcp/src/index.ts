@@ -11,6 +11,8 @@
  *  PROVIDERS: list_providers, get_provider_schedule, set_working_hours
  *  REMINDERS: send_reminder, list_no_shows
  *  CALENDAR:  sync_google_calendar, sync_caldav, get_external_events
+ *  CAL.COM:   get_booking_link, sync_calendar
+ *  DEPOSITS:  set_deposit_required, verify_deposit, process_no_show
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -20,6 +22,12 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import pg from "pg";
+import {
+  generateBookingLink,
+  syncCalComBookings,
+  pushAppointmentToCalCom,
+  getCalComBusySlots,
+} from "./calcom-bridge.js";
 
 const { Pool } = pg;
 
@@ -32,6 +40,9 @@ const CANCELLATION_WINDOW_HOURS = parseInt(process.env.CANCELLATION_WINDOW_HOURS
 const WHATSAPP_API_URL = process.env.WHATSAPP_API_URL || "";
 const WHATSAPP_API_TOKEN = process.env.WHATSAPP_API_TOKEN || "";
 const BUSINESS_TIMEZONE = process.env.BUSINESS_TIMEZONE || "America/Lima";
+const CAL_COM_API_URL = process.env.CAL_COM_API_URL || "http://localhost:3000/api/v1";
+const CAL_COM_API_KEY = process.env.CAL_COM_API_KEY || "";
+const DEPOSIT_EXPIRY_HOURS = parseInt(process.env.DEPOSIT_EXPIRY_HOURS || "2", 10);
 
 // ── PostgreSQL Pool ──────────────────────────────────
 
@@ -57,6 +68,8 @@ CREATE TABLE IF NOT EXISTS services (
   description   TEXT,
   category      VARCHAR(100),
   active        BOOLEAN NOT NULL DEFAULT true,
+  deposit_amount    DECIMAL(10,2),
+  deposit_required  BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -91,11 +104,14 @@ CREATE TABLE IF NOT EXISTS appointments (
   datetime        TIMESTAMPTZ NOT NULL,
   end_time        TIMESTAMPTZ NOT NULL,
   status          VARCHAR(20) NOT NULL DEFAULT 'booked'
-                  CHECK (status IN ('booked','confirmed','cancelled','completed','no_show')),
+                  CHECK (status IN ('booked','confirmed','cancelled','completed','no_show','pending_deposit')),
   notes           TEXT,
   reminder_sent_24h BOOLEAN NOT NULL DEFAULT false,
   reminder_sent_2h  BOOLEAN NOT NULL DEFAULT false,
   cancellation_reason TEXT,
+  deposit_status      VARCHAR(20) CHECK (deposit_status IN ('pending','paid','forfeited','refunded')),
+  deposit_payment_ref VARCHAR(255),
+  deposit_paid_at     TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   cancelled_at    TIMESTAMPTZ
 );
@@ -132,6 +148,19 @@ CREATE TABLE IF NOT EXISTS external_events (
 
 CREATE INDEX IF NOT EXISTS idx_external_events_provider_time
   ON external_events(provider_id, start_time, end_time);
+
+CREATE TABLE IF NOT EXISTS calcom_event_type_mappings (
+  id                    SERIAL PRIMARY KEY,
+  service_id            INTEGER NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+  calcom_event_type_id  INTEGER NOT NULL,
+  calcom_event_slug     VARCHAR(255),
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(service_id),
+  UNIQUE(calcom_event_type_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_appointments_deposit_status
+  ON appointments(deposit_status) WHERE deposit_status = 'pending';
 `;
 
 async function ensureSchema() {
@@ -198,6 +227,19 @@ async function generateSlots(
       start: new Date(row.start_time),
       end: new Date(row.end_time),
     });
+  }
+
+  // Also check Cal.com busy slots
+  try {
+    const calcomBusy = await getCalComBusySlots(providerId, date, date);
+    for (const slot of calcomBusy) {
+      blocked.push({
+        start: new Date(slot.start),
+        end: new Date(slot.end),
+      });
+    }
+  } catch {
+    // Cal.com not configured or unavailable — continue without
   }
 
   // Parse working hours into Date objects for this date
@@ -531,6 +573,83 @@ const TOOLS = [
       required: ["provider_id", "date_from", "date_to"],
     },
   },
+
+  // ── CAL.COM & DEPOSITS ──
+  {
+    name: "get_booking_link",
+    description:
+      "Generate a Cal.com booking link for a specific service (and optionally a provider). " +
+      "Useful for sharing on Instagram, website, or WhatsApp status.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        service_id: { type: "number", description: "Service ID to generate booking link for" },
+        provider_id: { type: "number", description: "Provider ID (optional — for provider-specific links)" },
+      },
+      required: ["service_id"],
+    },
+  },
+  {
+    name: "sync_calendar",
+    description:
+      "Trigger a manual sync between Cal.com and appointments-mcp. " +
+      "Pulls all upcoming Cal.com bookings into the local appointments table.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "set_deposit_required",
+    description:
+      "Configure a service to require a deposit before confirming an appointment. " +
+      "When enabled, bookings for this service start as 'pending_deposit' until payment is verified.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        service_id: { type: "number", description: "Service ID" },
+        deposit_required: { type: "boolean", description: "Whether deposit is required (true/false)" },
+        deposit_amount: { type: "number", description: "Deposit amount in local currency (e.g. 20.00 for S/20)" },
+      },
+      required: ["service_id", "deposit_required"],
+    },
+  },
+  {
+    name: "verify_deposit",
+    description:
+      "Check if a deposit payment has been received for a pending appointment. " +
+      "If payment_ref is provided, marks the deposit as paid and confirms the appointment.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        appointment_id: { type: "number", description: "Appointment ID with pending deposit" },
+        payment_ref: {
+          type: "string",
+          description: "Payment reference (Yape transaction ID, screenshot ref, etc.) — if provided, marks deposit as paid",
+        },
+      },
+      required: ["appointment_id"],
+    },
+  },
+  {
+    name: "process_no_show",
+    description:
+      "Mark an appointment as no-show and handle the deposit accordingly. " +
+      "If the service required a deposit, it is forfeited. Optionally offer reschedule.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        appointment_id: { type: "number", description: "Appointment ID to mark as no-show" },
+        action: {
+          type: "string",
+          enum: ["forfeit", "reschedule"],
+          description: "What to do with the deposit: 'forfeit' (keep as penalty) or 'reschedule' (credit toward new appointment)",
+        },
+      },
+      required: ["appointment_id"],
+    },
+  },
 ];
 
 // ── Tool Handlers ────────────────────────────────────
@@ -599,7 +718,7 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
 
     case "book_appointment": {
       const serviceResult = await query(
-        "SELECT id, duration_minutes, name, price FROM services WHERE id = $1 AND active = true",
+        "SELECT id, duration_minutes, name, price, deposit_required, deposit_amount FROM services WHERE id = $1 AND active = true",
         [args.service_id]
       );
       if (serviceResult.rows.length === 0) {
@@ -655,13 +774,18 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
         );
       }
 
+      // Determine initial status and deposit handling
+      const needsDeposit = service.deposit_required && parseFloat(service.deposit_amount) > 0;
+      const initialStatus = needsDeposit ? "pending_deposit" : "booked";
+      const depositStatus = needsDeposit ? "pending" : null;
+
       // Insert the appointment
       const insertResult = await query(
         `INSERT INTO appointments
          (service_id, provider_id, customer_name, customer_phone, customer_email,
-          datetime, end_time, status, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'booked', $8)
-         RETURNING id, datetime, end_time, status, created_at`,
+          datetime, end_time, status, notes, deposit_status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING id, datetime, end_time, status, deposit_status, created_at`,
         [
           args.service_id,
           args.provider_id,
@@ -670,36 +794,66 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
           args.customer_email || null,
           startTime.toISOString(),
           endTime.toISOString(),
+          initialStatus,
           args.notes || null,
+          depositStatus,
         ]
       );
 
       const appt = insertResult.rows[0];
 
-      return JSON.stringify(
-        {
-          appointment_id: appt.id,
-          status: appt.status,
-          service: service.name,
-          provider: provider.name,
-          customer_name: args.customer_name,
-          customer_phone: args.customer_phone,
-          datetime: appt.datetime,
-          end_time: appt.end_time,
-          duration_minutes: service.duration_minutes,
-          price: parseFloat(service.price),
-          notes: args.notes || null,
-          created_at: appt.created_at,
-        },
-        null,
-        2
-      );
+      // Push to Cal.com if configured and no deposit needed
+      let calcomSync: any = null;
+      if (!needsDeposit && CAL_COM_API_KEY) {
+        try {
+          calcomSync = await pushAppointmentToCalCom(appt.id);
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      const response: Record<string, any> = {
+        appointment_id: appt.id,
+        status: appt.status,
+        service: service.name,
+        provider: provider.name,
+        customer_name: args.customer_name,
+        customer_phone: args.customer_phone,
+        datetime: appt.datetime,
+        end_time: appt.end_time,
+        duration_minutes: service.duration_minutes,
+        price: parseFloat(service.price),
+        notes: args.notes || null,
+        created_at: appt.created_at,
+      };
+
+      if (needsDeposit) {
+        response.deposit_required = true;
+        response.deposit_amount = parseFloat(service.deposit_amount);
+        response.deposit_status = "pending";
+        response.deposit_expires_at = new Date(
+          new Date(appt.created_at).getTime() + DEPOSIT_EXPIRY_HOURS * 60 * 60 * 1000
+        ).toISOString();
+        response.message =
+          `Appointment created but requires a deposit of S/${parseFloat(service.deposit_amount).toFixed(2)}. ` +
+          `The customer has ${DEPOSIT_EXPIRY_HOURS} hours to pay via Yape. ` +
+          `Use verify_deposit once payment is confirmed.`;
+      }
+
+      if (calcomSync) {
+        response.calcom_sync = calcomSync;
+      }
+
+      return JSON.stringify(response, null, 2);
     }
 
     case "cancel_appointment": {
       const apptResult = await query(
-        `SELECT id, datetime, status, customer_name, customer_phone
-         FROM appointments WHERE id = $1`,
+        `SELECT a.id, a.datetime, a.status, a.customer_name, a.customer_phone,
+                a.deposit_status, s.deposit_amount
+         FROM appointments a
+         JOIN services s ON a.service_id = s.id
+         WHERE a.id = $1`,
         [args.appointment_id]
       );
       if (apptResult.rows.length === 0) {
@@ -726,22 +880,47 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
         );
       }
 
+      // Handle deposit refund logic
+      // Cancellation with >= 24h notice and paid deposit → refund
+      // Cancellation with < 24h notice and paid deposit → forfeit
+      let newDepositStatus = appt.deposit_status;
+      if (appt.deposit_status === "paid") {
+        newDepositStatus = hoursUntil >= CANCELLATION_WINDOW_HOURS ? "refunded" : "forfeited";
+      }
+
       await query(
         `UPDATE appointments
          SET status = 'cancelled',
              cancelled_at = NOW(),
-             cancellation_reason = $2
+             cancellation_reason = $2,
+             deposit_status = $3
          WHERE id = $1`,
-        [args.appointment_id, args.reason || null]
+        [args.appointment_id, args.reason || null, newDepositStatus]
       );
 
-      return JSON.stringify({
+      const response: Record<string, any> = {
         appointment_id: args.appointment_id,
         status: "cancelled",
         customer_name: appt.customer_name,
         was_within_policy_window: hoursUntil < CANCELLATION_WINDOW_HOURS,
         reason: args.reason || null,
-      }, null, 2);
+      };
+
+      if (appt.deposit_status === "paid") {
+        response.deposit_action = newDepositStatus;
+        response.deposit_amount = parseFloat(appt.deposit_amount);
+        if (newDepositStatus === "refunded") {
+          response.refund_note =
+            `Deposit of S/${parseFloat(appt.deposit_amount).toFixed(2)} will be refunded. ` +
+            `Send refund instructions to customer via Yape.`;
+        } else {
+          response.forfeit_note =
+            `Deposit of S/${parseFloat(appt.deposit_amount).toFixed(2)} forfeited — ` +
+            `cancellation was within ${CANCELLATION_WINDOW_HOURS}h window.`;
+        }
+      }
+
+      return JSON.stringify(response, null, 2);
     }
 
     case "reschedule_appointment": {
@@ -1392,6 +1571,231 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
         date_range: { from: args.date_from, to: args.date_to },
         events: result.rows,
       }, null, 2);
+    }
+
+    // ════════════════════════════════════════════════
+    // CAL.COM & DEPOSITS
+    // ════════════════════════════════════════════════
+
+    case "get_booking_link": {
+      const result = await generateBookingLink(args.service_id, args.provider_id);
+      if ("error" in result) {
+        throw new Error(result.error);
+      }
+      return JSON.stringify({
+        booking_url: result.url,
+        event_type: result.eventType,
+        service_id: args.service_id,
+        provider_id: args.provider_id || null,
+        note: "Share this link on Instagram, your website, or WhatsApp status for direct bookings.",
+      }, null, 2);
+    }
+
+    case "sync_calendar": {
+      const result = await syncCalComBookings();
+      return JSON.stringify({
+        status: result.errors.length === 0 ? "success" : "partial",
+        bookings_synced: result.synced,
+        errors: result.errors.length > 0 ? result.errors : undefined,
+      }, null, 2);
+    }
+
+    case "set_deposit_required": {
+      if (args.deposit_required && (!args.deposit_amount || args.deposit_amount <= 0)) {
+        throw new Error("deposit_amount must be a positive number when deposit_required is true.");
+      }
+
+      const serviceCheck = await query(
+        "SELECT id, name FROM services WHERE id = $1",
+        [args.service_id]
+      );
+      if (serviceCheck.rows.length === 0) {
+        throw new Error(`Service ${args.service_id} not found.`);
+      }
+
+      await query(
+        `UPDATE services
+         SET deposit_required = $2,
+             deposit_amount = $3
+         WHERE id = $1`,
+        [
+          args.service_id,
+          args.deposit_required,
+          args.deposit_required ? args.deposit_amount : null,
+        ]
+      );
+
+      return JSON.stringify({
+        service_id: args.service_id,
+        service_name: serviceCheck.rows[0].name,
+        deposit_required: args.deposit_required,
+        deposit_amount: args.deposit_required ? args.deposit_amount : null,
+        note: args.deposit_required
+          ? `Bookings for this service now require a S/${args.deposit_amount} deposit. Unpaid deposits expire after ${DEPOSIT_EXPIRY_HOURS} hours.`
+          : "Deposit requirement removed for this service.",
+      }, null, 2);
+    }
+
+    case "verify_deposit": {
+      const apptResult = await query(
+        `SELECT a.id, a.status, a.deposit_status, a.customer_name, a.customer_phone,
+                a.datetime, a.created_at,
+                s.name as service_name, s.deposit_amount
+         FROM appointments a
+         JOIN services s ON a.service_id = s.id
+         WHERE a.id = $1`,
+        [args.appointment_id]
+      );
+
+      if (apptResult.rows.length === 0) {
+        throw new Error(`Appointment ${args.appointment_id} not found.`);
+      }
+
+      const appt = apptResult.rows[0];
+
+      // If just checking status (no payment_ref provided)
+      if (!args.payment_ref) {
+        // Check if the deposit window has expired
+        const createdAt = new Date(appt.created_at).getTime();
+        const expiresAt = createdAt + DEPOSIT_EXPIRY_HOURS * 60 * 60 * 1000;
+        const isExpired = Date.now() > expiresAt && appt.deposit_status === "pending";
+
+        if (isExpired && appt.status === "pending_deposit") {
+          // Auto-cancel expired pending deposits
+          await query(
+            `UPDATE appointments
+             SET status = 'cancelled',
+                 cancelled_at = NOW(),
+                 cancellation_reason = 'Deposit not received within time limit'
+             WHERE id = $1`,
+            [args.appointment_id]
+          );
+
+          return JSON.stringify({
+            appointment_id: args.appointment_id,
+            deposit_status: "expired",
+            status: "cancelled",
+            message: `Deposit not received within ${DEPOSIT_EXPIRY_HOURS} hours. Appointment auto-cancelled.`,
+          }, null, 2);
+        }
+
+        return JSON.stringify({
+          appointment_id: appt.id,
+          status: appt.status,
+          deposit_status: appt.deposit_status,
+          deposit_amount: appt.deposit_amount ? parseFloat(appt.deposit_amount) : null,
+          customer_name: appt.customer_name,
+          expires_at: appt.deposit_status === "pending"
+            ? new Date(new Date(appt.created_at).getTime() + DEPOSIT_EXPIRY_HOURS * 60 * 60 * 1000).toISOString()
+            : null,
+        }, null, 2);
+      }
+
+      // Mark deposit as paid
+      if (appt.deposit_status !== "pending") {
+        throw new Error(
+          `Deposit for appointment ${args.appointment_id} is already '${appt.deposit_status}', not 'pending'.`
+        );
+      }
+
+      await query(
+        `UPDATE appointments
+         SET deposit_status = 'paid',
+             deposit_payment_ref = $2,
+             deposit_paid_at = NOW(),
+             status = 'confirmed'
+         WHERE id = $1`,
+        [args.appointment_id, args.payment_ref]
+      );
+
+      // Push to Cal.com if configured
+      let calcomResult: any = null;
+      if (CAL_COM_API_KEY) {
+        try {
+          calcomResult = await pushAppointmentToCalCom(args.appointment_id);
+        } catch {
+          // Non-fatal — appointment is confirmed regardless
+        }
+      }
+
+      return JSON.stringify({
+        appointment_id: args.appointment_id,
+        status: "confirmed",
+        deposit_status: "paid",
+        payment_ref: args.payment_ref,
+        customer_name: appt.customer_name,
+        datetime: appt.datetime,
+        service: appt.service_name,
+        calcom_sync: calcomResult || "not_configured",
+        message: "Deposit verified. Appointment confirmed.",
+      }, null, 2);
+    }
+
+    case "process_no_show": {
+      const apptResult = await query(
+        `SELECT a.id, a.status, a.deposit_status, a.customer_name, a.customer_phone,
+                a.datetime, a.service_id, a.provider_id,
+                s.name as service_name, s.deposit_amount, s.deposit_required
+         FROM appointments a
+         JOIN services s ON a.service_id = s.id
+         WHERE a.id = $1`,
+        [args.appointment_id]
+      );
+
+      if (apptResult.rows.length === 0) {
+        throw new Error(`Appointment ${args.appointment_id} not found.`);
+      }
+
+      const appt = apptResult.rows[0];
+
+      if (appt.status === "cancelled" || appt.status === "no_show") {
+        throw new Error(`Appointment is already '${appt.status}'.`);
+      }
+
+      const action = args.action || "forfeit";
+      const hasDeposit = appt.deposit_status === "paid";
+
+      // Mark as no-show
+      await query(
+        `UPDATE appointments
+         SET status = 'no_show',
+             deposit_status = CASE
+               WHEN deposit_status = 'paid' AND $2 = 'forfeit' THEN 'forfeited'
+               WHEN deposit_status = 'paid' AND $2 = 'reschedule' THEN 'paid'
+               ELSE deposit_status
+             END
+         WHERE id = $1`,
+        [args.appointment_id, action]
+      );
+
+      const response: Record<string, any> = {
+        appointment_id: args.appointment_id,
+        status: "no_show",
+        customer_name: appt.customer_name,
+        customer_phone: appt.customer_phone,
+        service: appt.service_name,
+        original_datetime: appt.datetime,
+      };
+
+      if (hasDeposit) {
+        if (action === "forfeit") {
+          response.deposit_action = "forfeited";
+          response.deposit_amount = parseFloat(appt.deposit_amount);
+          response.message =
+            `No-show recorded. Deposit of S/${parseFloat(appt.deposit_amount).toFixed(2)} forfeited per policy.`;
+        } else {
+          response.deposit_action = "credit_for_reschedule";
+          response.deposit_amount = parseFloat(appt.deposit_amount);
+          response.message =
+            `No-show recorded. Deposit of S/${parseFloat(appt.deposit_amount).toFixed(2)} credited — ` +
+            `customer can use it to reschedule.`;
+        }
+      } else {
+        response.deposit_action = "none";
+        response.message = "No-show recorded. No deposit was on file.";
+      }
+
+      return JSON.stringify(response, null, 2);
     }
 
     default:

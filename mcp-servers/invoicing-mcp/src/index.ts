@@ -28,10 +28,21 @@ import {
 // ── Environment Configuration ────────────────────────────
 
 const INVOICE_COUNTRY = process.env.INVOICE_COUNTRY || "PE";
-const INVOICE_PSE_URL = process.env.INVOICE_PSE_URL || "";
-const INVOICE_PSE_TOKEN = process.env.INVOICE_PSE_TOKEN || "";
+const INVOICE_PSE_PROVIDER = process.env.INVOICE_PSE_PROVIDER || "apisunat";
 const INVOICE_RUC = process.env.INVOICE_RUC || "";
 const INVOICE_ENVIRONMENT = process.env.INVOICE_ENVIRONMENT || "beta";
+
+// APISUNAT.pe config
+const APISUNAT_TOKEN = process.env.APISUNAT_TOKEN || "";
+const APISUNAT_BASE_URL = "https://back.apisunat.com";
+
+// Gosocket config
+const GOSOCKET_API_URL = process.env.GOSOCKET_API_URL || "";
+const GOSOCKET_API_KEY = process.env.GOSOCKET_API_KEY || "";
+
+// Legacy fallback (existing INVOICE_PSE_URL still works if set)
+const INVOICE_PSE_URL = process.env.INVOICE_PSE_URL || "";
+const INVOICE_PSE_TOKEN = process.env.INVOICE_PSE_TOKEN || "";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -196,11 +207,246 @@ interface CountryAdapter {
   calculateTax(params: TaxCalculationParams): TaxCalculationResult;
 }
 
-// ── PSE API Client ───────────────────────────────────────
+// ── PSE Provider Abstraction ─────────────────────────────
 
+interface PSEProvider {
+  readonly name: string;
+  sendInvoice(payload: any): Promise<any>;
+  sendCreditNote(payload: any): Promise<any>;
+  sendDebitNote(payload: any): Promise<any>;
+  voidDocument(payload: any): Promise<any>;
+  sendSummary(payload: any): Promise<any>;
+  lookupRuc(ruc: string): Promise<any>;
+  lookupDni(dni: string): Promise<any>;
+  getStatus(documentId: string): Promise<any>;
+  listInvoices(params: URLSearchParams): Promise<any>;
+  getExchangeRate(date: string): Promise<any>;
+  getPdf(hash: string): Promise<any>;
+}
+
+// ── APISUNAT.pe Provider ─────────────────────────────────
+
+let apisunatSessionToken: string | null = null;
+let apisunatTokenExpiry = 0;
+
+async function apisunatAuth(): Promise<string> {
+  // Use static token if provided
+  if (APISUNAT_TOKEN) return APISUNAT_TOKEN;
+
+  // Session token still valid (refresh 5 min before expiry)
+  if (apisunatSessionToken && Date.now() < apisunatTokenExpiry - 300_000) {
+    return apisunatSessionToken;
+  }
+
+  throw new Error(
+    "APISUNAT_TOKEN not configured. Set the bearer token from apisunat.pe."
+  );
+}
+
+async function apisunatFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
+  const token = await apisunatAuth();
+  const url = `${APISUNAT_BASE_URL}${endpoint}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  const res = await fetch(url, { ...options, headers });
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try {
+      const parsed = JSON.parse(text);
+      detail = parsed.message || parsed.error || text;
+    } catch { /* raw text */ }
+    throw new Error(`APISUNAT ${res.status}: ${detail}`);
+  }
+  return res.json();
+}
+
+const apisunatProvider: PSEProvider = {
+  name: "apisunat",
+
+  async sendInvoice(payload: any) {
+    return apisunatFetch("/api/v1/invoice/send", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async sendCreditNote(payload: any) {
+    return apisunatFetch("/api/v1/invoice/send", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, tipo_de_comprobante: 7 }),
+    });
+  },
+
+  async sendDebitNote(payload: any) {
+    return apisunatFetch("/api/v1/invoice/send", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, tipo_de_comprobante: 8 }),
+    });
+  },
+
+  async voidDocument(payload: any) {
+    return apisunatFetch("/api/v1/invoice/send", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, operacion: "generar_anulacion" }),
+    });
+  },
+
+  async sendSummary(payload: any) {
+    return apisunatFetch("/api/v1/invoice/send", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, operacion: "generar_resumen" }),
+    });
+  },
+
+  async lookupRuc(ruc: string) {
+    return apisunatFetch(`/api/v1/ruc/${ruc}`);
+  },
+
+  async lookupDni(dni: string) {
+    return apisunatFetch(`/api/v1/dni/${dni}`);
+  },
+
+  async getStatus(documentId: string) {
+    return apisunatFetch(`/api/v1/invoice/status/${documentId}`);
+  },
+
+  async listInvoices(params: URLSearchParams) {
+    return apisunatFetch(`/api/v1/invoice/list?${params.toString()}`);
+  },
+
+  async getExchangeRate(date: string) {
+    return apisunatFetch(`/api/v1/exchange-rate?date=${date}`);
+  },
+
+  async getPdf(hash: string) {
+    return apisunatFetch(`/api/v1/invoice/pdf/${hash}`);
+  },
+};
+
+// ── Gosocket Provider (stub — endpoints to be filled when activated) ──
+
+async function gosocketFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
+  if (!GOSOCKET_API_URL) {
+    throw new Error("GOSOCKET_API_URL not configured. Set the Gosocket API base URL.");
+  }
+  if (!GOSOCKET_API_KEY) {
+    throw new Error("GOSOCKET_API_KEY not configured. Set the Gosocket API key.");
+  }
+
+  const url = `${GOSOCKET_API_URL}${endpoint}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Api-Key": GOSOCKET_API_KEY,
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  const res = await fetch(url, { ...options, headers });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Gosocket ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+const gosocketProvider: PSEProvider = {
+  name: "gosocket",
+
+  async sendInvoice(payload: any) {
+    // Gosocket endpoint TBD — stub maps to expected structure
+    return gosocketFetch("/api/invoices", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async sendCreditNote(payload: any) {
+    return gosocketFetch("/api/credit-notes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async sendDebitNote(payload: any) {
+    return gosocketFetch("/api/debit-notes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async voidDocument(payload: any) {
+    return gosocketFetch("/api/void", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async sendSummary(payload: any) {
+    return gosocketFetch("/api/summaries", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async lookupRuc(ruc: string) {
+    return gosocketFetch(`/api/ruc/${ruc}`);
+  },
+
+  async lookupDni(dni: string) {
+    return gosocketFetch(`/api/dni/${dni}`);
+  },
+
+  async getStatus(documentId: string) {
+    return gosocketFetch(`/api/invoices/${documentId}/status`);
+  },
+
+  async listInvoices(params: URLSearchParams) {
+    return gosocketFetch(`/api/invoices?${params.toString()}`);
+  },
+
+  async getExchangeRate(date: string) {
+    return gosocketFetch(`/api/exchange-rate?date=${date}`);
+  },
+
+  async getPdf(hash: string) {
+    return gosocketFetch(`/api/invoices/${hash}/pdf`);
+  },
+};
+
+// ── Provider Selection ───────────────────────────────────
+
+function getPSEProvider(): PSEProvider {
+  switch (INVOICE_PSE_PROVIDER.toLowerCase()) {
+    case "apisunat":
+      return apisunatProvider;
+    case "gosocket":
+      return gosocketProvider;
+    default:
+      throw new Error(
+        `Unknown INVOICE_PSE_PROVIDER "${INVOICE_PSE_PROVIDER}". Use "apisunat" or "gosocket".`
+      );
+  }
+}
+
+// Legacy pseFetch — used by adapter methods that haven't been migrated to provider pattern
 async function pseFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
+  const provider = INVOICE_PSE_PROVIDER.toLowerCase();
+
+  // Route through the selected provider
+  if (provider === "apisunat") {
+    return apisunatFetch(`/api/v1${endpoint}`, options);
+  }
+  if (provider === "gosocket") {
+    return gosocketFetch(`/api${endpoint}`, options);
+  }
+
+  // Fallback to legacy direct URL
   if (!INVOICE_PSE_URL) {
-    throw new Error("INVOICE_PSE_URL not configured. Set the PSE provider API URL.");
+    throw new Error("No PSE provider configured. Set INVOICE_PSE_PROVIDER or INVOICE_PSE_URL.");
   }
   const url = `${INVOICE_PSE_URL}${endpoint}`;
   const headers: Record<string, string> = {
@@ -451,10 +697,8 @@ const peruAdapter: CountryAdapter = {
       ambiente: INVOICE_ENVIRONMENT === "production" ? 1 : 0,
     };
 
-    const result = await pseFetch("/invoice", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    const pse = getPSEProvider();
+    const result = await pse.sendInvoice(payload);
 
     return {
       success: result.aceptada_por_sunat !== false,
@@ -516,10 +760,8 @@ const peruAdapter: CountryAdapter = {
       ambiente: INVOICE_ENVIRONMENT === "production" ? 1 : 0,
     };
 
-    const result = await pseFetch("/credit-note", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    const pse = getPSEProvider();
+    const result = await pse.sendCreditNote(payload);
 
     return {
       success: result.aceptada_por_sunat !== false,
@@ -581,10 +823,8 @@ const peruAdapter: CountryAdapter = {
       ambiente: INVOICE_ENVIRONMENT === "production" ? 1 : 0,
     };
 
-    const result = await pseFetch("/debit-note", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    const pse = getPSEProvider();
+    const result = await pse.sendDebitNote(payload);
 
     return {
       success: result.aceptada_por_sunat !== false,
@@ -609,10 +849,8 @@ const peruAdapter: CountryAdapter = {
       ambiente: INVOICE_ENVIRONMENT === "production" ? 1 : 0,
     };
 
-    const result = await pseFetch("/void", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    const pse = getPSEProvider();
+    const result = await pse.voidDocument(payload);
 
     return {
       success: result.aceptada_por_sunat !== false,
@@ -632,10 +870,8 @@ const peruAdapter: CountryAdapter = {
       ambiente: INVOICE_ENVIRONMENT === "production" ? 1 : 0,
     };
 
-    const result = await pseFetch("/summary", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    const pse = getPSEProvider();
+    const result = await pse.sendSummary(payload);
 
     return {
       success: result.aceptada_por_sunat !== false,
@@ -651,7 +887,8 @@ const peruAdapter: CountryAdapter = {
       return { valid: false, tax_id: ruc, legal_name: "Invalid RUC format (must be 11 digits)" };
     }
     try {
-      const result = await pseFetch(`/ruc/${ruc}`);
+      const pse = getPSEProvider();
+      const result = await pse.lookupRuc(ruc);
       return {
         valid: true,
         tax_id: ruc,
@@ -671,7 +908,8 @@ const peruAdapter: CountryAdapter = {
       return { valid: false, tax_id: dni, legal_name: "Invalid DNI format (must be 8 digits)" };
     }
     try {
-      const result = await pseFetch(`/dni/${dni}`);
+      const pse = getPSEProvider();
+      const result = await pse.lookupDni(dni);
       const nombre = result.nombre_completo
         || [result.nombres, result.apellido_paterno, result.apellido_materno].filter(Boolean).join(" ")
         || "";
@@ -688,7 +926,8 @@ const peruAdapter: CountryAdapter = {
   async getExchangeRate(from: string, to: string, date?: string): Promise<ExchangeRateResult> {
     const queryDate = date || new Date().toISOString().split("T")[0];
     try {
-      const result = await pseFetch(`/exchange-rate?date=${queryDate}`);
+      const pse = getPSEProvider();
+      const result = await pse.getExchangeRate(queryDate);
       return {
         from,
         to,
@@ -1118,7 +1357,8 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
     }
 
     case "get_invoice_status": {
-      const result = await pseFetch(`/status/${args.document_id}`);
+      const pse = getPSEProvider();
+      const result = await pse.getStatus(args.document_id);
       return JSON.stringify(result, null, 2);
     }
 
@@ -1131,7 +1371,8 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
       if (args.customer_tax_id) params.set("customer", args.customer_tax_id);
       params.set("limit", String(args.limit || 20));
 
-      const result = await pseFetch(`/invoices?${params.toString()}`);
+      const pse = getPSEProvider();
+      const result = await pse.listInvoices(params);
       return JSON.stringify(result, null, 2);
     }
 
@@ -1188,7 +1429,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`Invoicing MCP server running on stdio (country: ${INVOICE_COUNTRY}, env: ${INVOICE_ENVIRONMENT})`);
+  console.error(`Invoicing MCP server running on stdio (country: ${INVOICE_COUNTRY}, provider: ${INVOICE_PSE_PROVIDER}, env: ${INVOICE_ENVIRONMENT})`);
 }
 
 main().catch(console.error);

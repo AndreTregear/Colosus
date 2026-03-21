@@ -22,6 +22,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import pg from "pg";
 
 // ── Configuration ────────────────────────────────────
 
@@ -31,6 +32,111 @@ const ERPNEXT_API_SECRET = process.env.ERPNEXT_API_SECRET || "";
 const PAYMENTS_DB_URL = process.env.PAYMENTS_DB_URL || "";
 const PAYMENTS_API_URL = process.env.PAYMENTS_API_URL || "";
 const PAYMENTS_API_KEY = process.env.PAYMENTS_API_KEY || "";
+
+// ── Postgres Connection Pool ─────────────────────────
+
+const pool = PAYMENTS_DB_URL
+  ? new pg.Pool({
+      connectionString: PAYMENTS_DB_URL,
+      max: 5,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+    })
+  : null;
+
+async function dbQuery(text: string, params?: any[]): Promise<pg.QueryResult> {
+  if (!pool) {
+    throw new Error(
+      "PAYMENTS_DB_URL not configured. Set the Postgres connection string."
+    );
+  }
+  return pool.query(text, params);
+}
+
+// ── Schema Initialization ────────────────────────────
+
+async function initSchema(): Promise<void> {
+  if (!pool) {
+    console.error("WARNING: PAYMENTS_DB_URL not set — skipping schema init.");
+    return;
+  }
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id            SERIAL PRIMARY KEY,
+        order_id      TEXT NOT NULL,
+        customer      TEXT,
+        amount        NUMERIC(12,2) NOT NULL,
+        payment_method TEXT NOT NULL,
+        reference     TEXT,
+        payment_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+        notes         TEXT,
+        status        TEXT NOT NULL DEFAULT 'confirmed',
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS refunds (
+        id                   SERIAL PRIMARY KEY,
+        order_id             TEXT NOT NULL,
+        customer             TEXT,
+        amount               NUMERIC(12,2) NOT NULL,
+        reason               TEXT NOT NULL,
+        method               TEXT NOT NULL,
+        return_authorization TEXT,
+        notes                TEXT,
+        status               TEXT NOT NULL DEFAULT 'processing',
+        created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS payment_reminders (
+        id             SERIAL PRIMARY KEY,
+        order_id       TEXT NOT NULL,
+        customer       TEXT NOT NULL,
+        phone          TEXT NOT NULL,
+        amount         NUMERIC(12,2) NOT NULL,
+        reminder_date  TIMESTAMPTZ NOT NULL,
+        message        TEXT,
+        channel        TEXT NOT NULL DEFAULT 'whatsapp',
+        status         TEXT NOT NULL DEFAULT 'scheduled',
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS store_credits (
+        id            SERIAL PRIMARY KEY,
+        customer      TEXT NOT NULL,
+        amount        NUMERIC(12,2) NOT NULL,
+        source_order  TEXT,
+        reason        TEXT,
+        expires_at    TIMESTAMPTZ,
+        used_amount   NUMERIC(12,2) NOT NULL DEFAULT 0,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS return_authorizations (
+        id              SERIAL PRIMARY KEY,
+        order_id        TEXT NOT NULL,
+        customer        TEXT,
+        reason          TEXT NOT NULL,
+        items           JSONB NOT NULL DEFAULT '[]',
+        refund_amount   NUMERIC(12,2),
+        refund_method   TEXT,
+        customer_notes  TEXT,
+        has_photos      BOOLEAN DEFAULT FALSE,
+        status          TEXT NOT NULL DEFAULT 'authorized',
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
+      CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date);
+      CREATE INDEX IF NOT EXISTS idx_payments_customer ON payments(customer);
+      CREATE INDEX IF NOT EXISTS idx_refunds_order_id ON refunds(order_id);
+      CREATE INDEX IF NOT EXISTS idx_return_auth_order_id ON return_authorizations(order_id);
+    `);
+    console.error("Payments: schema initialized");
+  } catch (err: any) {
+    console.error(`WARNING: Schema init failed: ${err.message}`);
+  }
+}
 
 // ── ERPNext API Client ───────────────────────────────
 
@@ -52,12 +158,23 @@ async function erpFetch(endpoint: string, options: RequestInit = {}): Promise<an
   return res.json();
 }
 
-// ── Payments DB Client (Postgres REST / custom API) ──
+// ── Payments DB Client (Postgres direct or REST fallback) ──
 
 async function paymentsFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
+  // If we have a direct DB connection, route through Postgres
+  if (pool) {
+    return paymentsDbRoute(endpoint, options);
+  }
+
+  // Fallback to REST API
+  if (!PAYMENTS_API_URL) {
+    throw new Error(
+      "Neither PAYMENTS_DB_URL nor PAYMENTS_API_URL is configured."
+    );
+  }
   const url = `${PAYMENTS_API_URL}${endpoint}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -76,6 +193,129 @@ async function paymentsFetch(
     return res.json();
   }
   return {};
+}
+
+// ── Direct Postgres routing for paymentsFetch ────────
+
+async function paymentsDbRoute(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<any> {
+  const method = (options.method || "GET").toUpperCase();
+  const body = options.body ? JSON.parse(options.body as string) : {};
+
+  // POST /payments
+  if (endpoint === "/payments" && method === "POST") {
+    const r = await dbQuery(
+      `INSERT INTO payments (order_id, customer, amount, payment_method, reference, payment_date, notes, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [body.order_id, body.customer || null, body.amount, body.payment_method,
+       body.reference, body.payment_date, body.notes, body.status || "confirmed"]
+    );
+    return r.rows[0];
+  }
+
+  // GET /payments?customer=X&from_date=Y&to_date=Z&limit=N
+  if (endpoint.startsWith("/payments?") && method === "GET") {
+    const params = new URLSearchParams(endpoint.split("?")[1]);
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+    if (params.get("customer")) { conditions.push(`customer ILIKE $${idx++}`); values.push(`%${params.get("customer")}%`); }
+    if (params.get("from_date")) { conditions.push(`payment_date >= $${idx++}`); values.push(params.get("from_date")); }
+    if (params.get("to_date")) { conditions.push(`payment_date <= $${idx++}`); values.push(params.get("to_date")); }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const limit = parseInt(params.get("limit") || "20");
+    const r = await dbQuery(
+      `SELECT * FROM payments ${where} ORDER BY payment_date DESC LIMIT $${idx}`,
+      [...values, limit]
+    );
+    return r.rows;
+  }
+
+  // GET /payments/search?min_amount=X&max_amount=Y&...
+  if (endpoint.startsWith("/payments/search") && method === "GET") {
+    const params = new URLSearchParams(endpoint.split("?")[1]);
+    const conditions: string[] = ["amount >= $1", "amount <= $2"];
+    const values: any[] = [params.get("min_amount"), params.get("max_amount")];
+    let idx = 3;
+    if (params.get("from_date")) { conditions.push(`payment_date >= $${idx++}`); values.push(params.get("from_date")); }
+    if (params.get("to_date")) { conditions.push(`payment_date <= $${idx++}`); values.push(params.get("to_date")); }
+    if (params.get("payment_method")) { conditions.push(`payment_method = $${idx++}`); values.push(params.get("payment_method")); }
+    const limit = parseInt(params.get("limit") || "20");
+    const r = await dbQuery(
+      `SELECT * FROM payments WHERE ${conditions.join(" AND ")} ORDER BY payment_date DESC LIMIT $${idx}`,
+      [...values, limit]
+    );
+    return { payments: r.rows };
+  }
+
+  // GET /payments/summary?date=X
+  if (endpoint.startsWith("/payments/summary") && method === "GET") {
+    const params = new URLSearchParams(endpoint.split("?")[1]);
+    const date = params.get("date") || new Date().toISOString().split("T")[0];
+    const r = await dbQuery(
+      `SELECT payment_method, COUNT(*)::int as count, SUM(amount)::numeric as total
+       FROM payments WHERE payment_date = $1 AND status = 'confirmed'
+       GROUP BY payment_method`,
+      [date]
+    );
+    return { date, by_method: r.rows };
+  }
+
+  // GET /payment-methods
+  if (endpoint === "/payment-methods" && method === "GET") {
+    const r = await dbQuery(
+      `SELECT DISTINCT payment_method FROM payments ORDER BY payment_method`
+    );
+    return r.rows.map((row: any) => row.payment_method);
+  }
+
+  // POST /refunds
+  if (endpoint === "/refunds" && method === "POST") {
+    const r = await dbQuery(
+      `INSERT INTO refunds (order_id, customer, amount, reason, method, return_authorization, notes, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [body.order_id, body.customer, body.amount, body.reason, body.method,
+       body.return_authorization, body.notes, body.status || "processing", body.created_at || new Date().toISOString()]
+    );
+    return r.rows[0];
+  }
+
+  // POST /store-credits
+  if (endpoint === "/store-credits" && method === "POST") {
+    const r = await dbQuery(
+      `INSERT INTO store_credits (customer, amount, source_order, reason, expires_at)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [body.customer, body.amount, body.source_order, body.reason, body.expires_at]
+    );
+    return r.rows[0];
+  }
+
+  // POST /reminders
+  if (endpoint === "/reminders" && method === "POST") {
+    const r = await dbQuery(
+      `INSERT INTO payment_reminders (order_id, customer, phone, amount, reminder_date, message, channel, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [body.order_id, body.customer, body.phone, body.amount,
+       body.reminder_date, body.message, body.channel || "whatsapp", body.status || "scheduled"]
+    );
+    return r.rows[0];
+  }
+
+  // POST /return-authorizations
+  if (endpoint === "/return-authorizations" && method === "POST") {
+    const r = await dbQuery(
+      `INSERT INTO return_authorizations (order_id, customer, reason, items, refund_amount, refund_method, customer_notes, has_photos, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [body.order_id, body.customer, body.reason, JSON.stringify(body.items),
+       body.refund_amount, body.refund_method, body.customer_notes,
+       body.has_photos || false, body.status || "authorized", body.created_at || new Date().toISOString()]
+    );
+    return r.rows[0];
+  }
+
+  throw new Error(`Unhandled payments DB route: ${method} ${endpoint}`);
 }
 
 // ── Types ────────────────────────────────────────────
@@ -337,6 +577,16 @@ const TOOLS = [
           description: "Date to summarize, ISO format (default: today)",
         },
       },
+      required: [],
+    },
+  },
+  {
+    name: "health_check",
+    description:
+      "Check Payments system health: Postgres connection, ERPNext reachability, and response times.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
       required: [],
     },
   },
@@ -903,6 +1153,57 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
       );
     }
 
+    case "health_check": {
+      const result: Record<string, any> = {};
+
+      // Check Postgres
+      if (pool) {
+        const pgStart = Date.now();
+        try {
+          const r = await pool.query("SELECT 1 AS ok");
+          result.postgres = {
+            status: "connected",
+            latency_ms: Date.now() - pgStart,
+            pool_total: pool.totalCount,
+            pool_idle: pool.idleCount,
+            pool_waiting: pool.waitingCount,
+          };
+        } catch (err: any) {
+          result.postgres = {
+            status: "error",
+            error: err.message,
+            latency_ms: Date.now() - pgStart,
+          };
+        }
+      } else {
+        result.postgres = { status: "not_configured" };
+      }
+
+      // Check ERPNext
+      const erpStart = Date.now();
+      try {
+        await erpFetch("/method/frappe.handler.version");
+        result.erpnext = {
+          status: "connected",
+          url: ERPNEXT_URL,
+          latency_ms: Date.now() - erpStart,
+        };
+      } catch (err: any) {
+        result.erpnext = {
+          status: "error",
+          url: ERPNEXT_URL,
+          error: err.message,
+          latency_ms: Date.now() - erpStart,
+        };
+      }
+
+      result.payments_api = PAYMENTS_API_URL
+        ? { configured: true, url: PAYMENTS_API_URL }
+        : { configured: false };
+
+      return JSON.stringify(result, null, 2);
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -935,6 +1236,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // ── Start ────────────────────────────────────────────
 
 async function main() {
+  await initSchema();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("Payments MCP server running on stdio");

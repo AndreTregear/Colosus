@@ -37,7 +37,10 @@ const ERPNEXT_API_SECRET = process.env.ERPNEXT_API_SECRET || "";
 
 // ── ERPNext API Client ────────────────────────────────
 
-async function erpFetch(endpoint: string, options: RequestInit = {}) {
+const ERP_TIMEOUT_MS = 10_000;
+const ERP_MAX_RETRIES = 3;
+
+async function erpFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
   const url = `${ERPNEXT_URL}/api${endpoint}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -47,12 +50,54 @@ async function erpFetch(endpoint: string, options: RequestInit = {}) {
     ...(options.headers as Record<string, string> || {}),
   };
 
-  const res = await fetch(url, { ...options, headers });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`ERPNext API ${res.status}: ${text}`);
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= ERP_MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), ERP_TIMEOUT_MS);
+
+      const res = await fetch(url, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        const text = await res.text();
+        // Parse ERPNext error detail if JSON
+        let detail = text;
+        try {
+          const parsed = JSON.parse(text);
+          detail = parsed.exc_type
+            ? `${parsed.exc_type}: ${parsed._server_messages || parsed.message || text}`
+            : parsed.message || parsed._error_message || text;
+        } catch {
+          // raw text is fine
+        }
+        throw new Error(
+          `ERPNext API ${options.method || "GET"} ${endpoint} → ${res.status}: ${detail}`
+        );
+      }
+      return res.json();
+    } catch (err: any) {
+      lastError = err;
+
+      // Don't retry client errors (4xx) — only retry on network/timeout/5xx
+      if (err.message?.includes("→ 4")) {
+        throw err;
+      }
+
+      if (attempt < ERP_MAX_RETRIES) {
+        const delay = Math.min(1000 * 2 ** (attempt - 1), 4000);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+    }
   }
-  return res.json();
+
+  throw lastError || new Error(`ERPNext API request failed after ${ERP_MAX_RETRIES} retries`);
 }
 
 // ── Tool Definitions ──────────────────────────────────
@@ -403,6 +448,16 @@ const TOOLS = [
         customer: { type: "string", description: "Customer name" },
       },
       required: ["customer"],
+    },
+  },
+  {
+    name: "health_check",
+    description:
+      "Ping ERPNext and return connection status, version, and response time.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
     },
   },
 ];
@@ -820,6 +875,38 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
         null,
         2
       );
+    }
+
+    case "health_check": {
+      const start = Date.now();
+      try {
+        const data = await erpFetch("/method/frappe.handler.version");
+        const latency = Date.now() - start;
+        return JSON.stringify(
+          {
+            status: "connected",
+            url: ERPNEXT_URL,
+            version: data.message || "unknown",
+            latency_ms: latency,
+            auth_configured: !!ERPNEXT_API_KEY,
+          },
+          null,
+          2
+        );
+      } catch (err: any) {
+        const latency = Date.now() - start;
+        return JSON.stringify(
+          {
+            status: "error",
+            url: ERPNEXT_URL,
+            error: err.message,
+            latency_ms: latency,
+            auth_configured: !!ERPNEXT_API_KEY,
+          },
+          null,
+          2
+        );
+      }
     }
 
     default:

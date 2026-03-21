@@ -40,6 +40,14 @@ async function crmFetch(
   } = {}
 ): Promise<any> {
   const { method = "GET", query = "", body, single = false } = options;
+
+  if (!SUPABASE_URL) {
+    throw new Error("CRM_SUPABASE_URL not configured. Set the Supabase project URL.");
+  }
+  if (!SUPABASE_KEY) {
+    throw new Error("CRM_SUPABASE_KEY not configured. Set the Supabase anon/service key.");
+  }
+
   const url = `${SUPABASE_URL}/rest/v1/${table}${query ? `?${query}` : ""}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -59,6 +67,19 @@ async function crmFetch(
 
   if (!res.ok) {
     const text = await res.text();
+    // Detect Supabase auth-specific errors
+    if (res.status === 401 || res.status === 403) {
+      let detail = text;
+      try {
+        const parsed = JSON.parse(text);
+        detail = parsed.message || parsed.error_description || parsed.msg || text;
+      } catch {
+        // raw text
+      }
+      throw new Error(
+        `CRM auth failure (${res.status}): ${detail}. Check CRM_SUPABASE_KEY is valid and has the required permissions.`
+      );
+    }
     throw new Error(`CRM API ${res.status}: ${text}`);
   }
 
@@ -67,6 +88,38 @@ async function crmFetch(
     return res.json();
   }
   return {};
+}
+
+// ── Startup Validation ──────────────────────────────────
+
+async function validateConnection(): Promise<void> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error(
+      "WARNING: CRM Supabase credentials not configured. Set CRM_SUPABASE_URL and CRM_SUPABASE_KEY."
+    );
+    return;
+  }
+  try {
+    // Ping the health endpoint to verify connectivity
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+      method: "HEAD",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    if (res.ok || res.status === 200 || res.status === 204) {
+      console.error("CRM: Supabase connection validated");
+    } else if (res.status === 401 || res.status === 403) {
+      console.error(
+        `WARNING: CRM Supabase auth failed (${res.status}). Check CRM_SUPABASE_KEY.`
+      );
+    } else {
+      console.error(`WARNING: CRM Supabase returned ${res.status} on startup check.`);
+    }
+  } catch (err: any) {
+    console.error(`WARNING: Cannot reach CRM Supabase at ${SUPABASE_URL}: ${err.message}`);
+  }
 }
 
 // ── Types ────────────────────────────────────────────
@@ -292,6 +345,16 @@ const TOOLS = [
       required: ["contact_id"],
     },
   },
+  {
+    name: "health_check",
+    description:
+      "Check Supabase CRM connection status, auth validity, and response time.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 // ── Tool Handlers ────────────────────────────────────
@@ -456,6 +519,42 @@ async function handleTool(name: string, args: Record<string, any>): Promise<stri
       return JSON.stringify(data, null, 2);
     }
 
+    case "health_check": {
+      const start = Date.now();
+      const result: Record<string, any> = {
+        url: SUPABASE_URL,
+        auth_configured: !!SUPABASE_KEY,
+      };
+      try {
+        // Try to query contacts with limit 1 to verify full read access
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/contacts?limit=1&select=id`,
+          {
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`,
+            },
+          }
+        );
+        result.latency_ms = Date.now() - start;
+        if (res.ok) {
+          result.status = "connected";
+          result.tables_accessible = true;
+        } else if (res.status === 401 || res.status === 403) {
+          result.status = "auth_error";
+          result.error = `Auth failed (${res.status}). Check CRM_SUPABASE_KEY.`;
+        } else {
+          result.status = "error";
+          result.error = `Unexpected status ${res.status}`;
+        }
+      } catch (err: any) {
+        result.latency_ms = Date.now() - start;
+        result.status = "unreachable";
+        result.error = err.message;
+      }
+      return JSON.stringify(result, null, 2);
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -488,6 +587,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // ── Start ────────────────────────────────────────────
 
 async function main() {
+  await validateConnection();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("CRM MCP server running on stdio");
