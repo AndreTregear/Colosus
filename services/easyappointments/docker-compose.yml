@@ -1,0 +1,41 @@
+version: "3.9"
+
+# Easy!Appointments — Appointment Scheduling
+# Upstream: https://github.com/alextselegidis/easyappointments
+# Docs: https://easyappointments.org/docs/
+
+services:
+  database:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-secret}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-easyappointments}
+      MYSQL_USER: ${MYSQL_USER:-easyappointments}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-easyappointments}
+    volumes:
+      - ea-db:/var/lib/mysql
+    networks:
+      - easyappointments
+
+  easyappointments:
+    image: alextselegidis/easyappointments:latest
+    restart: unless-stopped
+    ports:
+      - "${EA_PORT:-8060}:80"
+    environment:
+      DB_HOST: database
+      DB_NAME: ${MYSQL_DATABASE:-easyappointments}
+      DB_USERNAME: ${MYSQL_USER:-easyappointments}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-easyappointments}
+      BASE_URL: ${BASE_URL:-http://localhost:8060}
+    depends_on:
+      - database
+    networks:
+      - easyappointments
+
+volumes:
+  ea-db:
+
+networks:
+  easyappointments:

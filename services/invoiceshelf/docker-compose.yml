@@ -1,0 +1,28 @@
+version: "3.9"
+
+# InvoiceShelf — Invoice Management
+# Upstream: https://github.com/InvoiceShelf/InvoiceShelf
+# Docs: https://invoiceshelf.com/docs
+
+services:
+  invoiceshelf:
+    image: serversideup/php:8.3-fpm-nginx-alpine
+    restart: unless-stopped
+    ports:
+      - "${INVOICESHELF_PORT:-8090}:8080"
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_KEY: ${APP_KEY}
+      APP_URL: ${APP_URL:-http://localhost:8090}
+      DB_CONNECTION: ${DB_CONNECTION:-sqlite}
+      DB_DATABASE: ${DB_DATABASE:-/var/www/html/storage/app/database.sqlite}
+    volumes:
+      - invoiceshelf-storage:/var/www/html/storage
+    networks:
+      - invoiceshelf
+
+volumes:
+  invoiceshelf-storage:
+
+networks:
+  invoiceshelf:

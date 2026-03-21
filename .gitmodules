@@ -1,30 +1,6 @@
-[submodule "services/crm"]
-	path = services/crm
-	url = https://github.com/marmelab/atomic-crm.git
-[submodule "services/lago"]
-	path = services/lago
-	url = https://github.com/getlago/lago.git
 [submodule "services/erpnext"]
 	path = services/erpnext
 	url = https://github.com/frappe/frappe_docker.git
 [submodule "mcp-servers/postgres-mcp"]
 	path = mcp-servers/postgres-mcp
 	url = https://github.com/crystaldba/postgres-mcp.git
-[submodule "services/nemo-guardrails"]
-	path = services/nemo-guardrails
-	url = https://github.com/NVIDIA-NeMo/Guardrails.git
-[submodule "services/calcom"]
-	path = services/calcom
-	url = https://github.com/calcom/cal.com.git
-[submodule "services/easyappointments"]
-	path = services/easyappointments
-	url = https://github.com/alextselegidis/easyappointments.git
-[submodule "services/karrio"]
-	path = services/karrio
-	url = https://github.com/karrioapi/karrio.git
-[submodule "services/metabase"]
-	path = services/metabase
-	url = https://github.com/metabase/metabase.git
-[submodule "services/invoiceshelf"]
-	path = services/invoiceshelf
-	url = https://github.com/InvoiceShelf/InvoiceShelf.git

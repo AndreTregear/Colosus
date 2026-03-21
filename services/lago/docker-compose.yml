@@ -1,0 +1,104 @@
+version: "3.9"
+
+# Lago — Usage-Based Billing
+# Upstream: https://github.com/getlago/lago
+# Docs: https://docs.getlago.com/
+
+services:
+  database:
+    image: getlago/postgres-partman:15.0-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lago}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lago}
+      POSTGRES_DB: ${POSTGRES_DB:-lago}
+      PGDATA: /data/postgres
+    volumes:
+      - lago-db:/data/postgres
+    networks:
+      - lago
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - lago
+
+  api:
+    image: getlago/api:${LAGO_VERSION:-v1.44.0}
+    restart: unless-stopped
+    ports:
+      - "${LAGO_API_PORT:-3002}:3000"
+    environment:
+      LAGO_API_URL: ${LAGO_API_URL:-http://localhost:3002}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lago}:${POSTGRES_PASSWORD:-lago}@database:5432/${POSTGRES_DB:-lago}
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      LAGO_RSA_PRIVATE_KEY: ${LAGO_RSA_PRIVATE_KEY}
+      ENCRYPTION_PRIMARY_KEY: ${ENCRYPTION_PRIMARY_KEY}
+      ENCRYPTION_DETERMINISTIC_KEY: ${ENCRYPTION_DETERMINISTIC_KEY}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${ENCRYPTION_KEY_DERIVATION_SALT}
+    depends_on:
+      - database
+      - redis
+    networks:
+      - lago
+
+  front:
+    image: getlago/front:${LAGO_VERSION:-v1.44.0}
+    restart: unless-stopped
+    ports:
+      - "${LAGO_FRONT_PORT:-8080}:80"
+    environment:
+      API_URL: ${LAGO_API_URL:-http://localhost:3002}
+      APP_ENV: ${APP_ENV:-production}
+    depends_on:
+      - api
+    networks:
+      - lago
+
+  api-worker:
+    image: getlago/api:${LAGO_VERSION:-v1.44.0}
+    restart: unless-stopped
+    command: ["./scripts/start.worker.sh"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lago}:${POSTGRES_PASSWORD:-lago}@database:5432/${POSTGRES_DB:-lago}
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      ENCRYPTION_PRIMARY_KEY: ${ENCRYPTION_PRIMARY_KEY}
+      ENCRYPTION_DETERMINISTIC_KEY: ${ENCRYPTION_DETERMINISTIC_KEY}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${ENCRYPTION_KEY_DERIVATION_SALT}
+    depends_on:
+      - database
+      - redis
+    networks:
+      - lago
+
+  api-clock:
+    image: getlago/api:${LAGO_VERSION:-v1.44.0}
+    restart: unless-stopped
+    command: ["./scripts/start.clock.sh"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lago}:${POSTGRES_PASSWORD:-lago}@database:5432/${POSTGRES_DB:-lago}
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      ENCRYPTION_PRIMARY_KEY: ${ENCRYPTION_PRIMARY_KEY}
+      ENCRYPTION_DETERMINISTIC_KEY: ${ENCRYPTION_DETERMINISTIC_KEY}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${ENCRYPTION_KEY_DERIVATION_SALT}
+    depends_on:
+      - database
+      - redis
+    networks:
+      - lago
+
+  pdf:
+    image: getlago/lago-gotenberg:7.8.2
+    restart: unless-stopped
+    networks:
+      - lago
+
+volumes:
+  lago-db:
+
+networks:
+  lago:

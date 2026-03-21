@@ -1,0 +1,24 @@
+version: "3.9"
+
+# NeMo Guardrails — NVIDIA AI Guardrails
+# Upstream: https://github.com/NVIDIA/NeMo-Guardrails
+# Docs: https://docs.nvidia.com/nemo/guardrails/
+
+services:
+  guardrails:
+    image: python:3.12-slim
+    restart: unless-stopped
+    ports:
+      - "${GUARDRAILS_PORT:-8000}:8000"
+    volumes:
+      - ./config:/config
+    command: >
+      bash -c "pip install nemoguardrails==0.21.0 &&
+               nemoguardrails server --verbose --config=/config"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    networks:
+      - guardrails
+
+networks:
+  guardrails:

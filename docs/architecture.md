@@ -1,8 +1,14 @@
 # Yaya Platform — Architecture
 
+> **See also:** [ARCHITECTURE.md](../ARCHITECTURE.md) (root-level quick reference) | [CLEANUP-AUDIT.md](CLEANUP-AUDIT.md) (2026-03-21 cleanup details)
+
 ## Overview
 
 Yaya Platform is a conversational CEO assistant that helps Latin American small businesses manage sales, leads, billing, and payments — all through WhatsApp and Telegram. Every component runs on-premise with no cloud dependencies for inference or data storage.
+
+## Services Model
+
+All upstream open-source services (Cal.com, Metabase, Karrio, Lago, etc.) are deployed as **slim Docker wrappers** — each service directory contains only `docker-compose.yml` + `.env.example` + `README.md` referencing the upstream Docker image. We do not vendor upstream source code. Our own services (tts, yape-listener, whisper) contain actual source code.
 
 ## System Architecture
 

@@ -1,0 +1,47 @@
+version: "3.9"
+
+# Cal.com — Scheduling platform
+# Upstream: https://github.com/calcom/cal.com
+# Docs: https://cal.com/docs
+
+services:
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-calcom}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-calcom}
+      POSTGRES_DB: ${POSTGRES_DB:-calendso}
+    volumes:
+      - calcom-db:/var/lib/postgresql/data
+    networks:
+      - calcom
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - calcom
+
+  calcom:
+    image: calcom.docker.scarf.sh/calcom/cal.com:latest
+    restart: unless-stopped
+    ports:
+      - "${CALCOM_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-calcom}:${POSTGRES_PASSWORD:-calcom}@database:5432/${POSTGRES_DB:-calendso}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      CALENDSO_ENCRYPTION_KEY: ${CALENDSO_ENCRYPTION_KEY}
+      NEXT_PUBLIC_WEBAPP_URL: ${NEXT_PUBLIC_WEBAPP_URL:-http://localhost:3000}
+      NEXT_PUBLIC_API_V2_URL: ${NEXT_PUBLIC_API_V2_URL:-http://localhost:3000/api/v2}
+    depends_on:
+      - database
+      - redis
+    networks:
+      - calcom
+
+volumes:
+  calcom-db:
+
+networks:
+  calcom:
