@@ -1,0 +1,17 @@
+{
+  "name": "payment_confirmation",
+  "language": "es",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "¡Pago confirmado! ✅ Tu pedido {{order_id}} está listo. Monto: S/{{amount}}.\n\nGracias por tu compra, {{name}}.",
+      "variables": ["order_id", "amount", "name"]
+    }
+  ],
+  "example_variables": {
+    "order_id": "PED-001234",
+    "amount": "85.00",
+    "name": "Carlos"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "payment_reminder",
+  "language": "es",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hola {{name}}, tu pedido {{order_id}} por S/{{amount}} está pendiente de pago.\n\nPuedes pagar por:\n• Yape/Plin al {{payment_phone}}\n• Transferencia bancaria\n\nSi ya realizaste el pago, envíanos el comprobante.",
+      "variables": ["name", "order_id", "amount", "payment_phone"]
+    }
+  ],
+  "example_variables": {
+    "name": "Ana",
+    "order_id": "PED-005678",
+    "amount": "150.00",
+    "payment_phone": "+51999888777"
+  }
+}

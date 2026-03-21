@@ -1,0 +1,19 @@
+{
+  "name": "shipping_update",
+  "language": "es",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Tu pedido {{order_id}} ha sido enviado vía {{courier}}. Tracking: {{tracking}}\n\nEntrega estimada: {{delivery_date}}.\n\nSigue tu envío aquí: {{tracking_url}}",
+      "variables": ["order_id", "courier", "tracking", "delivery_date", "tracking_url"]
+    }
+  ],
+  "example_variables": {
+    "order_id": "PED-001234",
+    "courier": "Olva Courier",
+    "tracking": "OLV-987654",
+    "delivery_date": "25 de marzo",
+    "tracking_url": "https://olva.pe/tracking/OLV-987654"
+  }
+}
