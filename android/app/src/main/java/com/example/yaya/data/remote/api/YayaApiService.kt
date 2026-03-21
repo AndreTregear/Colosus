@@ -253,6 +253,42 @@ interface YayaApiService {
         @Body request: ToggleFlowRequest
     ): Response<OkResponse>
 
+    // ── Agent Chat ─────────────────────────────────────
+
+    @POST("api/v1/agent/chat")
+    suspend fun sendAgentMessage(
+        @Body request: AgentChatRequest
+    ): Response<AgentChatResponse>
+
+    @GET("api/v1/agent/history")
+    suspend fun getAgentHistory(
+        @Query("limit") limit: Int = 50,
+        @Query("offset") offset: Int = 0
+    ): Response<AgentHistoryResponse>
+
+    // ── Analytics ───────────────────────────────────────
+
+    @GET("api/v1/analytics/summary")
+    suspend fun getAnalyticsSummary(
+        @Query("period") period: String = "today"
+    ): Response<AnalyticsSummaryDto>
+
+    @GET("api/v1/analytics/revenue")
+    suspend fun getAnalyticsRevenue(
+        @Query("period") period: String = "7d"
+    ): Response<RevenueDataDto>
+
+    @GET("api/v1/analytics/expenses")
+    suspend fun getAnalyticsExpenses(
+        @Query("period") period: String = "7d"
+    ): Response<ExpensesDataDto>
+
+    @GET("api/v1/analytics/top-products")
+    suspend fun getAnalyticsTopProducts(
+        @Query("period") period: String = "7d",
+        @Query("limit") limit: Int = 10
+    ): Response<TopProductsDto>
+
     // ── Yape sync ────────────────────────────────────
     // Compatible with both the full autobot backend and the standalone
     // yape-listener service (services/yape-listener). The yape-listener

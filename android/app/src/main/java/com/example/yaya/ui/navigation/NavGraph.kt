@@ -2,11 +2,13 @@ package com.example.yaya.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -48,6 +50,8 @@ import com.example.yaya.ui.screens.subscriptions.SubscriptionListScreen
 import com.example.yaya.ui.screens.extraction.ProductExtractionScreen
 import com.example.yaya.ui.screens.notifications.NotificationSettingsScreen
 import com.example.yaya.ui.screens.calendar.CalendarScreen
+import com.example.yaya.ui.screens.agent.AgentChatScreen
+import com.example.yaya.ui.screens.analytics.AnalyticsScreen
 import com.example.yaya.ui.screens.followup.FollowUpFlowsScreen
 
 private data class BottomNavItem(
@@ -58,8 +62,8 @@ private data class BottomNavItem(
 
 private val bottomNavItems = listOf(
     BottomNavItem(Screen.Home, "Inicio", Icons.Default.Home),
-    BottomNavItem(Screen.ConversationList, "Chats", Icons.Default.Chat),
-    BottomNavItem(Screen.Products, "Productos", Icons.Default.ShoppingBag),
+    BottomNavItem(Screen.AgentChat, "Yaya", Icons.Default.SmartToy),
+    BottomNavItem(Screen.Analytics, "Analiticas", Icons.Default.BarChart),
     BottomNavItem(Screen.Orders, "Pedidos", Icons.Default.Receipt),
     BottomNavItem(Screen.Profile, "Perfil", Icons.Default.Person),
 )
@@ -138,6 +142,18 @@ fun MainNavGraph(onLogout: () -> Unit) {
                     onNavigateToOrders = { navController.navigate(Screen.Orders.route) },
                     onNavigateToPayments = { navController.navigate(Screen.PaymentList.route) },
                     onNavigateToWhatsApp = { navController.navigate(Screen.WhatsApp.route) }
+                )
+            }
+
+            composable(Screen.AgentChat.route) {
+                AgentChatScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Screen.Analytics.route) {
+                AnalyticsScreen(
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
 

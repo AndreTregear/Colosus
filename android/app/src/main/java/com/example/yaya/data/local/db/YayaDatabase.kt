@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.yaya.data.model.AgentMessageEntity
 import com.example.yaya.data.model.CustomerEntity
 import com.example.yaya.data.model.OrderEntity
 import com.example.yaya.data.model.Payment
@@ -14,9 +15,10 @@ import com.example.yaya.data.model.ProductEntity
         Payment::class,
         ProductEntity::class,
         OrderEntity::class,
-        CustomerEntity::class
+        CustomerEntity::class,
+        AgentMessageEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class YayaDatabase : RoomDatabase() {
@@ -24,6 +26,7 @@ abstract class YayaDatabase : RoomDatabase() {
     abstract fun productDao(): ProductDao
     abstract fun orderDao(): OrderDao
     abstract fun customerDao(): CustomerDao
+    abstract fun agentMessageDao(): AgentMessageDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -77,6 +80,21 @@ abstract class YayaDatabase : RoomDatabase() {
                         "`notes` TEXT, " +
                         "`cachedAt` INTEGER NOT NULL, " +
                         "PRIMARY KEY(`id`))"
+                )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `agent_messages` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`remoteId` TEXT, " +
+                        "`role` TEXT NOT NULL, " +
+                        "`content` TEXT NOT NULL, " +
+                        "`contentType` TEXT NOT NULL DEFAULT 'text', " +
+                        "`dataJson` TEXT, " +
+                        "`timestamp` INTEGER NOT NULL)"
                 )
             }
         }

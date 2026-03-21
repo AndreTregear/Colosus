@@ -2,6 +2,7 @@ package com.example.yaya.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.yaya.data.local.db.AgentMessageDao
 import com.example.yaya.data.local.db.CustomerDao
 import com.example.yaya.data.local.db.OrderDao
 import com.example.yaya.data.local.db.PaymentDao
@@ -29,7 +30,7 @@ object AppModule {
             YayaDatabase::class.java,
             "yaya_database"
         )
-            .addMigrations(YayaDatabase.MIGRATION_1_2, YayaDatabase.MIGRATION_2_3)
+            .addMigrations(YayaDatabase.MIGRATION_1_2, YayaDatabase.MIGRATION_2_3, YayaDatabase.MIGRATION_3_4)
             .build()
     }
 
@@ -55,6 +56,12 @@ object AppModule {
     @Singleton
     fun provideCustomerDao(database: YayaDatabase): CustomerDao {
         return database.customerDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideAgentMessageDao(database: YayaDatabase): AgentMessageDao {
+        return database.agentMessageDao()
     }
 
     @Provides

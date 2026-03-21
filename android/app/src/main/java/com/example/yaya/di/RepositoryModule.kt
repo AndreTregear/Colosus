@@ -3,6 +3,7 @@ package com.example.yaya.di
 import android.content.Context
 import com.example.yaya.data.local.datastore.AuthPreferences
 import com.example.yaya.data.local.datastore.SubscriptionPreferences
+import com.example.yaya.data.local.db.AgentMessageDao
 import com.example.yaya.data.local.db.CustomerDao
 import com.example.yaya.data.local.db.OrderDao
 import com.example.yaya.data.local.db.PaymentDao
@@ -147,5 +148,22 @@ object RepositoryModule {
         apiService: YayaApiService
     ): FollowUpFlowRepository {
         return FollowUpFlowRepository(apiService)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAgentRepository(
+        apiService: YayaApiService,
+        agentMessageDao: AgentMessageDao
+    ): AgentRepository {
+        return AgentRepository(apiService, agentMessageDao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAnalyticsRepository(
+        apiService: YayaApiService
+    ): AnalyticsRepository {
+        return AnalyticsRepository(apiService)
     }
 }

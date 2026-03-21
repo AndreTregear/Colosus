@@ -36,4 +36,6 @@ sealed class Screen(val route: String) {
     data object NotificationSettings : Screen("notifications/settings")
     data object Calendar : Screen("calendar")
     data object FollowUpFlows : Screen("followup-flows")
+    data object AgentChat : Screen("agent-chat")
+    data object Analytics : Screen("analytics")
 }
