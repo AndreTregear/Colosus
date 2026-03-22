@@ -132,7 +132,10 @@ Pregunta del dueño: ${question}
 `;
 
     const { generateText } = await import('ai');
-    const { aiModel } = await import('../../ai/mastra.js');
+    const { createOpenAICompatible } = await import('@ai-sdk/openai-compatible');
+    const { AI_BASE_URL, AI_API_KEY, AI_MODEL } = await import('../../config.js');
+    const provider = createOpenAICompatible({ name: 'yaya', baseURL: AI_BASE_URL, apiKey: AI_API_KEY });
+    const aiModel = provider.chatModel(AI_MODEL);
 
     const result = await generateText({
       model: aiModel,

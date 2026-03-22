@@ -39,7 +39,7 @@ import { aiUsageAdminRouter } from './routes/api-ai-usage.js';
 import { businessIntelligenceRouter } from './routes/api-business-intelligence.js';
 import { leadsRouter } from './routes/api-leads.js';
 import { websiteLeadsRouter } from './routes/api-website-leads.js';
-import { simulateRouter } from './routes/api-simulate.js';
+// simulate route removed — was Mastra-only demo
 import { redeployRouter } from './routes/api-redeploy.js';
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -153,8 +153,6 @@ export function createWebServer(port: number = 3000): void {
   app.use('/api/v1/mobile/auth', mobileAuthRouter);
   app.use('/api/website/leads', websiteLeadsRouter);
 
-  // ── Darwin Sales Lab (unauthenticated — for buyer agent simulation) ──
-  app.use('/api/v1/simulate', simulateRouter);
   app.use('/api/v1/darwin', redeployRouter); // secret-based auth, separate from session-based admin
 
   // ── Admin routes (session + admin role) ──
