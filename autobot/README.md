@@ -1,32 +1,29 @@
 # Autobot
 
-Multi-tenant WhatsApp AI sales automation platform for small businesses. Each tenant gets an isolated WhatsApp session, product catalog, order management, Yape payments, and an AI agent powered by Claude (via [claude-code-api](https://github.com/codingworkflow/claude-code-api)).
+Multi-tenant WhatsApp AI business management platform. Each tenant gets an isolated WhatsApp session, product catalog, order management, payments, and an AI agent powered by [OpenClaw](https://github.com/openclaw) — a skill-based agent framework with MCP server integration.
 
 Built with TypeScript, Baileys, Express, PostgreSQL, Redis, and BullMQ.
 
 ## How It Works
 
-Every incoming WhatsApp message (private chats only — groups are skipped) is routed to a tenant-specific AI agent. The agent:
+```
+WhatsApp → Autobot (Gateway) → OpenClaw (AI Agent) → MCP Servers → Backend Services
+```
+
+- **Autobot** is the multi-tenant WhatsApp gateway + web dashboard. It handles message routing, tenant isolation, queue management, and WhatsApp sessions via Baileys.
+- **OpenClaw** is the AI agent brain with 38 business skills. It handles conversation memory, skill selection, LLM inference, and tool execution.
+- **MCP servers** bridge OpenClaw to backend services: Lago (billing), Cal.com (scheduling), InvoiceShelf (invoicing), Metabase (analytics), PostgreSQL (data).
+- New capabilities are added by writing a skill (markdown file) and configuring an MCP server — no custom tool code needed.
+
+Every incoming WhatsApp message (private chats only — groups are skipped) is routed through OpenClaw. The agent:
 
 - Knows the tenant's full product catalog (names, prices, stock, categories)
 - Answers customer questions about products, pricing, and availability
 - Collects customer info (name, location, address) naturally in conversation
 - Processes WhatsApp location pins and saves coordinates to the customer profile
 - Creates orders, calculates totals, and decrements stock atomically
-- Sends Yape payment instructions with the tenant's configured account
+- Sends payment instructions with the tenant's configured account
 - Tracks order lifecycle: pending → payment_requested → paid → preparing → shipped → delivered
-
-The AI uses `[ACTION:...]` tags in its responses to trigger database operations. These are parsed and executed server-side; only the clean text reply reaches the customer. When an action produces results the customer needs to see (e.g. order totals, payment details), the agent makes a follow-up AI call to incorporate the real data into its response.
-
-### Available AI Actions
-
-| Action | Description |
-|--------|-------------|
-| `save_customer_info` | Save/update customer name, phone, location, address |
-| `create_order` | Create order with items (validates stock, calculates total) |
-| `request_yape_payment` | Generate Yape payment instructions for an order |
-| `get_order_status` | Retrieve order details and current status |
-| `validate_yape_payment` | Check if a Yape payment has been confirmed |
 
 ---
 
@@ -34,7 +31,7 @@ The AI uses `[ACTION:...]` tags in its responses to trigger database operations.
 
 ```
                     ┌─────────────────────────────────────────────┐
-                    │           Main Process (Node.js)             │
+                    │           Autobot (Node.js)                  │
                     │                                             │
                     │  ┌─────────────┐    ┌───────────────────┐   │
                     │  │  Express    │    │  Tenant Manager   │   │
@@ -54,6 +51,15 @@ The AI uses `[ACTION:...]` tags in its responses to trigger database operations.
                               │             │            │
                          WhatsApp      WhatsApp     WhatsApp
                          Session A     Session B    Session N
+
+                    ┌─────────────────────────────────────────────┐
+                    │           OpenClaw (AI Agent)                 │
+                    │                                             │
+                    │  Skills (38 markdown files)                 │
+                    │  MCP Servers (postgres, lago, cal.com, ...) │
+                    │  Conversation Memory                        │
+                    │  LLM Inference (vLLM / Qwen3.5-27B)        │
+                    └─────────────────────────────────────────────┘
 ```
 
 ### Message Flow
@@ -80,11 +86,9 @@ Handler
          BullMQ Worker
            ├── Tenant offline? → delay job (up to 3x, 30s each)
            ├── Per-tenant concurrency slot available? → proceed / delay
-           ├── Build system prompt (cached catalog + fresh customer context)
-           ├── Load conversation history (last 20 pairs)
-           ├── Call claude-code-api
-           ├── Parse & execute [ACTION:...] blocks
-           ├── Follow-up AI call if actions produced data (order IDs, totals)
+           ├── POST to OpenClaw API with tenant context
+           ├── Stream response chunks to WhatsApp
+           ├── Send product images after stream completes
            ├── Send reply chunks via WhatsApp (split at 4000 chars)
            └── Log outgoing message
 ```

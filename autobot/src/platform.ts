@@ -15,8 +15,7 @@ import { startMediaWorker, closeMediaQueue } from './media/media-queue.js';
 import { startPartitionManager, stopPartitionManager } from './warehouse/partitions.js';
 import { startETLRunner, stopETLRunner } from './warehouse/etl-runner.js';
 import { registerEventListeners } from './services/notification-service.js';
-import { initMastraStorage } from './ai/mastra.js';
-import { ensureDarwinTenant } from './web/routes/api-simulate.js';
+import { OPENCLAW_API_URL } from './config.js';
 import { logger, logStartupBanner } from './shared/logger.js';
 
 /** Start all platform services and return a shutdown function. */
@@ -45,15 +44,7 @@ export async function startPlatform(port: number): Promise<() => Promise<void>> 
   await ensureBuckets();
   logger.debug({ latencyMs: Date.now() - stepStart }, 'Object storage initialized');
 
-  // Initialize Mastra memory storage tables
-  stepStart = Date.now();
-  await initMastraStorage();
-  logger.debug({ latencyMs: Date.now() - stepStart }, 'Mastra storage initialized');
-
-  // Ensure Darwin Sales Lab demo tenant exists
-  stepStart = Date.now();
-  await ensureDarwinTenant();
-  logger.debug({ latencyMs: Date.now() - stepStart }, 'Darwin tenant ensured');
+  logger.info({ openclawUrl: OPENCLAW_API_URL }, 'OpenClaw bridge configured');
 
   stepStart = Date.now();
   createWebServer(port);

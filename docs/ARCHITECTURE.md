@@ -395,6 +395,65 @@ schema-subscriptions.sql      # Subscription/plan management
 schema-warehouse.sql          # Warehouse/inventory tracking
 ```
 
+## OpenClaw Integration
+
+Autobot delegates all AI processing to OpenClaw, an external agent framework accessed via HTTP API.
+
+### How It Works
+
+1. **Message arrives** → BullMQ worker picks up the job
+2. **Bridge call** → `openclaw-bridge.ts` sends a POST to `${OPENCLAW_API_URL}/chat` with the message text and tenant context (tenantId, channel, contactJid, isOwner, imageUrl)
+3. **OpenClaw processes** → selects appropriate skill, builds prompt, calls LLM, executes MCP tools
+4. **Response returns** → streamed via SSE (or JSON fallback) back to the bridge
+5. **Bridge forwards** → chunks streamed to WhatsApp via Baileys
+
+### Per-Tenant Context Injection
+
+Every request to OpenClaw includes tenant context as metadata:
+
+```json
+{
+  "message": "quiero 2 cervezas",
+  "context": {
+    "tenantId": "uuid",
+    "channel": "whatsapp",
+    "contactJid": "51999888777@s.whatsapp.net",
+    "isOwner": false,
+    "imageUrl": "s3://media-raw/tenant/image.jpg"
+  }
+}
+```
+
+OpenClaw uses this context to:
+- Set the PostgreSQL `search_path` to the tenant's schema (via postgres-mcp)
+- Load the tenant's SOUL.md and active skills
+- Determine whether to use owner-mode or customer-mode skills
+
+### Skill Selection and Routing
+
+OpenClaw maintains a library of 38 business skills (markdown files). Each skill defines:
+- When it should activate (trigger conditions)
+- What MCP tools it needs
+- System prompt instructions for the LLM
+
+Skill selection happens inside OpenClaw based on conversation context — Autobot does not participate in routing decisions.
+
+### MCP Server Lifecycle
+
+MCP servers are managed by OpenClaw, not Autobot. Each server:
+- Communicates via stdio (JSON-RPC)
+- Has access to tenant-scoped resources (database schema, API keys)
+- Is stateless per request
+
+### Adding New Capabilities
+
+To add a new business capability:
+1. Write a skill file (markdown) defining the behavior
+2. Configure the MCP server(s) it needs in OpenClaw
+3. No code changes in Autobot required
+
+This architecture means the AI logic is entirely managed through skills and MCP configs — no custom tool code in Autobot.
+
 ## Technology Decisions
 
 ### Why Qwen3.5-27B?

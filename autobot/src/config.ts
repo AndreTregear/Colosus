@@ -46,6 +46,11 @@ export const BETTER_AUTH_SECRET = (() => {
 
 export const BETTER_AUTH_URL = process.env.BETTER_AUTH_URL || `http://localhost:${WEB_PORT}`;
 
+// ── OpenClaw ──
+
+export const OPENCLAW_API_URL = process.env.OPENCLAW_API_URL || 'http://localhost:3100/api/v1';
+export const OPENCLAW_API_KEY = process.env.OPENCLAW_API_KEY || '';
+
 // ── AI ──
 
 export const AI_API_KEY = requireEnv('AI_API_KEY');
