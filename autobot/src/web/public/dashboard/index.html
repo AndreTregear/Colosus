@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yaya — Tu Negocio, Inteligente</title>
+  <link rel="stylesheet" href="shared/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Login Screen -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">
+        <h1>Ya<span>ya</span></h1>
+        <p>Tu negocio, inteligente</p>
+      </div>
+
+      <!-- Login Form -->
+      <div id="login-form" class="login-form">
+        <div id="login-error" class="login-error"></div>
+        <form id="form-login">
+          <div class="form-group">
+            <label class="form-label">Correo electrónico</label>
+            <input type="email" id="login-email" class="form-input" placeholder="tu@email.com" autocomplete="email" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña</label>
+            <input type="password" id="login-password" class="form-input" placeholder="••••••••" autocomplete="current-password" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
+        </form>
+        <div class="login-switch">
+          ¿No tienes cuenta? <a id="show-register">Regístrate</a>
+        </div>
+      </div>
+
+      <!-- Register Form -->
+      <div id="register-form" class="login-form hidden">
+        <div id="register-error" class="login-error"></div>
+        <form id="form-register">
+          <div class="form-group">
+            <label class="form-label">Nombre del negocio</label>
+            <input type="text" id="register-business" class="form-input" placeholder="Mi Pollería" autocomplete="organization">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Correo electrónico *</label>
+            <input type="email" id="register-email" class="form-input" placeholder="tu@email.com" autocomplete="email" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña *</label>
+            <input type="password" id="register-password" class="form-input" placeholder="Mínimo 6 caracteres" autocomplete="new-password" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Crear Cuenta</button>
+        </form>
+        <div class="login-switch">
+          ¿Ya tienes cuenta? <a id="show-login">Inicia sesión</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Layout -->
+  <div id="app" class="app-layout" style="display:none;">
+
+    <!-- Mobile Header -->
+    <div class="mobile-header">
+      <button class="hamburger" id="btn-hamburger">☰</button>
+      <div class="mobile-logo">Ya<span>ya</span></div>
+      <div style="width:32px;"></div>
+    </div>
+
+    <!-- Sidebar Overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">Ya<span>ya</span></div>
+        <div class="sidebar-business" id="sidebar-business"></div>
+      </div>
+
+      <div class="sidebar-nav">
+        <div class="nav-item active" data-page="dashboard">
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">Dashboard</span>
+        </div>
+        <div class="nav-item" data-page="chat">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">Agente Chat</span>
+        </div>
+        <div class="nav-item" data-page="analytics">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Analíticas</span>
+        </div>
+        <div class="nav-item" data-page="orders">
+          <span class="nav-icon">📦</span>
+          <span class="nav-label">Pedidos</span>
+        </div>
+        <div class="nav-item" data-page="customers">
+          <span class="nav-icon">👥</span>
+          <span class="nav-label">Clientes</span>
+        </div>
+        <div class="nav-item" data-page="products">
+          <span class="nav-icon">🛍️</span>
+          <span class="nav-label">Productos</span>
+        </div>
+        <div class="nav-item" data-page="payments">
+          <span class="nav-icon">💰</span>
+          <span class="nav-label">Pagos</span>
+        </div>
+        <div class="nav-item" data-page="expenses">
+          <span class="nav-icon">💸</span>
+          <span class="nav-label">Gastos</span>
+        </div>
+        <div class="nav-item" data-page="settings">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">Configuración</span>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user">
+          <div class="avatar" id="user-avatar"></div>
+          <span id="user-name"></span>
+          <button class="btn-logout" id="btn-logout" title="Cerrar sesión">Salir</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content" id="main-content">
+      <div id="page-dashboard" class="page active"></div>
+      <div id="page-chat" class="page"></div>
+      <div id="page-analytics" class="page"></div>
+      <div id="page-orders" class="page"></div>
+      <div id="page-customers" class="page"></div>
+      <div id="page-products" class="page"></div>
+      <div id="page-payments" class="page"></div>
+      <div id="page-expenses" class="page"></div>
+      <div id="page-settings" class="page"></div>
+    </main>
+  </div>
+
+  <!-- Modal Container -->
+  <div id="modal-backdrop" class="modal-backdrop"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

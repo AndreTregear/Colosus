@@ -18,6 +18,7 @@ import { registerRouter } from './routes/api-register.js';
 import { accountRouter } from './routes/api-account.js';
 import { tenantsRouter } from './routes/api-tenants.js';
 import { webRouter } from './routes/api-web.js';
+import { dashboardApiRouter } from './routes/core/dashboard-routes.js';
 import { adminRouter } from './routes/api-admin.js';
 import { queueRouter } from './routes/api-queue.js';
 import { subscriptionsRouter } from './routes/api-subscriptions.js';
@@ -170,6 +171,7 @@ export function createWebServer(port: number = 3000): void {
   // ── Tenant routes (auth middleware applied inside routers) ──
   app.use('/api/account', requireSession, accountRouter);
   app.use('/api/business', requireSession, businessIntelligenceRouter);
+  app.use('/api/web/dashboard', dashboardApiRouter);
   app.use('/api/web', webRouter);
   app.use('/api/subscription', subscriptionsRouter);
   app.use('/api/creator/subscriptions', customerSubscriptionsRouter);
@@ -194,6 +196,13 @@ export function createWebServer(port: number = 3000): void {
   app.use('/api/v1/creator', mobileCreatorRouter);
 
   // SPA fallback — serve appropriate index.html based on route
+  app.get('/dashboard/{*splat}', requireSession, (_req, res) => {
+    res.sendFile(path.resolve(__dirname, 'public/dashboard/index.html'));
+  });
+  app.get('/dashboard', requireSession, (_req, res) => {
+    res.sendFile(path.resolve(__dirname, 'public/dashboard/index.html'));
+  });
+
   app.get('/admin/{*splat}', (_req, res) => {
     res.sendFile(path.resolve(__dirname, 'public/admin/index.html'));
   });

@@ -354,8 +354,8 @@ These are external to the main docker-compose because:
 | Port | Service | Protocol | Exposed |
 |------|---------|----------|---------|
 | 80 | Caddy (HTTP→HTTPS redirect) | HTTP | Public |
-| 443 | Caddy (reverse proxy) | HTTPS | Public |
-| 3000 | Autobot (dashboard + API) | HTTP | Internal |
+| 443 | Caddy (reverse proxy, yaya.sh + cx.yaya.sh) | HTTPS | Public |
+| 3000 | Autobot (unified: landing + dashboard + API + WhatsApp) | HTTP | Internal |
 | 3001 | Lago API | HTTP | Internal |
 | 3002 | Cal.com | HTTP | Internal |
 | 3003 | Metabase | HTTP | Internal |
@@ -393,6 +393,70 @@ schema.sql                    # Core tables: tenants, products, customers, order
 schema-customer-memories.sql  # AI memory per customer (preferences, history)
 schema-subscriptions.sql      # Subscription/plan management
 schema-warehouse.sql          # Warehouse/inventory tracking
+```
+
+## Unified Platform
+
+Autobot is the single application that serves everything. The previous `yaya-api` dashboard has been merged into Autobot.
+
+### What Autobot Serves
+
+| Route | What | Auth |
+|-------|------|------|
+| `/` | Landing page (marketing site) | Public |
+| `/dashboard` | Merchant dashboard (SPA) | Session (Better Auth) |
+| `/admin` | Platform admin panel | Session + Admin role |
+| `/customer` | Customer portal | Session + Tenant link |
+| `/api/auth/*` | Authentication (Better Auth) | Public |
+| `/api/web/*` | Dashboard API (CRUD, analytics) | Tenant auth |
+| `/api/merchant-ai/chat` | AI chat (dashboard + mobile) | Tenant or mobile auth |
+| `/api/v1/mobile/*` | Android app API | Mobile auth |
+| `/api/business/*` | Business intelligence | Session |
+
+### Onboarding Flow
+
+```
+1. User visits yaya.sh → landing page
+2. Clicks "Registrarse" → /api/register creates user + tenant
+3. Better Auth session established (cookie-based)
+4. Redirected to /dashboard → merchant SPA loads
+5. Navigate to "Agente Chat" → /api/qr generates WhatsApp QR
+6. User scans QR with WhatsApp → Baileys connection established
+7. AI (via OpenClaw) auto-configures business:
+   └── Asks about products, pricing, hours, payment methods
+8. Customers message the WhatsApp number
+9. AI handles conversations, owner monitors via dashboard
+```
+
+## NemoClaw Tenant Isolation
+
+NemoClaw enforces tenant data isolation within OpenClaw. Each tenant's AI agent is sandboxed to only access their own data.
+
+### Policy Rules (infra/nemoclaw/tenant-policy.yaml)
+
+- **enforce-tenant-scope**: All database queries must include `tenant_id` matching the request context
+- **restrict-file-access**: S3 access restricted to `media-raw/{tenantId}/` prefix
+- **block-cross-tenant**: Deny queries without `tenant_id` filter
+- **enforce-search-path**: PostgreSQL queries must set `search_path` to tenant schema
+- **block-dangerous-sql**: Prevent `DROP`, `TRUNCATE`, `ALTER` operations
+- **pii-guard**: Strip credit card numbers, DNI, RUC from AI responses
+- **tenant-rate-limit**: 30 req/min, 500 req/hour, 3 concurrent per tenant
+
+### How It Works
+
+```
+Dashboard/WhatsApp → Autobot → OpenClaw API
+                                    │
+                              NemoClaw checks:
+                              ├── Is tenant_id in every query?
+                              ├── Is search_path set correctly?
+                              ├── Any cross-tenant data access?
+                              ├── Any dangerous SQL?
+                              └── PII in response?
+                                    │
+                              MCP Server executes
+                                    │
+                              Response filtered → User
 ```
 
 ## OpenClaw Integration

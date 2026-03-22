@@ -22,44 +22,33 @@ The business owner scans a QR code, and Yaya becomes their AI-powered business m
 
 ## Architecture
 
+ONE unified app (Autobot) serves everything: landing page, merchant dashboard, mobile API, WhatsApp gateway, and AI agent.
+
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Customer's Phone                             │
-│                     WhatsApp / Voice Notes                          │
-└────────────────────────────┬────────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                     AUTOBOT (Node.js)                                │
-│              AI Agent + Web Dashboard + REST API                     │
-│                                                                      │
-│  ┌──────────────┐  ┌───────────────┐  ┌──────────────────────────┐ │
-│  │  Baileys      │  │  AI Engine     │  │  38 Business Skills      │ │
-│  │  (WhatsApp)   │  │  (Qwen3.5-27B) │  │  sales, billing, crm... │ │
-│  └──────┬───────┘  └───────┬───────┘  └──────────┬───────────────┘ │
-│         │                  │                      │                  │
-│         │         ┌────────▼──────────────────────▼──────────┐      │
-│         │         │         MCP Server Layer                  │      │
-│         │         │  postgres-mcp  │ lago-mcp  │ voice-mcp   │      │
-│         │         │  crm-mcp       │ forex-mcp │ invoicing    │      │
-│         │         │  payments-mcp  │ whatsapp-mcp │ appts-mcp │      │
-│         │         └────────────────┬─────────────────────────┘      │
-└─────────┼──────────────────────────┼────────────────────────────────┘
-          │                          │
-          ▼                          ▼
-┌──────────────────┐  ┌──────────────────────────────────────────────┐
-│   AI Layer (GPU)  │  │            Backend Services                   │
-│                   │  │                                               │
-│  vLLM             │  │  Lago ─────── Billing, subscriptions         │
-│  (Qwen3.5-27B)    │  │  InvoiceShelf  Invoicing, SUNAT compliance  │
-│                   │  │  Cal.com ───── Scheduling, appointments      │
-│  Whisper          │  │  Metabase ──── Analytics, dashboards         │
-│  (STT, Spanish)   │  │                                               │
-│                   │  │  PostgreSQL ── Shared database                │
-│  Kokoro TTS       │  │  Redis ─────── Queues, cache                 │
-│  (Voice replies)  │  │  MinIO ─────── File storage (S3)             │
-└──────────────────┘  └──────────────────────────────────────────────┘
+User → WhatsApp / Web / Android
+         │
+         ▼
+    Autobot (Express, port 3000)         ← yaya.sh
+    ├── WhatsApp Gateway (Baileys, multi-tenant)
+    ├── Landing Page (/)
+    ├── Merchant Dashboard (/dashboard)
+    ├── Admin Panel (/admin)
+    ├── Customer Portal (/customer)
+    ├── Mobile API (/api/v1/mobile/*)
+    ├── REST API (/api/*)
+    └── AI Bridge → OpenClaw Agent
+                    ├── 38 Skills (markdown)
+                    ├── MCP Servers → Backend Services
+                    └── NemoClaw (tenant isolation)
 ```
+
+**Routing**: `yaya.sh` serves the landing page on port 3000. `cx.yaya.sh` routes to the same app (nginx → 3000).
+
+**AI**: All intelligence is delegated to OpenClaw via HTTP. Autobot is stateless — it sends tenant context and gets responses back. NemoClaw enforces tenant data isolation within OpenClaw.
+
+**Dashboard**: Each merchant gets a full business dashboard at `/dashboard` with analytics, product/order/customer CRUD, payment management, AI chat, and settings.
+
+**Onboarding flow**: Register → Login → Scan QR → AI configures business → Start selling.
 
 ## Tech Stack
 
@@ -80,7 +69,7 @@ The business owner scans a QR code, and Yaya becomes their AI-powered business m
 | Reverse Proxy | Caddy 2 | Automatic HTTPS, TLS termination | Apache 2.0 |
 | *Phase 2* | ERPNext | Full ERP (inventory, manufacturing, HR) | GPL |
 | *Phase 2* | Karrio | Universal shipping API, label generation | Apache 2.0 |
-| *Phase 2* | NeMo Guardrails | AI safety, PII detection, content filtering | Apache 2.0 |
+| AI Safety | NemoClaw | Tenant isolation, PII filtering, content guardrails | Apache 2.0 |
 
 ## The 38 Skills
 
@@ -177,13 +166,15 @@ docker compose -f docker-compose.prod.yml ps
 
 That's it. One command brings up the autobot, Lago billing, InvoiceShelf, Cal.com, Metabase, PostgreSQL, Redis, MinIO, and Caddy with automatic HTTPS.
 
-### First-time Setup
+### First-time Setup (Onboarding)
 
-1. Open the web dashboard at `https://your-domain.com`
-2. Log in with your admin credentials
-3. Create a business tenant
-4. Scan the WhatsApp QR code
-5. Start chatting — Yaya is ready
+1. Open `https://your-domain.com` → landing page
+2. Click "Registrarse" → create account (email + business name)
+3. Log in → redirected to `/dashboard`
+4. Go to "Agente Chat" → scan WhatsApp QR code
+5. AI auto-configures your business (products, pricing, hours)
+6. Customers message your WhatsApp number → Yaya handles conversations
+7. Monitor everything from the dashboard: sales, orders, payments, analytics
 
 ## How It Works
 
@@ -229,22 +220,22 @@ The AI agent uses [Model Context Protocol](https://modelcontextprotocol.io) (MCP
 
 ## Port Map
 
-| Port | Service | Description |
-|------|---------|-------------|
-| 80/443 | Caddy | HTTPS reverse proxy |
-| 3000 | Autobot | AI agent + web dashboard |
-| 3001 | Lago API | Billing REST API |
-| 3002 | Cal.com | Scheduling UI |
-| 3003 | Metabase | Analytics dashboards |
-| 5432 | PostgreSQL | Database |
-| 6379 | Redis | Cache + queues |
-| 8080 | Lago Frontend | Billing admin UI |
-| 8090 | InvoiceShelf | Invoice management UI |
-| 9000 | MinIO API | Object storage |
-| 9001 | MinIO Console | Storage admin UI |
-| 8000* | vLLM | LLM API (GPU host) |
-| 9100* | Whisper | Speech-to-text (GPU host) |
-| 9200* | Kokoro TTS | Text-to-speech (GPU host) |
+| Port | Service | Routes | Description |
+|------|---------|--------|-------------|
+| 80/443 | Caddy | `yaya.sh`, `cx.yaya.sh` | HTTPS reverse proxy |
+| 3000 | Autobot | `/`, `/dashboard`, `/admin`, `/customer`, `/api/*` | Unified platform (landing + dashboard + API + WhatsApp) |
+| 3001 | Lago API | | Billing REST API |
+| 3002 | Cal.com | | Scheduling UI |
+| 3003 | Metabase | | Analytics dashboards |
+| 5432 | PostgreSQL | | Database |
+| 6379 | Redis | | Cache + queues |
+| 8080 | Lago Frontend | | Billing admin UI |
+| 8090 | InvoiceShelf | | Invoice management UI |
+| 9000 | MinIO API | | Object storage |
+| 9001 | MinIO Console | | Storage admin UI |
+| 8000* | vLLM | | LLM API (GPU host) |
+| 9100* | Whisper | | Speech-to-text (GPU host) |
+| 9200* | Kokoro TTS | | Text-to-speech (GPU host) |
 
 *\* GPU services run on separate host*
 
@@ -252,32 +243,23 @@ The AI agent uses [Model Context Protocol](https://modelcontextprotocol.io) (MCP
 
 ```
 yaya_platform/
-├── autobot/                 # The AI agent (Node.js + Baileys + web dashboard)
+├── autobot/                 # THE unified platform (Node.js + Express)
+│   └── src/web/public/
+│       ├── index.html       # Landing page (yaya.sh)
+│       ├── dashboard/       # Merchant dashboard SPA
+│       ├── admin/           # Admin panel
+│       └── customer/        # Customer portal
+├── android/                 # Android app (Kotlin, Jetpack Compose)
 ├── skills/                  # 38 AI business skills (prompt + MCP config)
 ├── mcp-servers/             # 10 MCP servers bridging AI to services
-│   ├── postgres-mcp/        # SQL query builder with guardrails
-│   ├── lago-mcp/            # Lago billing API bridge
-│   ├── voice-mcp/           # Whisper STT + Kokoro TTS pipeline
-│   ├── payments-mcp/        # Payment validation tools
-│   └── ...
-├── services/                # Third-party service configs (docker-compose wrappers)
-│   ├── lago/                # Lago billing
-│   ├── calcom/              # Cal.com scheduling
-│   ├── metabase/            # Metabase analytics
-│   ├── invoiceshelf/        # InvoiceShelf invoicing
-│   ├── whisper/             # Faster Whisper STT
-│   ├── tts/                 # Kokoro TTS
-│   └── ...
-├── infra/                   # Infrastructure configs, deploy scripts
+├── infra/                   # Infrastructure configs
+│   ├── nemoclaw/            # NemoClaw tenant isolation policies
 │   ├── docker/              # Shared docker-compose, init-db.sql
 │   └── scripts/             # Setup, deploy, backup
-├── apps/                    # Mobile apps (payment validator, BI)
-├── research/                # Market research, strategy docs
+├── services/                # Third-party service configs (Lago, Cal.com, etc.)
 ├── docs/                    # Architecture, deployment guides
 ├── docker-compose.prod.yml  # Full production stack (one command)
-├── .env.example             # All configuration variables
-├── deploy.sh                # Deploy to production
-└── start.sh                 # Start locally
+└── deploy.sh                # Deploy to production
 ```
 
 ## Documentation
