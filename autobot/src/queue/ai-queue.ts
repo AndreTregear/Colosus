@@ -19,10 +19,11 @@ const OFFLINE_DELAY_MS = 30_000;
 const CONCURRENCY_DELAY_MS = 5_000;
 
 async function processAIJob(job: Job<AIJobData, AIJobResult>): Promise<AIJobResult> {
+  const jobStartTime = Date.now();
   const { tenantId, channel, jid, pushName, text, imageMediaPath, fromMe } = job.data;
   const token = job.id; // For moveToDelayed
 
-  logger.info({ tenantId, jid, jobId: job.id, attempt: job.attemptsMade + 1 }, 'Processing AI job');
+  logger.info({ tenantId, jid, jobId: job.id, attempt: job.attemptsMade + 1, textLength: text.length, hasImage: !!imageMediaPath, fromMe }, 'Processing AI job');
 
   // Connection-aware routing
   const bridge = tenantManager.getBridge(tenantId);
@@ -103,7 +104,7 @@ async function processAIJob(job: Job<AIJobData, AIJobResult>): Promise<AIJobResu
 
       return { reply: response, chunksSent: response ? splitMessage(response, 4000).length : 0 };
     } catch (error) {
-      logger.error({ error, tenantId, jid, jobId: job.id }, 'Owner agent processing failed');
+      logger.error({ error, tenantId, jid, jobId: job.id, latencyMs: Date.now() - jobStartTime }, 'Owner agent processing failed');
       return { reply: '', chunksSent: 0 };
     }
   }
@@ -152,7 +153,7 @@ async function processAIJob(job: Job<AIJobData, AIJobResult>): Promise<AIJobResu
       appBus.emit('message-logged', { tenantId, channel, jid, pushName: null, direction: 'outgoing', body: result.reply, timestamp: new Date().toISOString() });
       appBus.emit('ai-job-completed', tenantId, jid);
 
-      logger.info({ tenantId, jid, jobId: job.id, images: result.imagesToSend.length, chunksSent, hasVision: !!imageMediaPath }, `AI replied to ${pushName || jid}`);
+      logger.info({ tenantId, jid, jobId: job.id, images: result.imagesToSend.length, chunksSent, hasVision: !!imageMediaPath, latencyMs: Date.now() - jobStartTime }, `AI replied to ${pushName || jid}`);
 
       return { reply: result.reply, chunksSent };
     }

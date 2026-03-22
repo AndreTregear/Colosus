@@ -88,6 +88,19 @@ export function createWebServer(port: number = 3000): void {
 
   app.use(express.json({ limit: '1mb' }));
 
+  // ── Request logging middleware ──
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const latencyMs = Date.now() - start;
+      // Skip noisy health checks and static assets at debug level
+      if (req.path === '/api/v1/health') return;
+      if (!req.path.startsWith('/api/')) return;
+      logger.debug({ method: req.method, path: req.path, status: res.statusCode, latencyMs }, 'HTTP request');
+    });
+    next();
+  });
+
   // ── Rate limiting ──
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes

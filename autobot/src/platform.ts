@@ -17,36 +17,56 @@ import { startETLRunner, stopETLRunner } from './warehouse/etl-runner.js';
 import { registerEventListeners } from './services/notification-service.js';
 import { initMastraStorage } from './ai/mastra.js';
 import { ensureDarwinTenant } from './web/routes/api-simulate.js';
-import { logger } from './shared/logger.js';
+import { logger, logStartupBanner } from './shared/logger.js';
 
 /** Start all platform services and return a shutdown function. */
 export async function startPlatform(port: number): Promise<() => Promise<void>> {
+  const platformStart = Date.now();
+  logStartupBanner();
   logger.info('Platform starting...');
+
+  let stepStart = Date.now();
 
   // Run all SQL schemas + numbered migrations (idempotent)
   await runDatabaseMigrations();
+  logger.debug({ latencyMs: Date.now() - stepStart }, 'DB migrations complete');
 
   // Better Auth table migrations + admin user seed
+  stepStart = Date.now();
   await migrateAuthTables();
+  logger.debug({ latencyMs: Date.now() - stepStart }, 'Auth tables migrated');
+
+  stepStart = Date.now();
   await seedAdminIfNeeded();
+  logger.debug({ latencyMs: Date.now() - stepStart }, 'Admin seed check complete');
 
   // Initialize object storage (S3/MinIO)
+  stepStart = Date.now();
   await ensureBuckets();
-  logger.info('Object storage initialized');
+  logger.debug({ latencyMs: Date.now() - stepStart }, 'Object storage initialized');
 
   // Initialize Mastra memory storage tables
+  stepStart = Date.now();
   await initMastraStorage();
-  logger.info('Mastra storage initialized');
+  logger.debug({ latencyMs: Date.now() - stepStart }, 'Mastra storage initialized');
 
   // Ensure Darwin Sales Lab demo tenant exists
+  stepStart = Date.now();
   await ensureDarwinTenant();
+  logger.debug({ latencyMs: Date.now() - stepStart }, 'Darwin tenant ensured');
 
+  stepStart = Date.now();
   createWebServer(port);
+  logger.debug({ latencyMs: Date.now() - stepStart }, 'Web server created');
+
   startAIWorker();
   startMediaWorker();
   startPartitionManager();
   startETLRunner();
+
+  stepStart = Date.now();
   await tenantManager.autoStartTenants();
+  logger.debug({ latencyMs: Date.now() - stepStart }, 'Tenants auto-started');
 
   startHealthCheck();
   startReminderScheduler();
@@ -58,7 +78,7 @@ export async function startPlatform(port: number): Promise<() => Promise<void>> 
   // Register all event-driven notification handlers
   registerEventListeners();
 
-  logger.info('Autobot multi-tenant platform is running');
+  logger.info({ totalStartupMs: Date.now() - platformStart }, 'Autobot multi-tenant platform is running');
 
   return async () => {
     logger.info('Shutting down...');

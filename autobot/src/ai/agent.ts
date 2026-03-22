@@ -72,6 +72,9 @@ export async function processWithAIStreaming(
     : [userMessage];
 
   try {
+    logger.debug({ tenantId, jid, businessType, threadId, messageLength: userMessage.length, hasImage: !!imageMediaPath, maxSteps: AI_AGENT_MAX_ITERATIONS }, 'Starting AI agent stream');
+    const agentStart = Date.now();
+
     const result = await agent.stream(messages, {
       maxSteps: AI_AGENT_MAX_ITERATIONS,
       requestContext,
@@ -81,6 +84,8 @@ export async function processWithAIStreaming(
     const fullText = await streamAndSend(result.textStream, sendChunk);
     const steps = await result.steps;
     const imagesToSend = collectImageResults(steps ?? []);
+
+    logger.debug({ tenantId, jid, replyLength: fullText.length, stepsCount: steps?.length ?? 0, imagesCount: imagesToSend.length, latencyMs: Date.now() - agentStart }, 'AI agent stream completed');
 
     return { reply: fullText, imagesToSend };
   } catch (err) {

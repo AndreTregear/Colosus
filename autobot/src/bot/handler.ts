@@ -44,6 +44,15 @@ export async function handleIncomingMessage(
   const isGroup = jid.endsWith('@g.us');
   const pushName = msg.pushName || null;
 
+  logger.debug({
+    channel: 'whatsapp',
+    jid,
+    isGroup,
+    pushName,
+    type: msg.message.conversation ? 'conversation' : 'extendedText',
+    textLength: text.length,
+  }, 'Incoming message (single-tenant handler)');
+
   // Log the incoming message
   await logMessagePg({
     tenantId: DEFAULT_TENANT_ID,

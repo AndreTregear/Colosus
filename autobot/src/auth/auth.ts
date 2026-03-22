@@ -41,6 +41,7 @@ export const auth = betterAuth(authOptions);
 
 /** Run Better Auth database migrations (idempotent — safe to call on every startup). */
 export async function migrateAuthTables(): Promise<void> {
+  logger.debug('Running Better Auth table migrations...');
   try {
     // better-auth v1.5+ auto-migrates when using a direct database connection.
     // Trigger initialization by making a lightweight API call.
@@ -73,6 +74,7 @@ export async function seedAdminIfNeeded(): Promise<void> {
   const pool = new Pool({ connectionString: DATABASE_URL });
   try {
     // Check if user already exists
+    logger.debug({ email }, 'Checking if admin user exists');
     const { rows } = await pool.query('SELECT id, role FROM "user" WHERE email = $1 LIMIT 1', [email]);
 
     if (rows.length > 0) {
@@ -81,9 +83,10 @@ export async function seedAdminIfNeeded(): Promise<void> {
         await pool.query('UPDATE "user" SET role = $1 WHERE id = $2', ['admin', rows[0].id]);
         logger.info({ email }, 'Existing user promoted to admin');
       } else {
-        logger.info({ email }, 'Admin user already exists with correct role');
+        logger.debug({ email }, 'Admin user already exists with correct role');
       }
       // Always sync password from env so login works after config changes
+      logger.debug({ email }, 'Syncing admin password from env');
       const hashedPassword = await hashPassword(password);
       await pool.query(
         'UPDATE "account" SET "password" = $1 WHERE "userId" = $2 AND "providerId" = $3',
@@ -95,12 +98,14 @@ export async function seedAdminIfNeeded(): Promise<void> {
 
     // Create new admin user via Better Auth
     logger.info({ email, name }, 'Creating admin user from .env configuration');
+    logger.debug({ email }, 'Calling auth.api.signUpEmail for admin');
     const ctx = await auth.api.signUpEmail({
       body: { email, password, name, tenantId: '' },
     });
     const userId = (ctx as { user: { id: string } }).user.id;
 
     // Set role directly in DB — auth.api.setRole requires an existing admin session (chicken-and-egg)
+    logger.debug({ email, userId }, 'Setting admin role in DB');
     await pool.query('UPDATE "user" SET role = $1 WHERE id = $2', ['admin', userId]);
     logger.info({ email, userId }, 'Admin user auto-created from ADMIN_EMAIL env var');
   } catch (err) {

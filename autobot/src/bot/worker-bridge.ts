@@ -67,6 +67,8 @@ export class WorkerBridge {
       return;
     }
 
+    logger.debug({ tenantId: this.tenantId }, 'Starting worker thread...');
+
     // Resolve worker script — detect by checking which file exists on disk
     const jsPath = path.resolve(__dirname, 'worker.js');
     const tsPath = path.resolve(__dirname, 'worker.ts');
@@ -81,6 +83,7 @@ export class WorkerBridge {
     }
 
     const isTsx = workerPath.endsWith('.ts');
+    logger.debug({ tenantId: this.tenantId, workerPath, isTsx }, 'Resolved worker script');
 
     return new Promise<void>((resolve, reject) => {
       const workerOptions: any = {
@@ -99,6 +102,7 @@ export class WorkerBridge {
           this.worker!.removeListener('message', onReady);
           this.startedAt = new Date();
           this.lastHeartbeat = Date.now();
+          logger.debug({ tenantId: this.tenantId }, 'Worker thread ready');
           resolve();
         }
       };
@@ -137,11 +141,13 @@ export class WorkerBridge {
   }
 
   async startSession(): Promise<void> {
+    logger.debug({ tenantId: this.tenantId }, 'Starting WhatsApp session');
     this.send({ type: 'start' });
     await sessionsRepo.updateConnectionStatus(this.tenantId, 'connecting');
   }
 
   async stopSession(): Promise<void> {
+    logger.debug({ tenantId: this.tenantId }, 'Stopping WhatsApp session');
     this.send({ type: 'stop' });
     this.latestQr = null;
   }
@@ -194,6 +200,7 @@ export class WorkerBridge {
   }
 
   async terminate(): Promise<void> {
+    logger.debug({ tenantId: this.tenantId, pendingRequests: this.pendingRequests.size }, 'Terminating worker');
     this.rejectAllPending('Worker terminated');
     if (this.worker) {
       await this.worker.terminate();
@@ -214,12 +221,14 @@ export class WorkerBridge {
   private handleWorkerEvent(event: WorkerEvent): void {
     switch (event.type) {
       case 'qr':
+        logger.debug({ tenantId: this.tenantId }, 'QR code received from worker');
         this.latestQr = event.dataUrl;
         sessionsRepo.updateQrTimestamp(this.tenantId).catch(() => {});
         appBus.emit('qr', event.dataUrl);
         break;
 
       case 'connection-update':
+        logger.debug({ tenantId: this.tenantId, status: event.status, phone: (event as any).phone }, 'Connection status update');
         if (event.status === 'open') {
           this.latestQr = null;
         }
@@ -232,6 +241,7 @@ export class WorkerBridge {
 
       case 'message':
         this.messagesHandled++;
+        logger.debug({ tenantId: this.tenantId, messagesHandled: this.messagesHandled, contactId: event.message.contactId }, 'Worker message event');
         this.onMessage?.(this.tenantId, event.message);
         break;
 

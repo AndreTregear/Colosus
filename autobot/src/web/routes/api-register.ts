@@ -18,6 +18,7 @@ const router = Router();
 
 router.post('/', validateBody(registerSchema), async (req, res) => {
   const { email, password, name, businessName } = req.body;
+  logger.debug({ email, businessName }, 'Registration attempt started');
 
   // Derive slug from business name
   const slug = businessName
@@ -27,6 +28,7 @@ router.post('/', validateBody(registerSchema), async (req, res) => {
     .replace(/^-|-$/g, '');
 
   if (!slug) {
+    logger.debug({ email, businessName }, 'Registration rejected: empty slug');
     res.status(400).json({ error: 'Business name must contain at least one alphanumeric character' });
     return;
   }
@@ -34,16 +36,20 @@ router.post('/', validateBody(registerSchema), async (req, res) => {
   // Check slug uniqueness
   const existing = await tenantsRepo.getTenantBySlug(slug);
   if (existing) {
+    logger.debug({ email, slug }, 'Registration rejected: slug already exists');
     res.status(409).json({ error: 'A business with a similar name already exists. Try a different name.' });
     return;
   }
 
   try {
     // 1. Create the tenant
+    logger.debug({ email, slug }, 'Step 1: Creating tenant');
     const tenant = await tenantsRepo.createTenant({ name: businessName, slug });
+    logger.debug({ email, tenantId: tenant.id, slug }, 'Step 1 complete: Tenant created');
 
     // 2. Create the Better Auth user linked to this tenant
     try {
+      logger.debug({ email, tenantId: tenant.id }, 'Step 2: Creating user account');
       const ctx = await auth.api.signUpEmail({
         body: {
           email,
@@ -56,8 +62,10 @@ router.post('/', validateBody(registerSchema), async (req, res) => {
       // so set it directly in DB — same pattern as seedAdminIfNeeded().
       const userId = (ctx as { user: { id: string } }).user.id;
       await query('UPDATE "user" SET "tenantId" = $1 WHERE id = $2', [tenant.id, userId]);
+      logger.debug({ email, tenantId: tenant.id, userId }, 'Step 2 complete: User created and linked');
     } catch (authErr: unknown) {
       // Rollback: delete the tenant if user creation fails
+      logger.debug({ email, tenantId: tenant.id, error: authErr instanceof Error ? authErr.message : String(authErr) }, 'Step 2 failed: Rolling back tenant');
       await tenantsRepo.deleteTenant(tenant.id);
       const msg = authErr instanceof Error ? authErr.message : 'Failed to create account';
       res.status(400).json({ error: msg });
@@ -65,9 +73,13 @@ router.post('/', validateBody(registerSchema), async (req, res) => {
     }
 
     // 3. Auto-assign free plan
+    logger.debug({ email, tenantId: tenant.id }, 'Step 3: Assigning free plan');
     const freePlan = await plansRepo.getPlanBySlug('free');
     if (freePlan) {
       await tenantSubsRepo.subscribe(tenant.id, freePlan.id, 'free');
+      logger.debug({ email, tenantId: tenant.id, planId: freePlan.id }, 'Step 3 complete: Free plan assigned');
+    } else {
+      logger.debug({ email, tenantId: tenant.id }, 'Step 3: No free plan found, skipping');
     }
 
     logger.info({ email, tenantId: tenant.id, slug }, 'New tenant registered via self-service');

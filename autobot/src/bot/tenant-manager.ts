@@ -38,6 +38,9 @@ class TenantManagerImpl {
   }
 
   async startTenant(tenantId: string): Promise<void> {
+    const startTime = Date.now();
+    logger.debug({ tenantId }, 'Starting tenant...');
+
     const tenant = await tenantsRepo.getTenantById(tenantId);
     if (!tenant) throw new Error(`Tenant ${tenantId} not found`);
     if (tenant.status !== 'active') throw new Error(`Tenant ${tenantId} is ${tenant.status}`);
@@ -52,6 +55,10 @@ class TenantManagerImpl {
 
 
     bridge.setMessageHandler((tid, msg) => {
+      const hasText = !!msg.text;
+      const hasImage = !!msg.image;
+      const hasAudio = !!msg.audio;
+      logger.debug({ tenantId: tid, contactId: msg.contactId, channel: msg.channel, hasText, hasImage, hasAudio, fromMe: msg.fromMe }, 'Incoming message received');
       if (!msg.text && !msg.image && !msg.audio) return;
 
       (async () => {
@@ -129,10 +136,11 @@ class TenantManagerImpl {
 
     await bridge.start(DATABASE_URL);
     await bridge.startSession();
-    logger.info({ tenantId }, 'Tenant started');
+    logger.info({ tenantId, latencyMs: Date.now() - startTime }, 'Tenant started');
   }
 
   async stopTenant(tenantId: string): Promise<void> {
+    logger.debug({ tenantId }, 'Stopping tenant...');
     const bridge = this.bridges.get(tenantId);
     if (!bridge) return;
 
@@ -159,6 +167,7 @@ class TenantManagerImpl {
   }
 
   async sendMessage(tenantId: string, jid: string, text: string): Promise<void> {
+    logger.debug({ tenantId, jid, textLength: text.length }, 'Sending message');
     const bridge = this.bridges.get(tenantId);
     if (!bridge?.isRunning()) throw new Error(`Tenant ${tenantId} is not running`);
     await bridge.sendMessage(jid, text);
@@ -207,6 +216,7 @@ class TenantManagerImpl {
   async autoStartTenants(): Promise<void> {
     const tenants = await tenantsRepo.getActiveTenants();
     logger.info(`Auto-starting ${tenants.length} active tenant(s)`);
+    logger.debug({ tenantIds: tenants.map(t => t.id) }, 'Active tenants to start');
 
     for (const tenant of tenants) {
       try {
@@ -219,6 +229,7 @@ class TenantManagerImpl {
 
   async shutdownAll(): Promise<void> {
     const ids = Array.from(this.bridges.keys());
+    logger.debug({ tenantCount: ids.length, tenantIds: ids }, 'Shutting down all tenants');
     await Promise.allSettled(ids.map(id => this.stopTenant(id)));
     logger.info('All tenants shut down');
   }

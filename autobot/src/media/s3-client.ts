@@ -28,8 +28,10 @@ let client: S3Client | null = null;
 
 export function getS3Client(): S3Client {
   if (!client) {
+    const endpoint = `${PROTOCOL}://${S3_ENDPOINT}:${S3_PORT}`;
+    logger.debug({ endpoint }, 'Initializing S3 client');
     client = new S3Client({
-      endpoint: `${PROTOCOL}://${S3_ENDPOINT}:${S3_PORT}`,
+      endpoint,
       region: 'us-east-1', // MinIO ignores region but SDK requires it
       credentials: {
         accessKeyId: S3_ACCESS_KEY,
@@ -46,9 +48,11 @@ async function ensureBucket(bucket: string): Promise<void> {
   const s3 = getS3Client();
   try {
     await s3.send(new HeadBucketCommand({ Bucket: bucket }));
+    logger.debug({ bucket }, 'S3 bucket already exists');
   } catch {
     logger.info({ bucket }, 'Creating S3 bucket');
     await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+    logger.debug({ bucket }, 'S3 bucket created');
   }
 }
 
@@ -74,13 +78,16 @@ export async function putObject(
   body: Buffer,
   contentType?: string,
 ): Promise<void> {
+  logger.debug({ bucket, key, sizeBytes: body.length, contentType }, 'S3 putObject');
   const params: PutObjectCommandInput = { Bucket: bucket, Key: key, Body: body };
   if (contentType) params.ContentType = contentType;
   await getS3Client().send(new PutObjectCommand(params));
+  logger.debug({ bucket, key }, 'S3 putObject complete');
 }
 
 /** Download an object from S3 as a Buffer. */
 export async function getObject(bucket: string, key: string): Promise<Buffer> {
+  logger.debug({ bucket, key }, 'S3 getObject');
   const result = await getS3Client().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   const stream = result.Body;
   if (!stream) throw new Error(`Empty body for ${bucket}/${key}`);
@@ -121,6 +128,7 @@ export async function getPresignedUrl(
 
 /** Delete an object from S3. Silently ignores missing objects. */
 export async function deleteObject(bucket: string, key: string): Promise<void> {
+  logger.debug({ bucket, key }, 'S3 deleteObject');
   try {
     await getS3Client().send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   } catch {

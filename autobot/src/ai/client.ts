@@ -4,12 +4,14 @@ import {
   VISION_BASE_URL, VISION_API_KEY, VISION_MODEL,
   WHISPER_BASE_URL, WHISPER_API_KEY, WHISPER_MODEL,
 } from '../config.js';
+import { logger } from '../shared/logger.js';
 
 let client: OpenAI | null = null;
 let visionClient: OpenAI | null = null;
 
 export function getAIClient(): OpenAI {
   if (!client) {
+    logger.debug({ baseUrl: AI_BASE_URL, model: AI_MODEL }, 'Initializing AI client');
     client = new OpenAI({ baseURL: AI_BASE_URL, apiKey: AI_API_KEY });
   }
   return client;
@@ -21,6 +23,7 @@ export function getModelId(): string {
 
 export function getVisionClient(): OpenAI {
   if (!visionClient) {
+    logger.debug({ baseUrl: VISION_BASE_URL, model: VISION_MODEL }, 'Initializing Vision client');
     visionClient = new OpenAI({ baseURL: VISION_BASE_URL, apiKey: VISION_API_KEY });
   }
   return visionClient;
@@ -37,6 +40,9 @@ export async function transcribeAudio(buffer: Buffer, mimetype: string): Promise
     : mimetype.includes('mpeg') ? 'mp3'
     : 'ogg';
 
+  logger.debug({ mimetype, ext, bufferSize: buffer.length, model: WHISPER_MODEL, baseUrl: WHISPER_BASE_URL }, 'Transcribing audio via Whisper');
+  const startTime = Date.now();
+
   const formData = new FormData();
   const arrayBuf = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
   const blob = new Blob([arrayBuf], { type: mimetype });
@@ -52,9 +58,11 @@ export async function transcribeAudio(buffer: Buffer, mimetype: string): Promise
 
   if (!response.ok) {
     const err = await response.text();
+    logger.error({ status: response.status, error: err, latencyMs: Date.now() - startTime }, 'Whisper API error');
     throw new Error(`Whisper API error ${response.status}: ${err}`);
   }
 
   const result = await response.json() as { text: string };
+  logger.debug({ transcriptionLength: result.text.length, latencyMs: Date.now() - startTime }, 'Whisper transcription complete');
   return result.text;
 }

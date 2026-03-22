@@ -8,18 +8,27 @@ let pool: pg.Pool | null = null;
 
 export function getPool(): pg.Pool {
   if (!pool) {
-    pool = new Pool({
-      connectionString: DATABASE_URL,
+    const poolConfig = {
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
-      statement_timeout: 10000,    // kill any query that takes > 10s
-      query_timeout: 15000,        // client-side query timeout fallback
+      statement_timeout: 10000,
+      query_timeout: 15000,
       allowExitOnIdle: true,
+    };
+    logger.debug({ ...poolConfig, dbHost: DATABASE_URL.replace(/\/\/.*:.*@/, '//***:***@') }, 'Creating PG connection pool');
+
+    pool = new Pool({
+      connectionString: DATABASE_URL,
+      ...poolConfig,
     });
 
     pool.on('error', (err) => {
       logger.error({ err: err.message }, 'Unexpected pg pool error');
+    });
+
+    pool.on('connect', () => {
+      logger.debug({ totalCount: pool!.totalCount, idleCount: pool!.idleCount, waitingCount: pool!.waitingCount }, 'PG pool: new connection');
     });
   }
   return pool;

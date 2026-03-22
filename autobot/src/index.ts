@@ -1,9 +1,12 @@
+// dotenv MUST load before any other import that reads process.env
+// ESM hoists imports, so we use top-level await with dynamic imports
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { startPlatform } from './platform.js';
-import { logger } from './shared/logger.js';
-import { WEB_PORT } from './config.js';
+// Now safe to import modules that read env vars at module scope
+const { startPlatform } = await import('./platform.js');
+const { logger } = await import('./shared/logger.js');
+const { WEB_PORT } = await import('./config.js');
 
 let shutdown: (() => Promise<void>) | undefined;
 
