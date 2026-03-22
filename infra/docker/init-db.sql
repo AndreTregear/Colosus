@@ -30,6 +30,34 @@ CREATE DATABASE crm_db OWNER crm;
 
 GRANT ALL PRIVILEGES ON DATABASE crm_db TO crm;
 
+-- ── Metabase Database ─────────────────────────────────
+-- Internal metadata store for Metabase BI dashboards.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'metabase') THEN
+        CREATE ROLE metabase WITH LOGIN PASSWORD 'metabase_s3cur3';
+    END IF;
+END
+$$;
+
+CREATE DATABASE metabase_db OWNER metabase;
+
+GRANT ALL PRIVILEGES ON DATABASE metabase_db TO metabase;
+
+-- ── Cal.com Database ──────────────────────────────────
+-- Scheduling data for Cal.com (appointments, availability, bookings).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'calcom') THEN
+        CREATE ROLE calcom WITH LOGIN PASSWORD 'calcom_s3cur3';
+    END IF;
+END
+$$;
+
+CREATE DATABASE calcom_db OWNER calcom;
+
+GRANT ALL PRIVILEGES ON DATABASE calcom_db TO calcom;
+
 -- ── Extensions for main yaya database ────────────────
 -- Connect back to the default yaya database for extensions
 \c yaya;
@@ -86,6 +114,18 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ── CRM database extensions ─────────────────────────
 \c crm_db;
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- ── Metabase database extensions ────────────────────
+\c metabase_db;
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- ── Cal.com database extensions ─────────────────────
+\c calcom_db;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";

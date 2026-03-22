@@ -1,0 +1,551 @@
+# =============================================================================
+# Yaya Platform — Production Docker Compose
+# =============================================================================
+# One command to bring up the full AI-powered business management platform.
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d
+#
+# GPU services (vLLM, Whisper, Kokoro TTS) run separately on the GPU host
+# and are referenced here as external connections via environment variables.
+#
+# Architecture:
+#   WhatsApp → Autobot (AI Agent) → MCP Servers → Backend Services
+#                                                    ↕
+#                                            PostgreSQL / Redis / MinIO
+# =============================================================================
+
+services:
+
+  # ===========================================================================
+  # CORE INFRASTRUCTURE
+  # ===========================================================================
+
+  # ── PostgreSQL 16 ──────────────────────────────────────────────────────────
+  # Shared database for all services. init-db.sql creates per-service databases
+  # and roles: yaya (main), lago_db, metabase_db, calcom_db.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-yaya}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-yaya}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/docker/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yaya}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ── Redis 7 ────────────────────────────────────────────────────────────────
+  # Message queues, conversation cache, rate limiting, Lago Sidekiq jobs.
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ── MinIO (S3-compatible object storage) ───────────────────────────────────
+  # Stores media files, voice notes, invoices, payment screenshots, backups.
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-yaya_s3}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ===========================================================================
+  # THE AUTOBOT — AI Agent + Web Dashboard
+  # ===========================================================================
+  # Node.js app that connects to WhatsApp via Baileys, processes messages
+  # through the local LLM, and orchestrates all business services via MCP.
+  # Serves the web dashboard + REST API on port 3000.
+  autobot:
+    build:
+      context: ./autobot
+      dockerfile: Dockerfile
+    ports:
+      - "${AUTOBOT_PORT:-3000}:3000"
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yaya}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-yaya}
+      POSTGRES_USER: ${POSTGRES_USER:-yaya}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-yaya}
+      # Redis
+      REDIS_URL: redis://redis:6379
+      # AI — points to external GPU host running vLLM
+      AI_API_KEY: ${AI_API_KEY:-megustalaia}
+      AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:8000/v1}
+      AI_MODEL: ${AI_MODEL:-qwen3.5-27b}
+      AI_MAX_TOKENS: ${AI_MAX_TOKENS:-1024}
+      # Voice — external GPU services
+      WHISPER_URL: ${WHISPER_URL:-http://host.docker.internal:9100}
+      TTS_URL: ${TTS_URL:-http://host.docker.internal:9200}
+      TTS_API_KEY: ${TTS_API_KEY:-megustalaia}
+      # Auth
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-changeme}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # Object Storage
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-yaya_s3}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-yaya_s3}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-changeme}
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000}
+      # Admin
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@yaya.sh}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      # Queue
+      QUEUE_CONCURRENCY: ${QUEUE_CONCURRENCY:-10}
+      QUEUE_MAX_RETRIES: ${QUEUE_MAX_RETRIES:-3}
+      QUEUE_RETRY_DELAY_MS: ${QUEUE_RETRY_DELAY_MS:-5000}
+      # Business defaults (overridden per-tenant)
+      BUSINESS_NAME: ${BUSINESS_NAME:-Mi Negocio}
+      BUSINESS_CURRENCY: ${BUSINESS_CURRENCY:-PEN}
+      YAPE_NUMBER: ${YAPE_NUMBER:-}
+      YAPE_NAME: ${YAPE_NAME:-}
+      # Lago integration
+      LAGO_API_URL: http://lago-api:3000
+      LAGO_API_KEY: ${LAGO_API_KEY:-}
+      # Cal.com integration
+      CALCOM_URL: http://calcom:3000
+      CALCOM_API_KEY: ${CALCOM_API_KEY:-}
+      # Metabase integration
+      METABASE_URL: http://metabase:3000
+      METABASE_API_KEY: ${METABASE_API_KEY:-}
+      # Observability (optional)
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    volumes:
+      - autobot-uploads:/app/uploads
+    networks:
+      - yaya-net
+
+  # ── Caddy — Reverse Proxy + Automatic TLS ─────────────────────────────────
+  # Auto-provisions HTTPS certificates via Let's Encrypt.
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./autobot/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      autobot:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ===========================================================================
+  # BUSINESS SERVICES
+  # ===========================================================================
+
+  # ── Lago — Subscription Billing & Usage Metering ───────────────────────────
+  # Handles subscriptions, invoicing, usage-based billing, payment tracking.
+  # MCP server: lago-mcp (tools: get_subscription, list_invoices, create_event)
+  lago-api:
+    image: getlago/api:${LAGO_VERSION:-v1.44.0}
+    environment:
+      LAGO_API_URL: http://lago-api:3000
+      DATABASE_URL: postgresql://${LAGO_DB_USER:-lago}:${LAGO_DB_PASSWORD:-lago_s3cur3}@postgres:5432/${LAGO_DB_NAME:-lago_db}
+      REDIS_URL: redis://redis:6379/1
+      REDIS_PASSWORD: ""
+      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:-changeme_generate_with_openssl}
+      RAILS_ENV: production
+      LAGO_RSA_PRIVATE_KEY: ${LAGO_RSA_PRIVATE_KEY:-}
+      LAGO_FRONT_URL: http://${HOST_IP:-localhost}:${LAGO_FRONT_PORT:-8080}
+      LAGO_API_KEY: ${LAGO_API_KEY:-}
+      LAGO_DISABLE_SIGNUP: "false"
+      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:-changeme}
+      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:-changeme}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:-changeme}
+      # S3 storage via MinIO
+      LAGO_AWS_S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-yaya_s3}
+      LAGO_AWS_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-changeme}
+      LAGO_AWS_S3_REGION: us-east-1
+      LAGO_AWS_S3_BUCKET: lago
+      LAGO_AWS_S3_ENDPOINT: http://minio:9000
+      LAGO_USE_AWS_S3: "true"
+    ports:
+      - "${LAGO_API_PORT:-3001}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  lago-worker:
+    image: getlago/api:${LAGO_VERSION:-v1.44.0}
+    command: ["./scripts/start.worker.sh"]
+    environment:
+      LAGO_API_URL: http://lago-api:3000
+      DATABASE_URL: postgresql://${LAGO_DB_USER:-lago}:${LAGO_DB_PASSWORD:-lago_s3cur3}@postgres:5432/${LAGO_DB_NAME:-lago_db}
+      REDIS_URL: redis://redis:6379/1
+      REDIS_PASSWORD: ""
+      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:-changeme_generate_with_openssl}
+      RAILS_ENV: production
+      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:-changeme}
+      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:-changeme}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:-changeme}
+    depends_on:
+      lago-api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  lago-clock:
+    image: getlago/api:${LAGO_VERSION:-v1.44.0}
+    command: ["./scripts/start.clock.sh"]
+    environment:
+      DATABASE_URL: postgresql://${LAGO_DB_USER:-lago}:${LAGO_DB_PASSWORD:-lago_s3cur3}@postgres:5432/${LAGO_DB_NAME:-lago_db}
+      REDIS_URL: redis://redis:6379/1
+      REDIS_PASSWORD: ""
+      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:-changeme_generate_with_openssl}
+      RAILS_ENV: production
+      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:-changeme}
+      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:-changeme}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:-changeme}
+    depends_on:
+      lago-api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  lago-front:
+    image: getlago/front:${LAGO_VERSION:-v1.44.0}
+    environment:
+      API_URL: http://${HOST_IP:-localhost}:${LAGO_API_PORT:-3001}
+      APP_ENV: production
+      LAGO_DISABLE_SIGNUP: "false"
+    ports:
+      - "${LAGO_FRONT_PORT:-8080}:80"
+    depends_on:
+      lago-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  lago-pdf:
+    image: getlago/lago-gotenberg:7.8.2
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ── InvoiceShelf — Invoice & Estimate Management ──────────────────────────
+  # Detailed invoicing, estimates, expense tracking. SUNAT/tax compliance.
+  # MCP server: invoicing-mcp (tools: create_invoice, list_invoices, etc.)
+  invoiceshelf:
+    image: invoiceshelf/invoiceshelf:latest
+    ports:
+      - "${INVOICESHELF_PORT:-8090}:80"
+    environment:
+      APP_ENV: production
+      APP_KEY: ${INVOICESHELF_APP_KEY:-base64:changeme}
+      APP_URL: ${INVOICESHELF_URL:-http://localhost:8090}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: ${POSTGRES_DB:-yaya}
+      DB_USERNAME: ${POSTGRES_USER:-yaya}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - invoiceshelf-storage:/var/www/html/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ── Cal.com — Appointment Scheduling & Calendar ────────────────────────────
+  # Appointment booking, calendar management, availability, reminders.
+  # MCP server: appointments-mcp (tools: create_booking, list_slots, etc.)
+  calcom:
+    image: calcom.docker.scarf.sh/calcom/cal.com:latest
+    ports:
+      - "${CALCOM_PORT:-3002}:3000"
+    environment:
+      DATABASE_URL: postgresql://${CALCOM_DB_USER:-calcom}:${CALCOM_DB_PASSWORD:-calcom_s3cur3}@postgres:5432/${CALCOM_DB_NAME:-calcom_db}
+      NEXTAUTH_SECRET: ${CALCOM_NEXTAUTH_SECRET:-changeme}
+      CALENDSO_ENCRYPTION_KEY: ${CALCOM_ENCRYPTION_KEY:-changeme}
+      NEXT_PUBLIC_WEBAPP_URL: ${CALCOM_PUBLIC_URL:-http://localhost:3002}
+      NEXT_PUBLIC_API_V2_URL: ${CALCOM_PUBLIC_URL:-http://localhost:3002}/api/v2
+      CALCOM_LICENSE_KEY: ${CALCOM_LICENSE_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ── Metabase — Business Intelligence & Analytics ───────────────────────────
+  # SQL analytics, dashboards, business intelligence. Connects to the main
+  # yaya database to query sales, inventory, financial data.
+  # The autobot exposes dashboards to business owners via WhatsApp links.
+  metabase:
+    image: metabase/metabase:latest
+    ports:
+      - "${METABASE_PORT:-3003}:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: postgres
+      MB_DB_PORT: "5432"
+      MB_DB_DBNAME: ${METABASE_DB_NAME:-metabase_db}
+      MB_DB_USER: ${METABASE_DB_USER:-metabase}
+      MB_DB_PASS: ${METABASE_DB_PASSWORD:-metabase_s3cur3}
+      MB_EMAIL_SMTP_HOST: ${MB_EMAIL_SMTP_HOST:-}
+      MB_EMAIL_SMTP_PORT: ${MB_EMAIL_SMTP_PORT:-}
+      JAVA_TIMEZONE: ${METABASE_TIMEZONE:-America/Lima}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ===========================================================================
+  # MCP SERVERS — Bridge between AI Agent and Backend Services
+  # ===========================================================================
+
+  # ── Postgres MCP — Direct SQL access with guardrails ───────────────────────
+  # Used by 33+ skills. Safe query builder, index tuning, health checks.
+  postgres-mcp:
+    image: crystaldba/postgres-mcp
+    environment:
+      DATABASE_URI: postgresql://${POSTGRES_USER:-yaya}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-yaya}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - yaya-net
+
+  # ===========================================================================
+  # OPTIONAL / PHASE 2 — Uncomment when ready
+  # ===========================================================================
+
+  # ── ERPNext — Full ERP System (heavy, uses MariaDB) ────────────────────────
+  # Complete ERP: inventory, manufacturing, HR, accounting.
+  # MCP server: erpnext-mcp
+  # NOTE: ERPNext requires MariaDB, not PostgreSQL. It's a large system.
+  #       Only enable when you need full ERP capabilities.
+  #
+  # erpnext-db:
+  #   image: mariadb:11.8
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: ${ERPNEXT_DB_ROOT_PASSWORD:-changeme}
+  #     MYSQL_DATABASE: ${ERPNEXT_DB_NAME:-erpnext}
+  #     MYSQL_USER: ${ERPNEXT_DB_USER:-erpnext}
+  #     MYSQL_PASSWORD: ${ERPNEXT_DB_PASSWORD:-changeme}
+  #   volumes:
+  #     - erpnext-db:/var/lib/mysql
+  #   healthcheck:
+  #     test: ["CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
+  #   restart: unless-stopped
+  #   networks:
+  #     - yaya-net
+  #
+  # erpnext-redis-cache:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   networks:
+  #     - yaya-net
+  #
+  # erpnext-redis-queue:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   networks:
+  #     - yaya-net
+
+  # ── Karrio — Shipping & Logistics API ──────────────────────────────────────
+  # Universal shipping rates, label generation, tracking across carriers.
+  # MCP server: logistics-mcp (planned)
+  #
+  # karrio-api:
+  #   image: karrio.docker.scarf.sh/karrio/server:latest
+  #   ports:
+  #     - "${KARRIO_API_PORT:-5002}:5002"
+  #   environment:
+  #     DEBUG_MODE: "False"
+  #     DETACHED_WORKER: "True"
+  #     DATABASE_HOST: postgres
+  #     DATABASE_PORT: "5432"
+  #     DATABASE_NAME: ${KARRIO_DB_NAME:-karrio}
+  #     DATABASE_USER: ${KARRIO_DB_USER:-karrio}
+  #     DATABASE_PASSWORD: ${KARRIO_DB_PASSWORD:-changeme}
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: "6379"
+  #     ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@yaya.sh}
+  #     ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   networks:
+  #     - yaya-net
+  #
+  # karrio-worker:
+  #   image: karrio.docker.scarf.sh/karrio/server:latest
+  #   command: ["worker"]
+  #   environment:
+  #     DATABASE_HOST: postgres
+  #     DATABASE_PORT: "5432"
+  #     DATABASE_NAME: ${KARRIO_DB_NAME:-karrio}
+  #     DATABASE_USER: ${KARRIO_DB_USER:-karrio}
+  #     DATABASE_PASSWORD: ${KARRIO_DB_PASSWORD:-changeme}
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: "6379"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   networks:
+  #     - yaya-net
+  #
+  # karrio-dashboard:
+  #   image: karrio.docker.scarf.sh/karrio/dashboard:latest
+  #   ports:
+  #     - "${KARRIO_DASHBOARD_PORT:-3005}:3000"
+  #   environment:
+  #     KARRIO_PUBLIC_URL: ${KARRIO_PUBLIC_URL:-http://localhost:5002}
+  #   depends_on:
+  #     - karrio-api
+  #   restart: unless-stopped
+  #   networks:
+  #     - yaya-net
+
+  # ── NeMo Guardrails — AI Safety Guardrails ─────────────────────────────────
+  # Content safety, PII detection, topic control for LLM responses.
+  #
+  # nemo-guardrails:
+  #   image: python:3.12-slim
+  #   ports:
+  #     - "${GUARDRAILS_PORT:-8001}:8000"
+  #   volumes:
+  #     - ./services/nemo-guardrails/config:/config
+  #   command: >
+  #     bash -c "pip install nemoguardrails==0.21.0 &&
+  #              nemoguardrails server --verbose --config=/config"
+  #   environment:
+  #     OPENAI_API_KEY: ${AI_API_KEY:-megustalaia}
+  #   restart: unless-stopped
+  #   networks:
+  #     - yaya-net
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  yaya-net:
+    driver: bridge
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  # Core infrastructure
+  pgdata:
+  redisdata:
+  miniodata:
+  # Autobot
+  autobot-uploads:
+  # Caddy TLS
+  caddy_data:
+  caddy_config:
+  # Business services
+  invoiceshelf-storage:
+  # Phase 2 (uncomment when enabling)
+  # erpnext-db:
