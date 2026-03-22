@@ -223,13 +223,72 @@ class WhatsAppManager {
     const remoteLocal = remoteJid.split('@')[0];
     if (raw.key.fromMe && remoteLocal !== selfPhone) return;
 
-    // Extract text
-    const text = raw.message.conversation
+    // Extract text — handle voice messages via Whisper transcription
+    let text = raw.message.conversation
       || raw.message.extendedTextMessage?.text
       || raw.message.imageMessage?.caption
       || null;
 
-    if (!text) return; // skip non-text for now
+    // Handle audio/voice messages
+    const audioMsg = raw.message.audioMessage;
+    if (audioMsg && !text) {
+      try {
+        console.log('[WA] Voice message received, transcribing...');
+        const { downloadMediaMessage } = await import('@whiskeysockets/baileys');
+        const buffer = await downloadMediaMessage(raw, 'buffer', {}) as Buffer;
+        
+        // Send to Whisper API (OpenAI-compatible endpoint or local)
+        const whisperUrl = process.env.WHISPER_URL || process.env.AI_API_URL || 'https://ai.yaya.sh/v1';
+        const whisperKey = process.env.WHISPER_API_KEY || process.env.AI_API_KEY || '';
+        
+        const FormData = (await import('node:buffer')).Buffer;
+        const boundary = '----FormBoundary' + crypto.randomUUID().replace(/-/g, '');
+        
+        // Build multipart form data manually
+        const parts: Buffer[] = [];
+        parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="voice.ogg"\r\nContent-Type: audio/ogg\r\n\r\n`));
+        parts.push(buffer);
+        parts.push(Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n`));
+        parts.push(Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\nes\r\n`));
+        parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+        const body = Buffer.concat(parts);
+
+        const resp = await fetch(`${whisperUrl}/audio/transcriptions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${whisperKey}`,
+            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          },
+          body,
+        });
+
+        if (resp.ok) {
+          const result = await resp.json() as { text?: string };
+          text = result.text || null;
+          if (text) {
+            console.log(`[WA] Transcribed voice: "${text.substring(0, 80)}..."`);
+          }
+        } else {
+          console.error(`[WA] Whisper transcription failed: ${resp.status} ${resp.statusText}`);
+          // Fallback: tell user we can't process audio right now
+          text = null;
+        }
+      } catch (err: any) {
+        console.error('[WA] Voice processing error:', err.message);
+        text = null;
+      }
+    }
+
+    if (!text) {
+      // If still no text (unsupported media or transcription failed), send helpful reply
+      if (audioMsg) {
+        const contactName = raw.pushName || remoteJid.split('@')[0];
+        if (!raw.key.fromMe) {
+          await this.sendMessage(remoteJid, '🎤 Recibí tu mensaje de voz pero no pude procesarlo en este momento. ¿Podrías escribirme lo que necesitas? 🙏');
+        }
+      }
+      return;
+    }
 
     const contactName = raw.pushName || remoteLocal;
     const fromMe = raw.key.fromMe ?? false;

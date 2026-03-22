@@ -498,3 +498,112 @@ CREATE TABLE IF NOT EXISTS business.reorder_points (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- ══════════════════════════════════════════════════════════
+-- SALON — Color Formulas, Gift Cards, Deposits, No-Shows, Client Profiles, Service Menu
+-- ══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS business.salon_color_formulas (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    client_id UUID REFERENCES business.contacts(id),
+    stylist_id UUID REFERENCES business.contacts(id),
+    service_date DATE NOT NULL,
+    brand TEXT,
+    shades JSONB DEFAULT '[]',
+    developer_vol INTEGER,
+    technique TEXT,
+    processing_time_min INTEGER,
+    products_used JSONB DEFAULT '[]',
+    notes TEXT,
+    photos JSONB DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_salon_formulas_client ON business.salon_color_formulas(client_id);
+CREATE INDEX IF NOT EXISTS idx_salon_formulas_date ON business.salon_color_formulas(service_date DESC);
+
+CREATE TABLE IF NOT EXISTS business.salon_gift_cards (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    code TEXT UNIQUE NOT NULL,
+    purchaser_id UUID REFERENCES business.contacts(id),
+    recipient_name TEXT,
+    original_amount DECIMAL(10,2) NOT NULL,
+    current_balance DECIMAL(10,2) NOT NULL,
+    currency TEXT DEFAULT 'PEN',
+    status TEXT DEFAULT 'active' CHECK (status IN ('active','fully_redeemed','expired','cancelled')),
+    expires_at DATE,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_salon_gc_code ON business.salon_gift_cards(code);
+
+CREATE TABLE IF NOT EXISTS business.salon_gift_card_transactions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    gift_card_id UUID REFERENCES business.salon_gift_cards(id),
+    type TEXT NOT NULL CHECK (type IN ('purchase','redemption','top_up','refund','expiry')),
+    amount DECIMAL(10,2) NOT NULL,
+    service_description TEXT,
+    processed_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS business.salon_deposits (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    client_id UUID REFERENCES business.contacts(id),
+    appointment_id UUID,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_method TEXT,
+    status TEXT DEFAULT 'paid' CHECK (status IN ('paid','applied','forfeited','refunded')),
+    paid_at TIMESTAMPTZ DEFAULT now(),
+    resolved_at TIMESTAMPTZ,
+    resolution_note TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_salon_deposits_client ON business.salon_deposits(client_id);
+CREATE INDEX IF NOT EXISTS idx_salon_deposits_status ON business.salon_deposits(status);
+
+CREATE TABLE IF NOT EXISTS business.salon_no_shows (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    client_id UUID REFERENCES business.contacts(id),
+    appointment_id UUID,
+    scheduled_service TEXT,
+    estimated_revenue_lost DECIMAL(10,2),
+    deposit_forfeited DECIMAL(10,2) DEFAULT 0,
+    occurred_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_salon_noshows_client ON business.salon_no_shows(client_id);
+
+CREATE TABLE IF NOT EXISTS business.salon_client_profiles (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    client_id UUID UNIQUE REFERENCES business.contacts(id),
+    hair_type TEXT,
+    hair_texture TEXT,
+    hair_condition TEXT,
+    natural_color TEXT,
+    current_color TEXT,
+    skin_type TEXT,
+    allergies TEXT[] DEFAULT '{}',
+    contraindications TEXT[] DEFAULT '{}',
+    preferences JSONB DEFAULT '{}',
+    notes TEXT,
+    photos JSONB DEFAULT '[]',
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS business.salon_services_menu (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT,
+    duration_min INTEGER NOT NULL,
+    buffer_min INTEGER DEFAULT 15,
+    price DECIMAL(10,2) NOT NULL,
+    senior_price DECIMAL(10,2),
+    junior_price DECIMAL(10,2),
+    commission_rate DECIMAL(5,4),
+    products_typical JSONB DEFAULT '[]',
+    requires_patch_test BOOLEAN DEFAULT FALSE,
+    min_stylist_level TEXT DEFAULT 'junior',
+    is_active BOOLEAN DEFAULT TRUE,
+    sort_order INTEGER DEFAULT 0
+);
