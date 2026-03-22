@@ -1,10 +1,52 @@
-// Yaya Platform — Agent Chat Page
-import { apiFetch, apiGet, esc, formatTime, getToken } from '../shared/api.js';
+// Yaya Platform — Agent Chat Page (with WhatsApp QR + status)
+import { apiFetch, apiGet, apiPost, esc, formatTime, getToken } from '../shared/api.js';
 
 let loaded = false;
+let waStatus = { status: 'disconnected', phoneNumber: null };
+let qrPollTimer = null;
 
 export function mount(container) {
   container.innerHTML = `
+    <!-- WhatsApp Connection Panel -->
+    <div id="wa-panel" class="wa-panel">
+      <div class="wa-panel-header">
+        <div class="wa-status-row">
+          <span class="wa-status-dot" id="wa-dot"></span>
+          <span id="wa-status-text">Desconectado</span>
+          <span id="wa-phone" class="wa-phone"></span>
+        </div>
+      </div>
+
+      <div id="wa-qr-section" class="wa-qr-section">
+        <div class="wa-qr-placeholder" id="wa-qr-placeholder">
+          <div class="wa-qr-icon">📱</div>
+          <h3>Conecta tu WhatsApp</h3>
+          <p>Conecta tu número de WhatsApp para que Yaya pueda responder a tus clientes automáticamente.</p>
+          <button class="btn btn-primary" id="btn-wa-connect">Conectar WhatsApp</button>
+        </div>
+        <div class="wa-qr-display hidden" id="wa-qr-display">
+          <p class="wa-qr-label">Escanea con WhatsApp para conectar</p>
+          <img id="wa-qr-img" class="wa-qr-img" alt="QR Code" />
+          <p class="wa-qr-hint">Abre WhatsApp → Menú → Dispositivos vinculados → Vincular dispositivo</p>
+        </div>
+      </div>
+
+      <div id="wa-connected-bar" class="wa-connected-bar hidden">
+        <span>✅ WhatsApp conectado</span>
+        <button class="btn btn-sm btn-danger" id="btn-wa-disconnect">Desconectar</button>
+      </div>
+    </div>
+
+    <!-- WhatsApp Messages Feed -->
+    <div id="wa-messages-section" class="wa-messages-section hidden">
+      <div class="wa-messages-header">
+        <h4>💬 Mensajes WhatsApp</h4>
+        <span class="wa-msg-count" id="wa-msg-count"></span>
+      </div>
+      <div class="wa-messages-list" id="wa-messages-list"></div>
+    </div>
+
+    <!-- Agent Chat (always visible) -->
     <div class="chat-container">
       <div class="chat-header">
         <div class="chat-avatar">🤖</div>
@@ -43,13 +85,181 @@ export function mount(container) {
   `;
 
   setupChat();
+  setupWA();
   if (!loaded) {
     loadHistory();
     loaded = true;
   }
+  checkWaStatus();
 }
 
-export function unmount() { /* chat state persists */ }
+export function unmount() {
+  if (qrPollTimer) {
+    clearInterval(qrPollTimer);
+    qrPollTimer = null;
+  }
+}
+
+// ── WhatsApp connection management ────────────────────────
+
+async function checkWaStatus() {
+  try {
+    const data = await apiGet('/whatsapp/status');
+    updateWaUI(data);
+  } catch { /* not connected */ }
+}
+
+function updateWaUI(data) {
+  waStatus = data;
+  const dot = document.getElementById('wa-dot');
+  const text = document.getElementById('wa-status-text');
+  const phone = document.getElementById('wa-phone');
+  const qrSection = document.getElementById('wa-qr-section');
+  const connectedBar = document.getElementById('wa-connected-bar');
+  const msgSection = document.getElementById('wa-messages-section');
+
+  if (!dot) return;
+
+  // Status dot color
+  dot.className = 'wa-status-dot';
+  if (data.status === 'connected') {
+    dot.classList.add('connected');
+    text.textContent = 'Conectado';
+    phone.textContent = data.phoneNumber ? `+${data.phoneNumber}` : '';
+    qrSection.classList.add('hidden');
+    connectedBar.classList.remove('hidden');
+    msgSection.classList.remove('hidden');
+    loadWaMessages();
+    stopQrPoll();
+  } else if (data.status === 'connecting') {
+    dot.classList.add('connecting');
+    text.textContent = 'Conectando...';
+    phone.textContent = '';
+    connectedBar.classList.add('hidden');
+    msgSection.classList.add('hidden');
+  } else {
+    dot.classList.add('disconnected');
+    text.textContent = 'Desconectado';
+    phone.textContent = '';
+    qrSection.classList.remove('hidden');
+    connectedBar.classList.add('hidden');
+    msgSection.classList.add('hidden');
+    stopQrPoll();
+    // Show connect button, hide QR
+    document.getElementById('wa-qr-placeholder')?.classList.remove('hidden');
+    document.getElementById('wa-qr-display')?.classList.add('hidden');
+  }
+}
+
+function setupWA() {
+  document.getElementById('btn-wa-connect')?.addEventListener('click', connectWA);
+  document.getElementById('btn-wa-disconnect')?.addEventListener('click', disconnectWA);
+}
+
+async function connectWA() {
+  try {
+    document.getElementById('btn-wa-connect').disabled = true;
+    document.getElementById('btn-wa-connect').textContent = 'Conectando...';
+    await apiPost('/whatsapp/connect', {});
+
+    // Start polling for QR
+    document.getElementById('wa-qr-placeholder')?.classList.add('hidden');
+    document.getElementById('wa-qr-display')?.classList.remove('hidden');
+    startQrPoll();
+  } catch (err) {
+    document.getElementById('btn-wa-connect').disabled = false;
+    document.getElementById('btn-wa-connect').textContent = 'Conectar WhatsApp';
+    console.error('WA connect error:', err);
+  }
+}
+
+async function disconnectWA() {
+  try {
+    await apiPost('/whatsapp/disconnect', {});
+    updateWaUI({ status: 'disconnected', phoneNumber: null });
+  } catch (err) {
+    console.error('WA disconnect error:', err);
+  }
+}
+
+function startQrPoll() {
+  stopQrPoll();
+  pollQR(); // immediate first poll
+  qrPollTimer = setInterval(pollQR, 2000);
+}
+
+function stopQrPoll() {
+  if (qrPollTimer) {
+    clearInterval(qrPollTimer);
+    qrPollTimer = null;
+  }
+}
+
+async function pollQR() {
+  try {
+    const data = await apiGet('/whatsapp/qr');
+    if (data.qr) {
+      const img = document.getElementById('wa-qr-img');
+      if (img) img.src = data.qr;
+      document.getElementById('wa-qr-placeholder')?.classList.add('hidden');
+      document.getElementById('wa-qr-display')?.classList.remove('hidden');
+    } else if (data.status === 'connected') {
+      stopQrPoll();
+      checkWaStatus();
+    }
+  } catch { /* ignore */ }
+}
+
+async function loadWaMessages() {
+  try {
+    const data = await apiGet('/whatsapp/messages?limit=30');
+    const list = document.getElementById('wa-messages-list');
+    const count = document.getElementById('wa-msg-count');
+    if (!list) return;
+
+    const messages = data.data || [];
+    count.textContent = `${messages.length} mensajes`;
+
+    list.innerHTML = messages.map(m => `
+      <div class="wa-msg ${m.from_me ? 'wa-msg-out' : 'wa-msg-in'}">
+        <div class="wa-msg-name">${esc(m.from_me ? 'Yaya' : m.contact_name)}</div>
+        <div class="wa-msg-text">${esc(m.content)}</div>
+        <div class="wa-msg-time">${formatTime(m.created_at)}</div>
+      </div>
+    `).join('');
+
+    list.scrollTop = list.scrollHeight;
+  } catch { /* no messages */ }
+}
+
+// Called from app.js SSE handler
+export function onWaMessage(msg) {
+  const list = document.getElementById('wa-messages-list');
+  if (!list) return;
+
+  const div = document.createElement('div');
+  div.className = `wa-msg ${msg.from_me ? 'wa-msg-out' : 'wa-msg-in'}`;
+  div.innerHTML = `
+    <div class="wa-msg-name">${esc(msg.from_me ? 'Yaya' : msg.contact_name)}</div>
+    <div class="wa-msg-text">${esc(msg.content)}</div>
+    <div class="wa-msg-time">${formatTime(msg.created_at)}</div>
+  `;
+  list.appendChild(div);
+  list.scrollTop = list.scrollHeight;
+
+  // Update count
+  const count = document.getElementById('wa-msg-count');
+  if (count) {
+    const n = list.children.length;
+    count.textContent = `${n} mensajes`;
+  }
+}
+
+export function onWaStatusChange(data) {
+  updateWaUI(data);
+}
+
+// ── Agent Chat ────────────────────────────────────────────
 
 function setupChat() {
   const input = document.getElementById('chat-input');

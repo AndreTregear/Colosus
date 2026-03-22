@@ -14,6 +14,7 @@ import * as settings from './pages/settings.js';
 const pages = { dashboard, chat, analytics, orders, customers, products, payments, expenses, settings };
 let currentPage = null;
 let currentPageName = null;
+let sseSource = null;
 
 // ========== INIT ==========
 function init() {
@@ -46,12 +47,60 @@ function init() {
 function showLogin() {
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
+  disconnectSSE();
 }
 
 function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   updateUserInfo();
+  connectSSE();
+}
+
+// ========== SSE (real-time events) ==========
+function connectSSE() {
+  disconnectSSE();
+  const token = getToken();
+  if (!token) return;
+
+  sseSource = new EventSource(`/api/v1/events?token=${token}`);
+
+  sseSource.onmessage = (e) => {
+    try {
+      const payload = JSON.parse(e.data);
+      handleSSEvent(payload);
+    } catch { /* skip */ }
+  };
+
+  sseSource.onerror = () => {
+    // Reconnect after 5s
+    disconnectSSE();
+    setTimeout(() => {
+      if (isLoggedIn()) connectSSE();
+    }, 5000);
+  };
+}
+
+function disconnectSSE() {
+  if (sseSource) {
+    sseSource.close();
+    sseSource = null;
+  }
+}
+
+function handleSSEvent(payload) {
+  const { event, data } = payload;
+  switch (event) {
+    case 'wa:status':
+      if (chat.onWaStatusChange) chat.onWaStatusChange(data);
+      break;
+    case 'wa:message':
+      if (chat.onWaMessage) chat.onWaMessage(data);
+      break;
+    case 'wa:qr':
+      // QR updates handled by polling in chat.js
+      break;
+  }
 }
 
 function updateUserInfo() {

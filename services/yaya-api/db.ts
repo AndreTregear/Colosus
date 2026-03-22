@@ -136,6 +136,38 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_agent_messages_user ON agent_messages(user_id);
     CREATE INDEX IF NOT EXISTS idx_customers_user ON customers(user_id);
     CREATE INDEX IF NOT EXISTS idx_settings_user ON settings(user_id);
+
+    -- WhatsApp auth state (Baileys)
+    CREATE TABLE IF NOT EXISTS wa_auth_creds (
+      user_id TEXT PRIMARY KEY,
+      creds TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS wa_auth_keys (
+      user_id TEXT NOT NULL,
+      key_type TEXT NOT NULL,
+      key_id TEXT NOT NULL,
+      key_data TEXT NOT NULL,
+      PRIMARY KEY (user_id, key_type, key_id)
+    );
+
+    -- WhatsApp messages
+    CREATE TABLE IF NOT EXISTS wa_messages (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      remote_jid TEXT NOT NULL,
+      contact_name TEXT NOT NULL DEFAULT '',
+      from_me INTEGER NOT NULL DEFAULT 0,
+      content TEXT NOT NULL DEFAULT '',
+      msg_type TEXT NOT NULL DEFAULT 'text',
+      ai_response TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_wa_messages_user ON wa_messages(user_id);
+    CREATE INDEX IF NOT EXISTS idx_wa_messages_jid ON wa_messages(remote_jid);
   `);
 }
 
@@ -364,4 +396,48 @@ export function getSettings(userId: string) {
 export function setSetting(userId: string, key: string, value: string) {
   getDb().prepare(`INSERT INTO settings (id, user_id, key, value) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`)
     .run(crypto.randomUUID(), userId, key, value);
+}
+
+// ── WhatsApp auth state queries ─────────────────────────────
+
+export function getWaAuthCreds(userId: string) {
+  return getDb().prepare(`SELECT creds FROM wa_auth_creds WHERE user_id = ?`).get(userId) as any;
+}
+
+export function upsertWaAuthCreds(userId: string, creds: string) {
+  getDb().prepare(`INSERT INTO wa_auth_creds (user_id, creds) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET creds = excluded.creds, updated_at = datetime('now')`)
+    .run(userId, creds);
+}
+
+export function getWaAuthKeys(userId: string, keyType: string, keyIds: string[]) {
+  if (keyIds.length === 0) return [];
+  const placeholders = keyIds.map(() => '?').join(', ');
+  return getDb().prepare(`SELECT key_id, key_data FROM wa_auth_keys WHERE user_id = ? AND key_type = ? AND key_id IN (${placeholders})`)
+    .all(userId, keyType, ...keyIds) as any[];
+}
+
+export function upsertWaAuthKey(userId: string, keyType: string, keyId: string, keyData: string) {
+  getDb().prepare(`INSERT INTO wa_auth_keys (user_id, key_type, key_id, key_data) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, key_type, key_id) DO UPDATE SET key_data = excluded.key_data`)
+    .run(userId, keyType, keyId, keyData);
+}
+
+export function deleteWaAuthKey(userId: string, keyType: string, keyId: string) {
+  getDb().prepare(`DELETE FROM wa_auth_keys WHERE user_id = ? AND key_type = ? AND key_id = ?`).run(userId, keyType, keyId);
+}
+
+export function clearWaAuth(userId: string) {
+  const db = getDb();
+  db.prepare(`DELETE FROM wa_auth_creds WHERE user_id = ?`).run(userId);
+  db.prepare(`DELETE FROM wa_auth_keys WHERE user_id = ?`).run(userId);
+}
+
+// ── WhatsApp message queries ────────────────────────────────
+
+export function insertWaMessage(id: string, userId: string, remoteJid: string, contactName: string, fromMe: boolean, content: string, msgType: string, aiResponse?: string) {
+  getDb().prepare(`INSERT INTO wa_messages (id, user_id, remote_jid, contact_name, from_me, content, msg_type, ai_response) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, userId, remoteJid, contactName, fromMe ? 1 : 0, content, msgType, aiResponse || null);
+}
+
+export function getWaMessages(userId: string, limit: number = 50) {
+  return getDb().prepare(`SELECT * FROM wa_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`).all(userId, limit) as any[];
 }

@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from './db.js';
 import { chat, chatStream } from './ai.js';
+import { waManager, sseBus, broadcast } from './whatsapp.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -480,6 +481,114 @@ app.put('/api/v1/settings', authMiddleware, (req: AuthRequest, res) => {
   }
   const settings = db.getSettings(req.userId!);
   res.json(settings);
+});
+
+// ══════════════════════════════════════════════════════════════
+//  WHATSAPP
+// ══════════════════════════════════════════════════════════════
+
+app.get('/api/v1/whatsapp/status', authMiddleware, (_req: AuthRequest, res) => {
+  res.json(waManager.getStatus());
+});
+
+app.post('/api/v1/whatsapp/connect', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    await waManager.connect(req.userId!);
+    res.json({ ok: true, status: waManager.getStatus() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/v1/whatsapp/qr', authMiddleware, (_req: AuthRequest, res) => {
+  const qr = waManager.getQR();
+  if (qr) {
+    res.json({ qr });
+  } else {
+    const status = waManager.getStatus();
+    res.json({ qr: null, status: status.status });
+  }
+});
+
+app.post('/api/v1/whatsapp/disconnect', authMiddleware, async (_req: AuthRequest, res) => {
+  await waManager.disconnect();
+  res.json({ ok: true });
+});
+
+app.get('/api/v1/whatsapp/messages', authMiddleware, (req: AuthRequest, res) => {
+  const limit = parseInt(req.query.limit as string) || 50;
+  const messages = db.getWaMessages(req.userId!, limit);
+  res.json({ data: messages.reverse() });
+});
+
+app.post('/api/v1/whatsapp/send', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const { to, message } = req.body;
+    if (!to || !message) return res.status(400).json({ error: 'Se requiere "to" y "message"' });
+
+    // Normalize JID
+    const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+    await waManager.sendMessage(jid, message);
+
+    // Store outgoing message
+    const msgId = `wa_${uuidv4().slice(0, 12)}`;
+    db.insertWaMessage(msgId, req.userId!, jid, 'Yo', true, message, 'text');
+
+    broadcast('wa:message', {
+      id: msgId,
+      remote_jid: jid,
+      contact_name: 'Yo',
+      from_me: true,
+      content: message,
+      created_at: new Date().toISOString(),
+    });
+
+    res.json({ ok: true, id: msgId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── SSE stream for real-time updates ─────────────────────────
+
+// SSE needs query-param auth since EventSource can't send headers
+app.get('/api/v1/events', (req: AuthRequest, res, next) => {
+  const token = req.query.token as string;
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+      req.userId = payload.userId;
+      return next();
+    } catch {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+  }
+  return authMiddleware(req, res, next);
+}, (req: AuthRequest, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+
+  // Send initial status
+  res.write(`data: ${JSON.stringify({ event: 'wa:status', data: waManager.getStatus() })}\n\n`);
+
+  const handler = (payload: { event: string; data: any }) => {
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  };
+
+  sseBus.on('sse', handler);
+
+  // Heartbeat every 30s
+  const heartbeat = setInterval(() => {
+    res.write(`: heartbeat\n\n`);
+  }, 30000);
+
+  req.on('close', () => {
+    sseBus.off('sse', handler);
+    clearInterval(heartbeat);
+  });
 });
 
 // ══════════════════════════════════════════════════════════════
