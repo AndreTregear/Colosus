@@ -212,6 +212,50 @@ class WhatsAppManager {
     await this.sock.sendMessage(jid, { text });
   }
 
+  async sendVoiceNote(jid: string, text: string): Promise<void> {
+    if (!this.sock) throw new Error('WhatsApp not connected');
+    const ttsUrl = process.env.TTS_URL || 'http://localhost:9400';
+    
+    try {
+      console.log(`[WA] Generating voice note (${text.length} chars)...`);
+      
+      // Call Kokoro TTS API (OpenAI-compatible)
+      const resp = await fetch(`${ttsUrl}/v1/audio/speech`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'kokoro',
+          input: text.substring(0, 1000), // limit to 1000 chars for voice
+          voice: 'af_heart', // warm female voice, good for Spanish
+          response_format: 'opus',
+          speed: 1.0,
+        }),
+      });
+
+      if (!resp.ok) {
+        console.error(`[WA] TTS failed: ${resp.status} ${resp.statusText}`);
+        // Fallback to text
+        await this.sock.sendMessage(jid, { text });
+        return;
+      }
+
+      const audioBuffer = Buffer.from(await resp.arrayBuffer());
+      console.log(`[WA] Voice note generated (${audioBuffer.length} bytes), sending...`);
+      
+      await this.sock.sendMessage(jid, {
+        audio: audioBuffer,
+        mimetype: 'audio/ogg; codecs=opus',
+        ptt: true, // push-to-talk = true makes it a voice note (not audio file)
+      });
+      
+      console.log('[WA] Voice note sent successfully');
+    } catch (err: any) {
+      console.error('[WA] Voice note error:', err.message);
+      // Fallback to text message
+      await this.sock.sendMessage(jid, { text });
+    }
+  }
+
   private async handleMessage(raw: proto.IWebMessageInfo, userId: string): Promise<void> {
     if (!raw.key || !raw.key.remoteJid || !raw.message) return;
 
@@ -292,10 +336,11 @@ class WhatsAppManager {
 
     const contactName = raw.pushName || remoteLocal;
     const fromMe = raw.key.fromMe ?? false;
+    const isVoiceMessage = !!audioMsg; // Track if original was voice
 
     // Store incoming message
     const msgId = `wa_${crypto.randomUUID().slice(0, 12)}`;
-    db.insertWaMessage(msgId, userId, remoteJid, contactName, fromMe, text, 'text');
+    db.insertWaMessage(msgId, userId, remoteJid, contactName, fromMe, text, isVoiceMessage ? 'voice' : 'text');
 
     // Broadcast to web UI
     broadcast('wa:message', {
@@ -340,8 +385,12 @@ class WhatsAppManager {
       const response = await chat(userId, text);
       const aiText = response.content;
 
-      // Send AI response via WhatsApp
-      await this.sendMessage(remoteJid, aiText);
+      // Send AI response via WhatsApp — voice reply if user sent voice, text otherwise
+      if (isVoiceMessage) {
+        await this.sendVoiceNote(remoteJid, aiText);
+      } else {
+        await this.sendMessage(remoteJid, aiText);
+      }
 
       // Store AI response
       const respId = `wa_${crypto.randomUUID().slice(0, 12)}`;
