@@ -11,6 +11,7 @@ import * as customersRepo from '../db/customers-repo.js';
 import * as pgMessagesRepo from '../db/pg-messages-repo.js';
 import { query, queryOne } from '../db/pool.js';
 import { logger } from '../shared/logger.js';
+import * as metabase from '../integrations/metabase-client.js';
 import type { Product } from '../shared/types.js';
 
 export interface BusinessInsights {
@@ -456,6 +457,63 @@ Proporciona 3-5 highlights positivos y áreas de mejora. Responde en español, f
       [tenantId, startDate, endDate],
     );
     return { cost: parseFloat(result.rows[0]?.total_cost || '0') };
+  }
+
+  // ── Metabase-powered analytics (pre-built dashboards / saved questions) ──
+
+  /**
+   * Run a Metabase saved question by card ID, with optional tenant filter.
+   * Returns raw rows or null if Metabase is unavailable.
+   */
+  async runSavedQuestion(
+    cardId: number,
+    tenantId?: string,
+  ): Promise<{ columns: string[]; rows: unknown[][] } | null> {
+    const available = await metabase.isServiceAvailable();
+    if (!available) {
+      logger.warn({ cardId }, 'Metabase unavailable, cannot run saved question');
+      return null;
+    }
+    const params = tenantId ? { tenant_id: tenantId } : undefined;
+    const result = await metabase.runSavedQuestion(cardId, params);
+    if (!result) return null;
+    return {
+      columns: result.data.cols.map(c => c.display_name),
+      rows: result.data.rows,
+    };
+  }
+
+  /**
+   * Get a full Metabase dashboard with all card results.
+   */
+  async getDashboardData(
+    dashboardId: number,
+    tenantId?: string,
+  ): Promise<Map<number, { columns: string[]; rows: unknown[][] }>> {
+    const available = await metabase.isServiceAvailable();
+    if (!available) {
+      logger.warn({ dashboardId }, 'Metabase unavailable, cannot load dashboard');
+      return new Map();
+    }
+    const params = tenantId ? { tenant_id: tenantId } : undefined;
+    const raw = await metabase.runDashboardQuestions(dashboardId, params);
+    const result = new Map<number, { columns: string[]; rows: unknown[][] }>();
+    for (const [cardId, qr] of raw) {
+      result.set(cardId, {
+        columns: qr.data.cols.map(c => c.display_name),
+        rows: qr.data.rows,
+      });
+    }
+    return result;
+  }
+
+  /**
+   * List available Metabase dashboards.
+   */
+  async listDashboards(): Promise<Array<{ id: number; name: string; description?: string }>> {
+    const available = await metabase.isServiceAvailable();
+    if (!available) return [];
+    return metabase.listDashboards();
   }
 }
 

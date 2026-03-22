@@ -169,6 +169,24 @@ export const AI_COST_WARNING_THRESHOLD = Number(process.env.AI_COST_WARNING_THRE
 export const USAGE_FLUSH_INTERVAL_MS = Number(process.env.USAGE_FLUSH_INTERVAL_MS) || 60000; // 1 min
 export const USAGE_MAX_BUFFER_SIZE = Number(process.env.USAGE_MAX_BUFFER_SIZE) || 1000;
 
+// ── OSS Service Integrations ──────────────────────────────────────────
+
+// Lago (billing / subscriptions)
+export const LAGO_API_URL = process.env.LAGO_API_URL || 'http://lago-api:3000';
+export const LAGO_API_KEY = process.env.LAGO_API_KEY || '';
+
+// Cal.com (appointments / scheduling)
+export const CALCOM_API_URL = process.env.CALCOM_API_URL || 'http://calcom:3000';
+export const CALCOM_API_KEY = process.env.CALCOM_API_KEY || '';
+
+// Metabase (BI dashboards / saved questions)
+export const METABASE_API_URL = process.env.METABASE_API_URL || 'http://metabase:3000';
+export const METABASE_API_KEY = process.env.METABASE_API_KEY || '';
+
+// InvoiceShelf (invoicing)
+export const INVOICESHELF_API_URL = process.env.INVOICESHELF_API_URL || 'http://invoiceshelf:9000';
+export const INVOICESHELF_API_KEY = process.env.INVOICESHELF_API_KEY || '';
+
 // ── LangFuse Observability ──────────────────────────────────────────────
 
 export const LANGFUSE_SECRET_KEY = process.env.LANGFUSE_SECRET_KEY || '';

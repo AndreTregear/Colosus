@@ -8,6 +8,8 @@ import * as settingsRepo from '../db/settings-repo.js';
 import { getMessageCountForTenant } from '../db/pg-messages-repo.js';
 import { BUSINESS_CURRENCY } from '../config.js';
 import { NotFoundError, ServiceError } from './errors.js';
+import { logger } from '../shared/logger.js';
+import * as lago from '../integrations/lago-client.js';
 import type { TenantSubscription, CustomerSubscription, PlatformPlan, SubscriptionPayment } from '../shared/types.js';
 
 // ── Subscription Status (moved from tenant-subscriptions-repo) ──
@@ -50,18 +52,69 @@ export function calculatePeriodEnd(billingCycle: string, start: Date = new Date(
   return end;
 }
 
+// ── Lago helpers ──
+
+/** Map our billing cycle names to Lago plan interval codes */
+function billingCycleToLagoInterval(cycle: string): string {
+  switch (cycle) {
+    case 'weekly': return 'weekly';
+    case 'quarterly': return 'quarterly';
+    case 'yearly': return 'yearly';
+    default: return 'monthly';
+  }
+}
+
+/** Ensure the tenant exists as a Lago customer (idempotent) */
+async function ensureLagoCustomer(tenantId: string): Promise<boolean> {
+  const existing = await lago.getCustomer(tenantId);
+  if (existing) return true;
+  const created = await lago.createCustomer(tenantId, tenantId, BUSINESS_CURRENCY);
+  return created !== null;
+}
+
 // ── Tenant Subscriptions ──
 
 export async function getTenantSubscriptionStatus(tenantId: string): Promise<SubscriptionStatus> {
+  // Try Lago first for subscription state
+  const lagoAvailable = await lago.isServiceAvailable();
+  if (lagoAvailable) {
+    try {
+      const subs = await lago.listSubscriptions(tenantId);
+      const activeSub = subs.find(s => s.status === 'active');
+      if (activeSub) {
+        const lagoPlan = await lago.getPlan(activeSub.plan_code);
+        const planSlug = activeSub.plan_code;
+        const planName = lagoPlan?.name ?? activeSub.plan_code;
+        const isPaid = planSlug.startsWith('premium');
+        const messagesUsed = await getMessageCountForTenant(tenantId, undefined);
+        // Lago plans: extract message limits from local plan DB (Lago doesn't store our custom limits)
+        const localPlan = await plansRepo.getPlanBySlug(planSlug);
+        const messagesLimit = (localPlan?.limits as Record<string, number>)?.total_messages ?? 100;
+
+        return {
+          planSlug,
+          planName,
+          isPaid,
+          isActive: true,
+          messagesUsed,
+          messagesLimit,
+          canSendMessages: isPaid || messagesLimit === -1 || messagesUsed < messagesLimit,
+          currentPeriodEnd: activeSub.ending_at ?? null,
+          billingCycle: lagoPlan?.interval ?? 'monthly',
+        };
+      }
+    } catch (err) {
+      logger.error({ err, tenantId }, 'Lago subscription check failed, falling back to DB');
+    }
+  }
+
+  // Fallback: local DB
   const sub = await tenantSubsRepo.getSubscription(tenantId);
   const plan = sub ? await plansRepo.getPlanById(sub.planId) : null;
-  // Count only outgoing AI messages within the current billing period.
-  // For free plans (100-year period), use calendar month to allow monthly reset.
   const billingCycle = plan?.billingCycle ?? 'free';
   let periodStart: string | undefined;
   if (billingCycle === 'free' || !sub?.currentPeriodStart) {
-    // Free tier: reset count every calendar month
-    periodStart = undefined; // falls back to date_trunc('month', now()) in repo
+    periodStart = undefined;
   } else {
     periodStart = sub.currentPeriodStart;
   }
@@ -105,6 +158,22 @@ export async function subscribeTenant(
   const plan = await plansRepo.getPlanById(planId);
   if (!plan || !plan.active) throw new NotFoundError('Plan', planId);
 
+  // Try Lago first
+  const lagoAvailable = await lago.isServiceAvailable();
+  if (lagoAvailable) {
+    try {
+      await ensureLagoCustomer(tenantId);
+      const externalSubId = `tenant_${tenantId}_plan_${plan.slug}`;
+      const lagoSub = await lago.createSubscription(tenantId, plan.slug, externalSubId);
+      if (lagoSub) {
+        logger.info({ tenantId, planSlug: plan.slug, lagoId: lagoSub.lago_id }, 'Subscription created in Lago');
+      }
+    } catch (err) {
+      logger.error({ err, tenantId }, 'Failed to create Lago subscription, continuing with local DB');
+    }
+  }
+
+  // Always persist locally (source of truth for message limits + fast reads)
   const subscription = await tenantSubsRepo.subscribe(tenantId, plan.id, plan.billingCycle);
 
   let payment: SubscriptionPayment | undefined;
@@ -119,12 +188,34 @@ export async function subscribeTenant(
     });
   }
 
+  // Report usage event to Lago for tracking
+  if (lagoAvailable && plan.price > 0) {
+    lago.sendUsageEvent(tenantId, `tenant_${tenantId}_plan_${plan.slug}`, 'subscription_created', {
+      plan_slug: plan.slug,
+      amount: plan.price,
+    }).catch(err => logger.error({ err }, 'Failed to send Lago usage event'));
+  }
+
   return { subscription, plan, payment };
 }
 
 export async function cancelTenantSubscription(tenantId: string): Promise<TenantSubscription> {
   const sub = await tenantSubsRepo.getSubscription(tenantId);
   if (!sub) throw new ServiceError('No active subscription found', 'NO_SUBSCRIPTION', 404);
+
+  const plan = await plansRepo.getPlanById(sub.planId);
+
+  // Cancel in Lago
+  const lagoAvailable = await lago.isServiceAvailable();
+  if (lagoAvailable && plan) {
+    try {
+      const externalSubId = `tenant_${tenantId}_plan_${plan.slug}`;
+      await lago.terminateSubscription(externalSubId);
+      logger.info({ tenantId, planSlug: plan.slug }, 'Subscription terminated in Lago');
+    } catch (err) {
+      logger.error({ err, tenantId }, 'Failed to cancel Lago subscription, continuing with local DB');
+    }
+  }
 
   const cancelled = await tenantSubsRepo.cancelSubscription(tenantId, sub.id);
   if (!cancelled) throw new ServiceError('Failed to cancel subscription', 'CANCEL_FAILED');
@@ -164,6 +255,14 @@ export async function subscribeCustomer(
 
   const currency = await settingsRepo.getEffectiveSetting(tenantId, 'currency', BUSINESS_CURRENCY);
   const yapeNumber = await settingsRepo.getEffectiveSetting(tenantId, 'yape_number');
+
+  // Sync customer to Lago (best-effort)
+  const lagoAvailable = await lago.isServiceAvailable();
+  if (lagoAvailable) {
+    const customerExternalId = `${tenantId}_cust_${customer.id}`;
+    lago.createCustomer(customerExternalId, customerJid, currency)
+      .catch(err => logger.error({ err }, 'Failed to sync customer to Lago'));
+  }
 
   // Check for existing active subscription to this plan
   const activeSubs = await custSubsRepo.getActiveByCustomer(tenantId, customer.id);
@@ -206,6 +305,14 @@ export async function subscribeCustomer(
     periodEnd: subscription.currentPeriodEnd,
   });
 
+  // Create subscription in Lago (best-effort)
+  if (lagoAvailable) {
+    const customerExternalId = `${tenantId}_cust_${customer.id}`;
+    const subExternalId = `${tenantId}_custsub_${subscription.id}`;
+    lago.createSubscription(customerExternalId, `creator_plan_${planId}`, subExternalId)
+      .catch(err => logger.error({ err }, 'Failed to create Lago customer subscription'));
+  }
+
   return {
     type: 'new',
     subscription,
@@ -221,6 +328,14 @@ export async function cancelCustomerSubscription(
   tenantId: string,
   subscriptionId: number,
 ): Promise<CustomerSubscription> {
+  // Cancel in Lago (best-effort)
+  const lagoAvailable = await lago.isServiceAvailable();
+  if (lagoAvailable) {
+    const subExternalId = `${tenantId}_custsub_${subscriptionId}`;
+    lago.terminateSubscription(subExternalId)
+      .catch(err => logger.error({ err }, 'Failed to cancel Lago customer subscription'));
+  }
+
   const cancelled = await custSubsRepo.cancelSubscription(tenantId, subscriptionId);
   if (!cancelled) throw new NotFoundError('Subscription', subscriptionId);
   return cancelled;

@@ -2,7 +2,34 @@ import * as appointmentsRepo from '../db/appointments-repo.js';
 import * as settingsRepo from '../db/settings-repo.js';
 import { NotFoundError, InvalidTransitionError } from './errors.js';
 import { appBus } from '../shared/events.js';
+import { logger } from '../shared/logger.js';
+import * as calcom from '../integrations/calcom-client.js';
 import type { Appointment } from '../shared/types.js';
+
+// ── Cal.com helpers ──
+
+/** Resolve the Cal.com event type for this tenant (cached per-process) */
+const eventTypeCache = new Map<string, number | null>();
+
+async function resolveEventTypeId(tenantId: string): Promise<number | null> {
+  if (eventTypeCache.has(tenantId)) return eventTypeCache.get(tenantId)!;
+
+  // Check if tenant has a configured event type
+  const configured = await settingsRepo.getEffectiveSetting(tenantId, 'calcom_event_type_id', '');
+  if (configured) {
+    const id = parseInt(configured, 10);
+    if (!isNaN(id)) {
+      eventTypeCache.set(tenantId, id);
+      return id;
+    }
+  }
+
+  // Fallback: use the first available event type
+  const types = await calcom.listEventTypes();
+  const id = types.length > 0 ? types[0].id : null;
+  eventTypeCache.set(tenantId, id);
+  return id;
+}
 
 // ── Booking (with race-condition protection via DB check) ──
 
@@ -14,6 +41,33 @@ export async function bookAppointment(
   durationMinutes: number = 30,
   notes?: string,
 ): Promise<Appointment> {
+  // Try Cal.com first
+  const calAvailable = await calcom.isServiceAvailable();
+  if (calAvailable) {
+    try {
+      const eventTypeId = await resolveEventTypeId(tenantId);
+      if (eventTypeId) {
+        const startTime = new Date(scheduledAt);
+        const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+        const booking = await calcom.createBooking({
+          eventTypeId,
+          start: startTime.toISOString(),
+          end: endTime.toISOString(),
+          name: serviceName,
+          email: `customer_${customerId}@placeholder.local`,
+          notes,
+          metadata: { tenantId, customerId: String(customerId) },
+        });
+        if (booking) {
+          logger.info({ tenantId, bookingUid: booking.uid }, 'Appointment booked via Cal.com');
+        }
+      }
+    } catch (err) {
+      logger.error({ err, tenantId }, 'Cal.com booking failed, falling back to local DB');
+    }
+  }
+
+  // Always persist locally (source of truth for our domain logic)
   const available = await appointmentsRepo.isSlotAvailable(tenantId, scheduledAt, durationMinutes);
   if (!available) {
     throw new InvalidTransitionError('appointment', 'available', 'booked');
@@ -34,7 +88,26 @@ export async function getAvailableSlots(
   date: string,
   durationMinutes: number = 30,
 ): Promise<string[]> {
-  // Read business hours from settings, fallback to 9-18
+  // Try Cal.com availability first
+  const calAvailable = await calcom.isServiceAvailable();
+  if (calAvailable) {
+    try {
+      const eventTypeId = await resolveEventTypeId(tenantId);
+      if (eventTypeId) {
+        const slots = await calcom.getAvailability(eventTypeId, date, date);
+        if (slots.length > 0) {
+          return slots.map(s => {
+            const d = new Date(s.time);
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          });
+        }
+      }
+    } catch (err) {
+      logger.error({ err, tenantId }, 'Cal.com availability check failed, falling back to local');
+    }
+  }
+
+  // Fallback: local calculation
   const hoursJson = await settingsRepo.getEffectiveSetting(tenantId, 'business_hours', '');
   let startHour = 9;
   let endHour = 18;
@@ -81,6 +154,13 @@ export async function cancelAppointment(
   if (!apt) throw new NotFoundError('appointment', appointmentId);
   if (apt.status === 'cancelled') throw new InvalidTransitionError('appointment', 'cancelled', 'cancelled');
   if (apt.status === 'completed') throw new InvalidTransitionError('appointment', 'completed', 'cancelled');
+
+  // Best-effort cancel in Cal.com (use appointmentId as UID lookup)
+  const calAvailable = await calcom.isServiceAvailable();
+  if (calAvailable) {
+    calcom.cancelBooking(appointmentId, reason)
+      .catch(err => logger.error({ err, tenantId, appointmentId }, 'Cal.com cancel failed'));
+  }
 
   const updated = await appointmentsRepo.updateAppointmentStatus(tenantId, appointmentId, 'cancelled');
   appBus.emit('appointment-cancelled', tenantId, appointmentId);
