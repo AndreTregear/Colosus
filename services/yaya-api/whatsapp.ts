@@ -262,10 +262,18 @@ class WhatsAppManager {
     const remoteJid = raw.key.remoteJid;
     if (remoteJid === 'status@broadcast') return;
 
-    // Skip bot's own outgoing messages
     const selfPhone = this.sock?.user?.id?.split('@')[0]?.split(':')[0] ?? '';
     const remoteLocal = remoteJid.split('@')[0];
-    if (raw.key.fromMe && remoteLocal !== selfPhone) return;
+    const isSelfChat = remoteLocal === selfPhone;
+    const msgType = Object.keys(raw.message).filter(k => k !== 'messageContextInfo').join(',');
+    
+    console.log(`[WA] Message received: from=${remoteLocal} fromMe=${raw.key.fromMe} selfChat=${isSelfChat} type=${msgType}`);
+
+    // Skip bot's own outgoing messages (but NOT self-chat)
+    if (raw.key.fromMe && !isSelfChat) {
+      console.log('[WA] Skipping own outgoing message');
+      return;
+    }
 
     // Extract text — handle voice messages via Whisper transcription
     let text = raw.message.conversation
@@ -352,8 +360,19 @@ class WhatsAppManager {
       created_at: new Date().toISOString(),
     });
 
-    // Don't process our own messages
-    if (fromMe) return;
+    // In self-chat, bot's own replies also have fromMe=true — prevent infinite loop
+    // Check if this message was sent by us (bot) by checking recent sent messages
+    if (fromMe && isSelfChat) {
+      // Only process if it's a genuine user message, not our bot reply
+      // Bot replies are stored in wa_messages — check if we just sent this
+      const recentBotMsg = db.getDb().prepare(
+        "SELECT id FROM wa_messages WHERE content = ? AND from_me = 1 AND created_at > datetime('now', '-10 seconds') LIMIT 1"
+      ).get(text);
+      if (recentBotMsg) {
+        console.log('[WA] Skipping self-chat bot echo');
+        return;
+      }
+    }
 
     // Check if onboarding is needed
     if (isOnboarding(userId)) {

@@ -601,6 +601,22 @@ db.getDb();
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Yaya API running on http://0.0.0.0:${PORT}`);
   console.log(`Health: http://localhost:${PORT}/api/v1/health`);
+  
+  // Auto-reconnect WhatsApp if we have saved auth state
+  const database = db.getDb();
+  const credCount = database.prepare("SELECT count(*) as c FROM wa_auth_creds").get() as any;
+  if (credCount?.c > 0) {
+    console.log('[WA] Found saved auth state, auto-reconnecting...');
+    // Find the user ID (demo user for now)
+    const user = database.prepare("SELECT id FROM users LIMIT 1").get() as any;
+    if (user) {
+      waManager.connect(user.id).then(() => {
+        console.log('[WA] Auto-reconnect initiated');
+      }).catch((err: any) => {
+        console.error('[WA] Auto-reconnect failed:', err.message);
+      });
+    }
+  }
 });
 
 export default app;
