@@ -3,510 +3,258 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Yaya — Tu negocio, en una conversación</title>
-  <meta name="description" content="Yaya es tu asistente de negocios en WhatsApp. Facturas, inventario, citas, pagos y reportes. Todo hablando.">
-  <meta name="theme-color" content="#0a0a0f">
+  <title>Yaya — El sistema operativo de tu negocio</title>
+  <meta name="description" content="Gestión completa vía WhatsApp. Ventas, facturas, citas, pagos y reportes — todo hablando con tu asistente de IA.">
+  <meta name="theme-color" content="#0a0a0b">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="site.css">
 </head>
-<body data-wa-number="18503002167">
+<body>
 
-  <!-- ═══ NAVBAR ═══ -->
-  <nav id="siteNav">
+  <!-- Nav -->
+  <nav id="nav">
     <div class="nav-inner">
-      <a href="#" class="nav-logo">
-        <span class="logo-icon">Y</span>
-        <span class="logo-text">yaya</span>
-      </a>
+      <a href="#" class="nav-logo">yaya</a>
       <div id="navLinks" class="nav-links">
-        <a href="#features" class="nav-link">Funciones</a>
-        <a href="#how" class="nav-link">Cómo Funciona</a>
-        <a href="#demo" class="nav-link">Demo</a>
-        <a href="#pricing" class="nav-link">Precios</a>
-        <a href="/dashboard" class="nav-cta">Iniciar Sesión</a>
+        <a href="#producto">Producto</a>
+        <a href="#stack">Stack</a>
+        <a href="#precios">Precios</a>
+        <a href="https://github.com/AndreTregear/yaya_platform">Docs</a>
       </div>
-      <button id="navToggle" class="nav-toggle" aria-label="Menu">
-        <span></span><span></span><span></span>
+      <a href="/dashboard" class="nav-cta">Empezar</a>
+      <button id="navToggle" class="nav-toggle" aria-label="Menú">
+        <span></span><span></span>
       </button>
     </div>
   </nav>
 
-  <!-- ═══ HERO ═══ -->
-  <section id="hero" class="hero">
-    <div class="hero-bg-glow"></div>
-    <div class="hero-grid-bg"></div>
-    <div class="hero-content">
-      <div class="hero-text">
-        <div class="hero-badge animate-on-scroll">
-          <span class="badge-dot"></span>
-          Disponible en Perú, Colombia y México
-        </div>
-        <h1 class="animate-on-scroll">
-          Tu negocio, en una
-          <span class="gradient-text">conversación</span>
-        </h1>
-        <p class="hero-subtitle animate-on-scroll">
-          Yaya es tu asistente de negocios en WhatsApp — facturas, inventario, citas, pagos y reportes. <strong>Todo hablando.</strong>
-        </p>
-        <div class="hero-ctas animate-on-scroll">
-          <a href="/dashboard" class="btn btn-primary">
-            Empieza Gratis
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </a>
-          <a href="#demo" class="btn btn-ghost">Ver Demo</a>
-        </div>
-        <div class="trust-badges animate-on-scroll">
-          <div class="trust-badge">
-            <span class="trust-icon">🔒</span>
-            Datos encriptados
-          </div>
-          <div class="trust-badge">
-            <span class="trust-icon">🧠</span>
-            IA local
-          </div>
-          <div class="trust-badge">
-            <span class="trust-icon">📖</span>
-            Open source
-          </div>
-        </div>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge fade-in">Open Source &middot; AI-Powered &middot; Privacy-First</div>
+      <h1 class="fade-in">El sistema operativo<br>de tu negocio</h1>
+      <p class="hero-sub fade-in">Gestión completa vía WhatsApp. Ventas, facturas, citas, pagos y reportes — todo hablando con tu asistente de IA.</p>
+      <div class="hero-ctas fade-in">
+        <a href="/dashboard" class="btn btn-primary">Crear Cuenta Gratis</a>
+        <a href="https://github.com/AndreTregear/yaya_platform" class="btn btn-text">Ver Documentación &rarr;</a>
       </div>
-      <div class="hero-phone animate-on-scroll">
-        <div class="phone-glow"></div>
-        <div class="phone-frame">
-          <div class="phone-notch"></div>
-          <div class="phone-screen">
-            <div class="wa-header">
-              <div class="wa-header-avatar">Y</div>
-              <div class="wa-header-info">
-                <div class="wa-header-name">Yaya</div>
-                <div class="wa-header-status">en línea</div>
-              </div>
-            </div>
-            <div class="wa-chat">
-              <div class="wa-msg wa-sent">
-                <p>Yaya, cuánto vendimos hoy?</p>
-                <span class="wa-time">10:30 am ✓✓</span>
-              </div>
-              <div class="wa-msg wa-received">
-                <p>Hoy vendiste <strong>S/1,847</strong> en 23 pedidos 📊</p>
-                <p>15% más que ayer. Tu producto estrella fue <strong>Pollo a la Brasa</strong> (8 pedidos).</p>
-                <span class="wa-time">10:30 am</span>
-              </div>
-              <div class="wa-msg wa-sent">
-                <p>Genial! Manda factura al último cliente</p>
-                <span class="wa-time">10:31 am ✓✓</span>
-              </div>
-              <div class="wa-msg wa-received">
-                <p>✅ Factura <strong>F001-00847</strong> enviada a María García por WhatsApp.</p>
-                <p>Total: S/85.00 (IGV incluido)</p>
-                <span class="wa-time">10:31 am</span>
-              </div>
-            </div>
-          </div>
+      <div class="terminal fade-in">
+        <div class="terminal-bar">
+          <span class="terminal-dot"></span>
+          <span class="terminal-dot"></span>
+          <span class="terminal-dot"></span>
+          <span class="terminal-title">WhatsApp — Yaya</span>
+        </div>
+        <div class="terminal-body">
+          <div class="t-line t-user"><span class="t-label">Tú</span> Cuánto vendimos hoy?</div>
+          <div class="t-line t-bot"><span class="t-label">Yaya</span> Hoy vendiste S/1,847 en 23 pedidos. 15% más que ayer.</div>
+          <div class="t-line t-bot"><span class="t-label"></span> Producto estrella: Pollo a la Brasa (8 pedidos).</div>
+          <div class="t-line t-user"><span class="t-label">Tú</span> Manda factura al último cliente</div>
+          <div class="t-line t-bot"><span class="t-label">Yaya</span> Factura F001-00847 enviada a María García por WhatsApp.</div>
+          <div class="t-line t-bot"><span class="t-label"></span> Total: S/85.00 (IGV incluido)</div>
+          <div class="t-line t-user"><span class="t-label">Tú</span> [nota de voz] "Recuérdame cobrar a Luis mañana"</div>
+          <div class="t-line t-bot"><span class="t-label">Yaya</span> Listo. Te recuerdo mañana a las 9am. Deuda de Luis: S/160.00</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ═══ PROBLEM / SOLUTION ═══ -->
-  <section id="problem" class="problem-section">
+  <!-- Producto -->
+  <section id="producto" class="section">
     <div class="container">
-      <div class="ps-grid">
-        <div class="ps-card ps-problem animate-on-scroll">
-          <div class="ps-label">El Problema</div>
-          <h3>40 millones de negocios en LATAM operan con papel y memoria</h3>
-          <ul class="ps-list">
-            <li>
-              <span class="ps-icon">📓</span>
-              <div>
-                <strong>Cuadernos de papel</strong>
-                <p>Ventas, inventario y contactos en libretas que se pierden</p>
-              </div>
-            </li>
-            <li>
-              <span class="ps-icon">😰</span>
-              <div>
-                <strong>Ventas perdidas</strong>
-                <p>Sin recordatorios, los clientes se van a la competencia</p>
-              </div>
-            </li>
-            <li>
-              <span class="ps-icon">🙈</span>
-              <div>
-                <strong>Cero visibilidad</strong>
-                <p>No sabes cuánto ganaste hasta que cuentas la caja</p>
-              </div>
-            </li>
-            <li>
-              <span class="ps-icon">💸</span>
-              <div>
-                <strong>Software caro y difícil</strong>
-                <p>Las apps de negocio no están hechas para quien trabaja desde el celular</p>
-              </div>
-            </li>
-          </ul>
-        </div>
-        <div class="ps-card ps-solution animate-on-scroll">
-          <div class="ps-label ps-label-solution">La Solución</div>
-          <h3>Un asistente de IA que maneja tu negocio por WhatsApp</h3>
-          <ul class="ps-list">
-            <li>
-              <span class="ps-icon">💬</span>
-              <div>
-                <strong>Habla, no teclees</strong>
-                <p>Envía una nota de voz, recibe un reporte de ventas</p>
-              </div>
-            </li>
-            <li>
-              <span class="ps-icon">🧾</span>
-              <div>
-                <strong>Facturas automáticas</strong>
-                <p>Escribe 'factura' y Yaya genera una válida ante SUNAT</p>
-              </div>
-            </li>
-            <li>
-              <span class="ps-icon">📊</span>
-              <div>
-                <strong>Todo en tiempo real</strong>
-                <p>Ventas, inventario, citas — actualizado al instante</p>
-              </div>
-            </li>
-            <li>
-              <span class="ps-icon">⚡</span>
-              <div>
-                <strong>Cero setup</strong>
-                <p>Un QR, 5 minutos, tu negocio digital listo</p>
-              </div>
-            </li>
-          </ul>
-        </div>
-      </div>
+      <h2 class="section-title fade-in">Todo en una conversación</h2>
+      <ul class="feature-list">
+        <li class="fade-in"><strong>Ventas y pedidos</strong> — registra, rastrea, confirma</li>
+        <li class="fade-in"><strong>Facturas electrónicas</strong> — SUNAT, DIAN, SAT compliant</li>
+        <li class="fade-in"><strong>Agenda y citas</strong> — reservas, recordatorios, disponibilidad</li>
+        <li class="fade-in"><strong>Cobros</strong> — Yape, Plin, transferencias, validación automática</li>
+        <li class="fade-in"><strong>Inventario</strong> — stock en tiempo real, alertas de reposición</li>
+        <li class="fade-in"><strong>Reportes</strong> — resúmenes diarios, tendencias, pronósticos</li>
+        <li class="fade-in"><strong>CRM</strong> — historial de clientes, seguimiento, fidelización</li>
+        <li class="fade-in"><strong>Voz</strong> — envía notas de voz, recibe respuestas habladas</li>
+      </ul>
     </div>
   </section>
 
-  <!-- ═══ FEATURES ═══ -->
-  <section id="features" class="features-section">
+  <!-- Cómo funciona -->
+  <section class="section">
     <div class="container">
-      <div class="section-header animate-on-scroll">
-        <h2>Todo lo que tu negocio necesita,<br><span class="gradient-text">en un chat</span></h2>
-        <p>Sin apps complicadas. Sin computadoras. Solo tú y tu WhatsApp.</p>
-      </div>
-      <div class="features-grid">
-        <div class="feature-card animate-on-scroll">
-          <div class="feature-icon">📊</div>
-          <h4>Ventas y Pedidos</h4>
-          <p>Registra cada venta, gestiona pedidos, nunca pierdas una transacción.</p>
-        </div>
-        <div class="feature-card animate-on-scroll">
-          <div class="feature-icon">📱</div>
-          <h4>WhatsApp Nativo</h4>
-          <p>Sin descargas. Tu negocio corre dentro de la app que ya usas todos los días.</p>
-        </div>
-        <div class="feature-card animate-on-scroll">
-          <div class="feature-icon">🧾</div>
-          <h4>Facturas SUNAT</h4>
-          <p>Genera facturas y boletas válidas ante SUNAT con un solo mensaje.</p>
-        </div>
-        <div class="feature-card animate-on-scroll">
-          <div class="feature-icon">📅</div>
-          <h4>Citas y Horarios</h4>
-          <p>Reservas automáticas, recordatorios, menos ausencias, más ingresos.</p>
-        </div>
-        <div class="feature-card animate-on-scroll">
-          <div class="feature-icon">💰</div>
-          <h4>Pagos con Yape</h4>
-          <p>Acepta pagos Yape y Plin con validación automática. Sin POS.</p>
-        </div>
-        <div class="feature-card animate-on-scroll">
-          <div class="feature-icon">📈</div>
-          <h4>Reportes Inteligentes</h4>
-          <p>Resúmenes diarios, tendencias, proyecciones — por voz o texto.</p>
-        </div>
-        <div class="feature-card animate-on-scroll">
-          <div class="feature-icon">🔒</div>
-          <h4>Datos Seguros</h4>
-          <p>Encriptación punto a punto, IA local, tus datos nunca salen de tu servidor.</p>
-        </div>
-        <div class="feature-card animate-on-scroll">
-          <div class="feature-icon">🤖</div>
-          <h4>IA que Aprende</h4>
-          <p>Se vuelve más inteligente con cada conversación. Conoce tu negocio.</p>
-        </div>
-        <div class="feature-card animate-on-scroll">
-          <div class="feature-icon">🌎</div>
-          <h4>Multi-país</h4>
-          <p>Perú, Colombia, México, Brasil. Localización de impuestos y moneda.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══ HOW IT WORKS ═══ -->
-  <section id="how" class="how-section">
-    <div class="container">
-      <div class="section-header animate-on-scroll">
-        <h2>Empieza en <span class="gradient-text">3 pasos</span></h2>
-        <p>De cero a negocio digital en menos de 5 minutos.</p>
-      </div>
+      <h2 class="section-title fade-in">Empieza en 3 pasos</h2>
       <div class="steps">
-        <div class="step animate-on-scroll">
-          <div class="step-number">1</div>
-          <div class="step-connector"></div>
-          <h4>Regístrate</h4>
-          <p>Crea tu cuenta en 30 segundos. Solo necesitas tu nombre y número.</p>
+        <div class="step fade-in">
+          <div class="step-num">01</div>
+          <h3>Regístrate</h3>
+          <p>30 segundos, gratis</p>
         </div>
-        <div class="step animate-on-scroll">
-          <div class="step-number">2</div>
-          <div class="step-connector"></div>
-          <h4>Conecta WhatsApp</h4>
-          <p>Escanea un código QR. Listo, Yaya ya está en tu WhatsApp.</p>
+        <div class="step-line fade-in"></div>
+        <div class="step fade-in">
+          <div class="step-num">02</div>
+          <h3>Conecta WhatsApp</h3>
+          <p>Escanea QR</p>
         </div>
-        <div class="step animate-on-scroll">
-          <div class="step-number">3</div>
-          <h4>Habla con Yaya</h4>
-          <p>Empieza a gestionar tu negocio hablando. Así de simple.</p>
-        </div>
-      </div>
-      <div class="steps-cta animate-on-scroll">
-        <a href="/dashboard" class="btn btn-primary">
-          Empieza Gratis
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══ DEMO CONVERSATION ═══ -->
-  <section id="demo" class="demo-section">
-    <div class="container">
-      <div class="section-header animate-on-scroll">
-        <h2>Mira a Yaya <span class="gradient-text">en acción</span></h2>
-        <p>Una conversación real con tu asistente de negocios.</p>
-      </div>
-      <div class="demo-phone animate-on-scroll">
-        <div class="demo-phone-glow"></div>
-        <div class="demo-phone-frame">
-          <div class="demo-phone-notch"></div>
-          <div class="demo-screen">
-            <div class="demo-wa-header">
-              <div class="demo-wa-back">‹</div>
-              <div class="demo-wa-avatar">Y</div>
-              <div class="demo-wa-info">
-                <span class="demo-wa-name">Yaya</span>
-                <span class="demo-wa-status">en línea</span>
-              </div>
-              <div class="demo-wa-actions">
-                <span>📞</span>
-                <span>⋮</span>
-              </div>
-            </div>
-            <div class="demo-chat">
-              <div class="demo-date">Hoy</div>
-              <div class="demo-msg demo-sent">
-                <p>Yaya, cuánto vendimos hoy?</p>
-                <span class="demo-time">10:30 am ✓✓</span>
-              </div>
-              <div class="demo-msg demo-received">
-                <p>📊 <strong>Reporte del día — 22 Mar 2026</strong></p>
-                <p>Hoy vendiste <strong>S/1,847</strong> en 23 pedidos.</p>
-                <p>📈 15% más que ayer.</p>
-                <p>⭐ Producto estrella: <strong>Pollo a la Brasa</strong> (8 pedidos)</p>
-                <p>⚠️ 3 pagos pendientes por <strong>S/245</strong></p>
-                <span class="demo-time">10:30 am</span>
-              </div>
-              <div class="demo-msg demo-sent">
-                <p>Manda factura al último cliente</p>
-                <span class="demo-time">10:31 am ✓✓</span>
-              </div>
-              <div class="demo-msg demo-received">
-                <p>✅ <strong>Factura enviada!</strong></p>
-                <p>📄 F001-00847</p>
-                <p>👤 María García</p>
-                <p>💰 Total: S/85.00 (IGV incluido)</p>
-                <p>📲 Enviada por WhatsApp</p>
-                <span class="demo-time">10:31 am</span>
-              </div>
-              <div class="demo-msg demo-sent">
-                <p>🎤 <em>[Nota de voz: 0:04]</em></p>
-                <p>"Recuérdame cobrar a Luis mañana"</p>
-                <span class="demo-time">10:32 am ✓✓</span>
-              </div>
-              <div class="demo-msg demo-received">
-                <p>⏰ Listo! Te recordaré mañana a las 9:00 am cobrar a <strong>Luis</strong>.</p>
-                <p>Deuda pendiente de Luis: <strong>S/160.00</strong></p>
-                <span class="demo-time">10:32 am</span>
-              </div>
-            </div>
-            <div class="demo-input">
-              <span class="demo-input-emoji">😊</span>
-              <span class="demo-input-text">Escribe un mensaje...</span>
-              <span class="demo-input-mic">🎤</span>
-            </div>
-          </div>
+        <div class="step-line fade-in"></div>
+        <div class="step fade-in">
+          <div class="step-num">03</div>
+          <h3>Empieza a vender</h3>
+          <p>Tu IA está lista</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ═══ PRICING ═══ -->
-  <section id="pricing" class="pricing-section">
+  <!-- Stack -->
+  <section id="stack" class="section section-alt">
     <div class="container">
-      <div class="section-header animate-on-scroll">
-        <h2>Planes para cada <span class="gradient-text">etapa</span></h2>
-        <p>Empieza gratis. Crece cuando estés listo.</p>
+      <h2 class="section-title fade-in">Construido sobre gigantes</h2>
+      <p class="section-sub fade-in">Yaya integra las mejores herramientas open-source del mundo en una sola conversación.</p>
+      <div class="stack-grid">
+        <div class="stack-item fade-in">
+          <span class="stack-name">PostgreSQL</span>
+          <span class="stack-desc">Base de datos relacional</span>
+          <span class="stack-license">PostgreSQL License</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">Redis</span>
+          <span class="stack-desc">Colas y caché</span>
+          <span class="stack-license">BSD-3</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">Lago</span>
+          <span class="stack-desc">Facturación y suscripciones</span>
+          <span class="stack-license">AGPL-3.0</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">Cal.com</span>
+          <span class="stack-desc">Agenda y citas</span>
+          <span class="stack-license">AGPL-3.0</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">Metabase</span>
+          <span class="stack-desc">Analíticas y dashboards</span>
+          <span class="stack-license">AGPL-3.0</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">InvoiceShelf</span>
+          <span class="stack-desc">Facturas electrónicas</span>
+          <span class="stack-license">AGPL-3.0</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">vLLM</span>
+          <span class="stack-desc">Inferencia LLM local</span>
+          <span class="stack-license">Apache-2.0</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">Whisper</span>
+          <span class="stack-desc">Voz a texto</span>
+          <span class="stack-license">MIT</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">Kokoro</span>
+          <span class="stack-desc">Texto a voz</span>
+          <span class="stack-license">Apache-2.0</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">MinIO</span>
+          <span class="stack-desc">Almacenamiento S3</span>
+          <span class="stack-license">AGPL-3.0</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">Baileys</span>
+          <span class="stack-desc">Gateway WhatsApp</span>
+          <span class="stack-license">MIT</span>
+        </div>
+        <div class="stack-item fade-in">
+          <span class="stack-name">OpenClaw</span>
+          <span class="stack-desc">Agente IA</span>
+          <span class="stack-license">MIT</span>
+        </div>
       </div>
+      <p class="stack-footer fade-in">Código abierto. Sin vendor lock-in. Tus datos, tu servidor.</p>
+    </div>
+  </section>
+
+  <!-- Precios -->
+  <section id="precios" class="section">
+    <div class="container">
+      <h2 class="section-title fade-in">Precios</h2>
       <div class="pricing-grid">
-        <div class="pricing-card animate-on-scroll">
+        <div class="pricing-card fade-in">
           <div class="pricing-tier">Gratis</div>
-          <div class="pricing-price">
-            <span class="pricing-currency">S/</span>
-            <span class="pricing-amount">0</span>
-            <span class="pricing-period">/mes</span>
-          </div>
-          <p class="pricing-desc">Para probar y empezar</p>
+          <div class="pricing-price"><span class="pricing-currency">S/</span>0<span class="pricing-period">/mes</span></div>
           <ul class="pricing-features">
-            <li><span>✓</span> 50 facturas/mes</li>
-            <li><span>✓</span> 50 productos</li>
-            <li><span>✓</span> 10 recordatorios</li>
-            <li><span>✓</span> Reportes básicos</li>
-            <li><span>✓</span> WhatsApp integrado</li>
+            <li>50 documentos/mes</li>
+            <li>50 productos</li>
+            <li>Reportes básicos</li>
+            <li>WhatsApp integrado</li>
           </ul>
-          <a href="/dashboard" class="btn btn-outline">Empieza Gratis</a>
+          <a href="/dashboard" class="btn btn-outline">Empezar</a>
         </div>
-        <div class="pricing-card pricing-popular animate-on-scroll">
-          <div class="pricing-badge">Popular</div>
+        <div class="pricing-card pricing-featured fade-in">
           <div class="pricing-tier">Emprendedor</div>
-          <div class="pricing-price">
-            <span class="pricing-currency">S/</span>
-            <span class="pricing-amount">19</span>
-            <span class="pricing-period">/mes</span>
-          </div>
-          <p class="pricing-desc">Para negocios en crecimiento</p>
+          <div class="pricing-price"><span class="pricing-currency">S/</span>19<span class="pricing-period">/mes</span></div>
           <ul class="pricing-features">
-            <li><span>✓</span> 300 facturas/mes</li>
-            <li><span>✓</span> Inventario completo</li>
-            <li><span>✓</span> Recordatorios ilimitados</li>
-            <li><span>✓</span> Analíticas avanzadas</li>
-            <li><span>✓</span> Notas de voz</li>
-            <li><span>✓</span> Exportar datos</li>
+            <li>300 documentos/mes</li>
+            <li>Inventario completo</li>
+            <li>Analíticas avanzadas</li>
+            <li>Notas de voz</li>
+            <li>Exportar datos</li>
           </ul>
-          <a href="/dashboard" class="btn btn-primary">Empieza Gratis</a>
+          <a href="/dashboard" class="btn btn-primary">Empezar</a>
         </div>
-        <div class="pricing-card animate-on-scroll">
+        <div class="pricing-card fade-in">
           <div class="pricing-tier">Negocio</div>
-          <div class="pricing-price">
-            <span class="pricing-currency">S/</span>
-            <span class="pricing-amount">49</span>
-            <span class="pricing-period">/mes</span>
-          </div>
-          <p class="pricing-desc">Para equipos y multi-local</p>
+          <div class="pricing-price"><span class="pricing-currency">S/</span>49<span class="pricing-period">/mes</span></div>
           <ul class="pricing-features">
-            <li><span>✓</span> Facturas ilimitadas</li>
-            <li><span>✓</span> Pagos Yape/Plin</li>
-            <li><span>✓</span> Multi-empleado</li>
-            <li><span>✓</span> Soporte prioritario</li>
-            <li><span>✓</span> API acceso</li>
-            <li><span>✓</span> Multi-local</li>
+            <li>Documentos ilimitados</li>
+            <li>Multi-empleado</li>
+            <li>Soporte prioritario</li>
+            <li>API acceso</li>
+            <li>Multi-local</li>
           </ul>
-          <a href="/dashboard" class="btn btn-outline">Empieza Gratis</a>
+          <a href="/dashboard" class="btn btn-outline">Empezar</a>
         </div>
       </div>
+      <p class="pricing-note fade-in">Todos los planes incluyen IA, WhatsApp y soporte en español.</p>
     </div>
   </section>
 
-  <!-- ═══ TRUST ═══ -->
-  <section id="trust" class="trust-section">
+  <!-- Trust bar -->
+  <div class="trust-bar fade-in">
     <div class="container">
-      <div class="section-header animate-on-scroll">
-        <h2>Tus datos, <span class="gradient-text">tu control</span></h2>
-        <p>Privacidad no es una opción. Es la base.</p>
-      </div>
-      <div class="trust-grid">
-        <div class="trust-card animate-on-scroll">
-          <div class="trust-card-icon">🔐</div>
-          <h4>Encriptación AES-256</h4>
-          <p>Tus datos viajan y se almacenan con el mismo estándar que usan los bancos.</p>
-        </div>
-        <div class="trust-card animate-on-scroll">
-          <div class="trust-card-icon">🏠</div>
-          <h4>IA Local</h4>
-          <p>La inteligencia artificial corre en nuestros servidores. Tu data nunca sale a terceros.</p>
-        </div>
-        <div class="trust-card animate-on-scroll">
-          <div class="trust-card-icon">📜</div>
-          <h4>Código Abierto</h4>
-          <p>Nuestro código es público. Cualquiera puede auditarlo, mejorarlo o verificarlo.</p>
-        </div>
-        <div class="trust-card animate-on-scroll">
-          <div class="trust-card-icon">🇵🇪</div>
-          <h4>Hecho para Perú</h4>
-          <p>SUNAT, IGV, Yape, Plin — diseñado para la realidad del negocio peruano.</p>
-        </div>
-      </div>
-      <div class="trust-logos animate-on-scroll">
-        <span class="trust-logo-item">PostgreSQL</span>
-        <span class="trust-logo-item">Lago</span>
-        <span class="trust-logo-item">Cal.com</span>
-        <span class="trust-logo-item">Metabase</span>
-        <span class="trust-logo-item">Docker</span>
+      <div class="trust-items">
+        <span>Encriptación AES-256</span>
+        <span class="trust-sep"></span>
+        <span>IA 100% local</span>
+        <span class="trust-sep"></span>
+        <span>Código abierto</span>
+        <span class="trust-sep"></span>
+        <span>Hecho para LATAM</span>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- ═══ FINAL CTA ═══ -->
-  <section class="final-cta">
-    <div class="container animate-on-scroll">
-      <h2>Tu negocio merece más que un cuaderno</h2>
-      <p>Únete a los negocios que ya manejan todo desde WhatsApp.</p>
-      <a href="/dashboard" class="btn btn-primary btn-lg">
-        Empieza Gratis Ahora
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-    </div>
-  </section>
-
-  <!-- ═══ FOOTER ═══ -->
-  <footer class="site-footer">
+  <!-- Footer -->
+  <footer class="footer">
     <div class="container">
-      <div class="footer-grid">
+      <div class="footer-inner">
         <div class="footer-brand">
-          <div class="nav-logo">
-            <span class="logo-icon">Y</span>
-            <span class="logo-text">yaya</span>
-          </div>
-          <p>Tu asistente de negocios en WhatsApp. Facturas, inventario, citas, pagos y reportes. Todo hablando.</p>
+          <span class="nav-logo">yaya</span>
+          <span class="footer-copy">&copy; 2026</span>
         </div>
         <div class="footer-links">
-          <h5>Producto</h5>
-          <a href="#features">Funciones</a>
-          <a href="#pricing">Precios</a>
-          <a href="#demo">Demo</a>
-          <a href="#how">Cómo Funciona</a>
-        </div>
-        <div class="footer-links">
-          <h5>Cuenta</h5>
-          <a href="/dashboard">Iniciar Sesión</a>
-          <a href="/dashboard">Registrarse</a>
-        </div>
-        <div class="footer-links">
-          <h5>Legal</h5>
+          <a href="#producto">Producto</a>
+          <a href="#precios">Precios</a>
+          <a href="https://github.com/AndreTregear/yaya_platform">Docs</a>
+          <a href="https://github.com/AndreTregear/yaya_platform">GitHub</a>
           <a href="/privacy">Privacidad</a>
           <a href="/terms">Términos</a>
         </div>
-      </div>
-      <div class="footer-bottom">
-        <p>Hecho con ❤️ en Lima, Perú</p>
-        <p>&copy; 2026 Yaya Platform</p>
+        <div class="footer-location">Hecho en Lima, Perú</div>
       </div>
     </div>
   </footer>
-
-  <!-- ═══ FLOATING WHATSAPP ═══ -->
-  <a id="waFloat" class="wa-float" href="https://wa.me/18503002167?text=Hola%20Yaya!%20Quiero%20empezar" target="_blank" rel="noopener" aria-label="Contactar por WhatsApp">
-    <svg viewBox="0 0 24 24" width="28" height="28" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-  </a>
 
   <script src="site.js"></script>
 </body>
