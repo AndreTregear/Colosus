@@ -14,6 +14,7 @@ const YAPE_LISTENER_URL = process.env.YAPE_LISTENER_URL || 'http://localhost:300
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static('public'));
 
 // ── Auth middleware ────────────────────────────────────────────
 
@@ -442,6 +443,26 @@ app.post('/api/v1/yape/payments/sync/batch', authMiddleware, (req: AuthRequest, 
   });
 
   res.json({ results, synced: results.filter(r => !r.duplicate).length, duplicates: results.filter(r => r.duplicate).length });
+});
+
+// ══════════════════════════════════════════════════════════════
+//  EXPENSES
+// ══════════════════════════════════════════════════════════════
+
+app.get('/api/v1/expenses', authMiddleware, (req: AuthRequest, res) => {
+  const startDate = (req.query.start as string) || '2020-01-01';
+  const endDate = (req.query.end as string) || new Date().toISOString().slice(0, 10);
+  const expenses = db.getExpenses(req.userId!, startDate, endDate);
+  res.json({ data: expenses });
+});
+
+app.post('/api/v1/expenses', authMiddleware, (req: AuthRequest, res) => {
+  const { description, amount, category, date } = req.body;
+  if (!amount) return res.status(400).json({ error: 'Monto es requerido' });
+
+  const id = `exp_${uuidv4().slice(0, 8)}`;
+  db.createExpense(id, req.userId!, description || '', amount, category || '', date || new Date().toISOString().slice(0, 10));
+  res.status(201).json({ id, success: true });
 });
 
 // ══════════════════════════════════════════════════════════════
