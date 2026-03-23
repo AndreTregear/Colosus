@@ -256,10 +256,10 @@ describe('encryption integration', () => {
     expect(encrypted.phone).not.toBe(plainRecord.phone);
 
     const inserted = await query(
-      `INSERT INTO customers (tenant_id, name, phone, address, notes)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO customers (tenant_id, jid, name, phone, address, notes)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, tenant_id, name, phone, address, notes`,
-      [tenantId, encrypted.name, encrypted.phone, encrypted.address, encrypted.notes],
+      [tenantId, `test-${crypto.randomUUID()}@s.whatsapp.net`, encrypted.name, encrypted.phone, encrypted.address, encrypted.notes],
     );
     const dbRow = inserted.rows[0];
 
@@ -315,9 +315,9 @@ describe('encryption integration', () => {
     const encrypted = await encryptRecord(tenantId, 'customers', plainRecord);
 
     await query(
-      `INSERT INTO customers (tenant_id, name, phone)
-       VALUES ($1, $2, $3)`,
-      [tenantId, encrypted.name, encrypted.phone],
+      `INSERT INTO customers (tenant_id, jid, name, phone)
+       VALUES ($1, $2, $3, $4)`,
+      [tenantId, `test-${crypto.randomUUID()}@s.whatsapp.net`, encrypted.name, encrypted.phone],
     );
 
     // Rotate KEK
@@ -426,10 +426,10 @@ describe('encryption integration', () => {
 
     // Store in DB and read back
     const inserted = await query(
-      `INSERT INTO customers (tenant_id, name, phone, address, notes)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO customers (tenant_id, jid, name, phone, address, notes)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING name, phone, address, notes`,
-      [tenantId, encrypted.name, encrypted.phone, encrypted.address, encrypted.notes],
+      [tenantId, `test-${crypto.randomUUID()}@s.whatsapp.net`, encrypted.name, encrypted.phone, encrypted.address, encrypted.notes],
     );
 
     const decrypted = await decryptRecord(
