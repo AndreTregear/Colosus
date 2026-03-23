@@ -15,6 +15,7 @@ import { startMediaWorker, closeMediaQueue } from './media/media-queue.js';
 import { startPartitionManager, stopPartitionManager } from './warehouse/partitions.js';
 import { startETLRunner, stopETLRunner } from './warehouse/etl-runner.js';
 import { registerEventListeners } from './services/notification-service.js';
+import { initializeRLPipeline, stopRLPipeline } from './rl/index.js';
 import { OPENCLAW_API_URL } from './config.js';
 import { logger, logStartupBanner } from './shared/logger.js';
 
@@ -69,6 +70,9 @@ export async function startPlatform(port: number): Promise<() => Promise<void>> 
   // Register all event-driven notification handlers
   registerEventListeners();
 
+  // Start RL pipeline (rollout collector + training scheduler + A/B tests)
+  initializeRLPipeline();
+
   logger.info({ totalStartupMs: Date.now() - platformStart }, 'Autobot multi-tenant platform is running');
 
   return async () => {
@@ -83,6 +87,7 @@ export async function startPlatform(port: number): Promise<() => Promise<void>> 
     await closeFollowupScheduler();
     await closeMediaQueue();
     await closeAIQueue();
+    stopRLPipeline();
     await tenantManager.shutdownAll();
     await closeRedis();
   };
