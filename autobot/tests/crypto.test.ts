@@ -42,6 +42,19 @@ import {
 let redisAvailable = false;
 let dbAvailable = false;
 
+/** Create a real tenant row in DB so FK constraints pass */
+async function createTestTenant(id?: string): Promise<string> {
+  const tenantId = id || crypto.randomUUID();
+  const { query } = await import('../src/db/pool.js');
+  await query(
+    `INSERT INTO tenants (id, slug, name, api_key)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (id) DO NOTHING`,
+    [tenantId, `test-${tenantId.slice(0, 8)}`, `Test ${tenantId.slice(0, 8)}`, `key-${tenantId}`],
+  );
+  return tenantId;
+}
+
 beforeAll(async () => {
   // Check Redis (with 3s timeout to avoid ioredis infinite retry)
   try {
@@ -384,14 +397,19 @@ describe('crypto/key-cache (Redis)', () => {
 // ===========================================================================
 
 describe('crypto/tenant-keys (DB + Redis)', () => {
-  const testTenant = 'crypto-test-00000000-0000-0000-0000-000000000001';
+  let testTenant: string;
   const password = 'super-secret-password-123!';
+
+  beforeAll(async () => {
+    if (!dbAvailable || !redisAvailable) return;
+    testTenant = await createTestTenant();
+  });
 
   afterAll(async () => {
     try {
       const { query } = await import('../src/db/pool.js');
-      await query('DELETE FROM tenant_encryption_keys WHERE tenant_id = $1', [testTenant]);
-      await evictDEK(testTenant);
+      if (testTenant) await query('DELETE FROM tenant_encryption_keys WHERE tenant_id = $1', [testTenant]);
+      if (testTenant) await evictDEK(testTenant);
     } catch { /* ok */ }
   });
 
@@ -422,7 +440,7 @@ describe('crypto/tenant-keys (DB + Redis)', () => {
 
   it('should return false for non-existent tenant', async () => {
     if (!dbAvailable || !redisAvailable) return;
-    const result = await unlockTenantKeys('crypto-test-nonexistent-tenant', 'any-password');
+    const result = await unlockTenantKeys('00000000-0000-0000-0000-000000000000', 'any-password');
     expect(result).toBe(false);
   });
 
@@ -447,12 +465,13 @@ describe('crypto/tenant-keys (DB + Redis)', () => {
 // ===========================================================================
 
 describe('crypto/key-rotation (DB + Redis)', () => {
-  const testTenant = 'crypto-test-00000000-0000-0000-0000-000000000002';
+  let testTenant: string;
   const originalPassword = 'original-password-789!';
   const newPassword = 'rotated-password-012!';
 
   beforeAll(async () => {
     if (!dbAvailable || !redisAvailable) return;
+    testTenant = await createTestTenant();
     await provisionTenantKeys(testTenant, originalPassword);
   });
 
@@ -503,7 +522,7 @@ describe('crypto/key-rotation (DB + Redis)', () => {
     // Since the DEK is the same, decryption should succeed.
 
     // Step 1: Provision fresh keys and encrypt data
-    const freshTenant = 'crypto-test-00000000-0000-0000-0000-000000000003';
+    const freshTenant = await createTestTenant();
     const pwA = 'password-a';
     const pwB = 'password-b';
 
@@ -544,7 +563,7 @@ describe('crypto/key-rotation (DB + Redis)', () => {
 
   it('should fail rotation for non-existent tenant', async () => {
     if (!dbAvailable || !redisAvailable) return;
-    const result = await rotateKEK('crypto-test-nonexistent', 'a', 'b');
+    const result = await rotateKEK('00000000-0000-0000-0000-000000000000', 'a', 'b');
     expect(result).toBe(false);
   });
 });
@@ -816,11 +835,12 @@ describe('crypto/backup (DB + Redis + RSA)', () => {
   });
 
   // Use valid UUID format for backup (it converts to 16-byte binary)
-  const testTenant = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+  let testTenant: string;
   const password = 'backup-test-password!';
 
   beforeAll(async () => {
     if (!dbAvailable || !redisAvailable) return;
+    testTenant = await createTestTenant();
     await provisionTenantKeys(testTenant, password);
   });
 
@@ -885,7 +905,7 @@ describe('crypto/backup (DB + Redis + RSA)', () => {
   it('should throw for non-existent tenant during backup creation', async () => {
     if (!dbAvailable || !redisAvailable) return;
     await expect(
-      createRecoveryBackup('nonexistent-not-a-real-tenant', publicKey),
+      createRecoveryBackup('00000000-0000-0000-0000-ffffffffffff', publicKey),
     ).rejects.toThrow('No encryption keys found');
   });
 
