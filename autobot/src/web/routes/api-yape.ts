@@ -8,6 +8,7 @@ import { BETTER_AUTH_SECRET } from '../../config.js';
 import { logger } from '../../shared/logger.js';
 import { validateBody, getTenantId, getDeviceId } from '../../shared/validate.js';
 import { deviceRegisterSchema, paymentSyncSchema, batchPaymentSyncSchema } from '../../shared/validation.js';
+import { encryptRecord } from '../../crypto/middleware.js';
 
 const router = Router();
 
@@ -50,8 +51,10 @@ router.post('/payments/sync', requireDeviceAuth, validateBody(paymentSyncSchema)
   const deviceId = getDeviceId(req);
   const { senderName, amount, capturedAt, notificationHash } = req.body;
 
+  // Encrypt sender_name before persisting
+  const encrypted = await encryptRecord(tenantId, 'yape_notifications', { sender_name: senderName });
   const result = await paymentService.syncYapeNotification(
-    tenantId, deviceId, senderName, Number(amount), new Date(capturedAt), notificationHash,
+    tenantId, deviceId, encrypted.sender_name as string, Number(amount), new Date(capturedAt), notificationHash,
   );
 
   res.json({ id: String(result.notificationId), status: result.status });
@@ -69,8 +72,10 @@ router.post('/payments/sync/batch', requireDeviceAuth, validateBody(batchPayment
   // Process sequentially to avoid race conditions in matching
   for (const p of payments) {
     const { senderName, amount, capturedAt, notificationHash } = p;
+    // Encrypt sender_name before persisting
+    const encrypted = await encryptRecord(tenantId, 'yape_notifications', { sender_name: senderName });
     const result = await paymentService.syncYapeNotification(
-      tenantId, deviceId, senderName, Number(amount), new Date(capturedAt), notificationHash,
+      tenantId, deviceId, encrypted.sender_name as string, Number(amount), new Date(capturedAt), notificationHash,
     );
     results.push({ id: String(result.notificationId), status: result.status });
   }

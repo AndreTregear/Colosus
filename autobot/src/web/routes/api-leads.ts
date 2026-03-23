@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as leadsRepo from '../../db/leads-repo.js';
+import { decryptRecord, decryptRecords } from '../../crypto/middleware.js';
 
 const router = Router();
 
@@ -21,8 +22,10 @@ router.get('/', async (req, res) => {
     leads = await leadsRepo.getAllLeads(tenantId, limit, offset);
   }
 
+  // Decrypt PII fields: name, email, phone, company, notes
+  const decrypted = await decryptRecords(tenantId, 'leads', leads as unknown as Record<string, unknown>[]);
   const count = await leadsRepo.getLeadCount(tenantId);
-  res.json({ leads, total: count, limit, offset });
+  res.json({ leads: decrypted, total: count, limit, offset });
 });
 
 // GET /api/leads/count — lead count
@@ -41,7 +44,9 @@ router.get('/:id', async (req, res) => {
 
   const lead = await leadsRepo.getLeadById(tenantId, Number(req.params.id));
   if (!lead) return res.status(404).json({ error: 'Lead not found' });
-  res.json(lead);
+  // Decrypt PII fields: name, email, phone, company, notes
+  const decrypted = await decryptRecord(tenantId, 'leads', lead as unknown as Record<string, unknown>);
+  res.json(decrypted);
 });
 
 export { router as leadsRouter };

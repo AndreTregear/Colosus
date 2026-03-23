@@ -8,6 +8,7 @@ import { auth } from '../auth/auth.js';
 import { requireSession, requireAdmin, requireTenantOwner } from './middleware/session-auth.js';
 import { logger } from '../shared/logger.js';
 import { BETTER_AUTH_URL, UPLOADS_DIR } from '../config.js';
+import { securityHeaders } from './middleware/security-headers.js';
 
 // ── Route imports ──
 import { rulesRouter } from './routes/api-rules.js';
@@ -59,18 +60,8 @@ export function createWebServer(port: number = 3000): void {
   const app = express();
   app.set('trust proxy', 1); // trust first proxy (Caddy / Cloudflare)
 
-  // ── Security headers ──
-  app.use((_req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-XSS-Protection', '0');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    if (process.env.NODE_ENV === 'production' && !(_req.hostname === 'localhost' || _req.hostname === '127.0.0.1')) {
-      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-    }
-    next();
-  });
+  // ── Security headers (CSP, HSTS, X-Frame-Options, etc.) ──
+  app.use(securityHeaders());
 
   // ── CORS — restrict to known origins ──
   const allowedOrigins = BETTER_AUTH_URL
