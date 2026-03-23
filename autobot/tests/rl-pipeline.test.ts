@@ -314,22 +314,25 @@ describe('Rollout Collector', () => {
 // 3. A/B Test Manager (requires PostgreSQL)
 // ═══════════════════════════════════════════════════════════════════════
 
-describe.skipIf(!dbAvailable)('A/B Test Manager', () => {
+describe('A/B Test Manager', () => {
   let mgr: ABTestManager;
 
   beforeAll(async () => {
+    if (!dbAvailable) return;
     const sql = fs.readFileSync(path.join(__dirname, '..', 'schema-rl.sql'), 'utf-8');
     await query(sql);
   });
 
   beforeEach(async () => {
+    if (!dbAvailable) return;
     await query('DELETE FROM rl_ab_tests');
     mgr = new ABTestManager();
   });
 
-  afterEach(() => mgr.stop());
+  afterEach(() => { if (mgr) mgr.stop(); });
 
   it('creates a test and verifies only one active at a time', async () => {
+    if (!dbAvailable) return;
     const id = await mgr.createTest('adapter-v1', 'adapter-v2');
     expect(id).toBeGreaterThan(0);
 
@@ -343,6 +346,7 @@ describe.skipIf(!dbAvailable)('A/B Test Manager', () => {
   });
 
   it('routes request based on traffic split', async () => {
+    if (!dbAvailable) return;
     await mgr.createTest('base-v1', 'candidate-v2', 0.10);
     const spy = vi.spyOn(Math, 'random');
 
@@ -358,10 +362,12 @@ describe.skipIf(!dbAvailable)('A/B Test Manager', () => {
   });
 
   it('returns null routing when no test is active', async () => {
+    if (!dbAvailable) return;
     expect(await mgr.routeRequest()).toBeNull();
   });
 
   it('records interactions and updates metrics', async () => {
+    if (!dbAvailable) return;
     await mgr.createTest('base', 'candidate');
 
     await mgr.recordInteraction('base', false, true); // positive, no requery
@@ -377,6 +383,7 @@ describe.skipIf(!dbAvailable)('A/B Test Manager', () => {
   });
 
   it('promotes candidate when improvement ≥ 5%', async () => {
+    if (!dbAvailable) return;
     const id = await mgr.createTest('base', 'candidate');
     // Set metrics: candidate significantly better (score = 0.20*0.6 + 0.10*0.4 = 0.16 ≥ 0.05)
     await query('UPDATE rl_ab_tests SET base_metrics=$1, candidate_metrics=$2 WHERE id=$3', [
@@ -394,6 +401,7 @@ describe.skipIf(!dbAvailable)('A/B Test Manager', () => {
   });
 
   it('rolls back when candidate does not improve enough', async () => {
+    if (!dbAvailable) return;
     const id = await mgr.createTest('base', 'candidate');
     // Candidate worse (score = -0.05*0.6 + 0*0.4 = -0.03 < 0.05)
     await query('UPDATE rl_ab_tests SET base_metrics=$1, candidate_metrics=$2 WHERE id=$3', [
@@ -414,27 +422,30 @@ describe.skipIf(!dbAvailable)('A/B Test Manager', () => {
 // 4. Training Scheduler (requires PostgreSQL + mocks)
 // ═══════════════════════════════════════════════════════════════════════
 
-describe.skipIf(!dbAvailable)('Training Scheduler', () => {
+describe('Training Scheduler', () => {
   let scheduler: TrainingScheduler;
   let mockCollector: RolloutCollector;
 
   beforeAll(async () => {
+    if (!dbAvailable) return;
     const sql = fs.readFileSync(path.join(__dirname, '..', 'schema-rl.sql'), 'utf-8');
     await query(sql);
   });
 
   beforeEach(async () => {
+    if (!dbAvailable) return;
     await query('DELETE FROM rl_training_runs');
     mockCollector = { countScoredTurnsToday: vi.fn().mockReturnValue(0) } as unknown as RolloutCollector;
     scheduler = new TrainingScheduler(mockCollector);
   });
 
   afterEach(() => {
-    scheduler.stop();
+    if (scheduler) scheduler.stop();
     vi.useRealTimers();
   });
 
   it('detects off-peak hours (00:00-06:00 Lima / UTC-5)', () => {
+    if (!dbAvailable) return;
     vi.useFakeTimers();
 
     // Lima 02:00 → off-peak
@@ -451,6 +462,7 @@ describe.skipIf(!dbAvailable)('Training Scheduler', () => {
   });
 
   it('skips when not enough scored turns', async () => {
+    if (!dbAvailable) return;
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-23T07:00:00Z'));
     (mockCollector.countScoredTurnsToday as any).mockReturnValue(10); // < 50
@@ -461,6 +473,7 @@ describe.skipIf(!dbAvailable)('Training Scheduler', () => {
   });
 
   it('skips when training already in progress', async () => {
+    if (!dbAvailable) return;
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-23T07:00:00Z'));
     (mockCollector.countScoredTurnsToday as any).mockReturnValue(100);
@@ -472,6 +485,7 @@ describe.skipIf(!dbAvailable)('Training Scheduler', () => {
   });
 
   it('records training run in DB when conditions are met', async () => {
+    if (!dbAvailable) return;
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-23T07:00:00Z'));
     (mockCollector.countScoredTurnsToday as any).mockReturnValue(60);

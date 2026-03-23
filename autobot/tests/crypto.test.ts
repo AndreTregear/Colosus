@@ -37,7 +37,7 @@ import {
 } from '../src/crypto/index.js';
 
 // ---------------------------------------------------------------------------
-// Availability flags — set in beforeAll, used by describe.skipIf
+// Availability flags — set in beforeAll, checked inside each it()
 // ---------------------------------------------------------------------------
 let redisAvailable = false;
 let dbAvailable = false;
@@ -314,7 +314,7 @@ describe('crypto/field-crypto', () => {
 // 3. Key cache (needs Redis)
 // ===========================================================================
 
-describe.skipIf(!redisAvailable)('crypto/key-cache (Redis)', () => {
+describe('crypto/key-cache (Redis)', () => {
   const testTenant = 'crypto-test-cache-001';
   const dek = crypto.randomBytes(32);
 
@@ -323,6 +323,7 @@ describe.skipIf(!redisAvailable)('crypto/key-cache (Redis)', () => {
   });
 
   it('should cache and retrieve a DEK', async () => {
+    if (!redisAvailable) return;
     await cacheDEK(testTenant, dek);
     const cached = await getCachedDEK(testTenant);
     expect(cached).not.toBeNull();
@@ -330,20 +331,24 @@ describe.skipIf(!redisAvailable)('crypto/key-cache (Redis)', () => {
   });
 
   it('should report hasCachedDEK = true after caching', async () => {
+    if (!redisAvailable) return;
     await cacheDEK(testTenant, dek);
     expect(await hasCachedDEK(testTenant)).toBe(true);
   });
 
   it('should return null for non-existent tenant', async () => {
+    if (!redisAvailable) return;
     const cached = await getCachedDEK('crypto-test-nonexistent');
     expect(cached).toBeNull();
   });
 
   it('should report hasCachedDEK = false for non-existent tenant', async () => {
+    if (!redisAvailable) return;
     expect(await hasCachedDEK('crypto-test-nonexistent')).toBe(false);
   });
 
   it('should evict a cached DEK', async () => {
+    if (!redisAvailable) return;
     await cacheDEK(testTenant, dek);
     expect(await hasCachedDEK(testTenant)).toBe(true);
 
@@ -353,6 +358,7 @@ describe.skipIf(!redisAvailable)('crypto/key-cache (Redis)', () => {
   });
 
   it('should respect TTL (short expiry)', async () => {
+    if (!redisAvailable) return;
     await cacheDEK(testTenant, dek, 1); // 1 second TTL
     expect(await hasCachedDEK(testTenant)).toBe(true);
     // Wait for expiry
@@ -361,6 +367,7 @@ describe.skipIf(!redisAvailable)('crypto/key-cache (Redis)', () => {
   });
 
   it('should overwrite a cached DEK with a new one', async () => {
+    if (!redisAvailable) return;
     const dekA = crypto.randomBytes(32);
     const dekB = crypto.randomBytes(32);
 
@@ -376,7 +383,7 @@ describe.skipIf(!redisAvailable)('crypto/key-cache (Redis)', () => {
 // 4. Tenant keys (needs DB + Redis)
 // ===========================================================================
 
-describe.skipIf(!dbAvailable || !redisAvailable)('crypto/tenant-keys (DB + Redis)', () => {
+describe('crypto/tenant-keys (DB + Redis)', () => {
   const testTenant = 'crypto-test-00000000-0000-0000-0000-000000000001';
   const password = 'super-secret-password-123!';
 
@@ -389,12 +396,14 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/tenant-keys (DB + Redis
   });
 
   it('should provision tenant keys', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     await provisionTenantKeys(testTenant, password);
     // After provisioning, DEK should be cached
     expect(await hasCachedDEK(testTenant)).toBe(true);
   });
 
   it('should unlock tenant keys with correct password', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     // Evict cached DEK first to force unlock
     await evictDEK(testTenant);
     expect(await hasCachedDEK(testTenant)).toBe(false);
@@ -405,17 +414,20 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/tenant-keys (DB + Redis
   });
 
   it('should fail to unlock with wrong password', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     await evictDEK(testTenant);
     const result = await unlockTenantKeys(testTenant, 'wrong-password');
     expect(result).toBe(false);
   });
 
   it('should return false for non-existent tenant', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     const result = await unlockTenantKeys('crypto-test-nonexistent-tenant', 'any-password');
     expect(result).toBe(false);
   });
 
   it('should re-provision (overwrite) with new password', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     const newPassword = 'new-password-456!';
     await provisionTenantKeys(testTenant, newPassword);
 
@@ -434,12 +446,13 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/tenant-keys (DB + Redis
 // 5. Key rotation (needs DB + Redis)
 // ===========================================================================
 
-describe.skipIf(!dbAvailable || !redisAvailable)('crypto/key-rotation (DB + Redis)', () => {
+describe('crypto/key-rotation (DB + Redis)', () => {
   const testTenant = 'crypto-test-00000000-0000-0000-0000-000000000002';
   const originalPassword = 'original-password-789!';
   const newPassword = 'rotated-password-012!';
 
   beforeAll(async () => {
+    if (!dbAvailable || !redisAvailable) return;
     await provisionTenantKeys(testTenant, originalPassword);
   });
 
@@ -452,6 +465,7 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/key-rotation (DB + Redi
   });
 
   it('should encrypt data before rotation', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     // Ensure DEK is cached
     await unlockTenantKeys(testTenant, originalPassword);
     const dek = await getCachedDEK(testTenant);
@@ -463,23 +477,27 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/key-rotation (DB + Redi
   });
 
   it('should rotate KEK successfully', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     const result = await rotateKEK(testTenant, originalPassword, newPassword);
     expect(result).toBe(true);
   });
 
   it('should unlock with new password after rotation', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     await evictDEK(testTenant);
     const result = await unlockTenantKeys(testTenant, newPassword);
     expect(result).toBe(true);
   });
 
   it('should fail to unlock with old password after rotation', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     await evictDEK(testTenant);
     const result = await unlockTenantKeys(testTenant, originalPassword);
     expect(result).toBe(false);
   });
 
   it('should still decrypt data after rotation (DEK unchanged)', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     // The DEK itself doesn't change during rotation — only how it's wrapped.
     // Encrypt with pre-rotation DEK, rotate, decrypt with post-rotation DEK.
     // Since the DEK is the same, decryption should succeed.
@@ -519,11 +537,13 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/key-rotation (DB + Redi
   });
 
   it('should fail rotation with wrong old password', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     const result = await rotateKEK(testTenant, 'totally-wrong', 'irrelevant');
     expect(result).toBe(false);
   });
 
   it('should fail rotation for non-existent tenant', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     const result = await rotateKEK('crypto-test-nonexistent', 'a', 'b');
     expect(result).toBe(false);
   });
@@ -533,11 +553,12 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/key-rotation (DB + Redi
 // 6. Middleware (needs Redis for DEK cache)
 // ===========================================================================
 
-describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
+describe('crypto/middleware (Redis)', () => {
   const testTenant = 'crypto-test-middleware-001';
   const dek = crypto.randomBytes(32);
 
   beforeAll(async () => {
+    if (!redisAvailable) return;
     await cacheDEK(testTenant, dek);
   });
 
@@ -547,6 +568,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
 
   describe('getEncryptedColumns', () => {
     it('should return encrypted columns for known tables', () => {
+      if (!redisAvailable) return;
       expect(getEncryptedColumns('customers')).toEqual(['name', 'phone', 'address', 'notes', 'location']);
       expect(getEncryptedColumns('orders')).toEqual(['notes', 'delivery_address']);
       expect(getEncryptedColumns('payments')).toEqual(['reference', 'confirmed_by']);
@@ -555,12 +577,14 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should return empty array for unknown tables', () => {
+      if (!redisAvailable) return;
       expect(getEncryptedColumns('nonexistent_table')).toEqual([]);
     });
   });
 
   describe('encryptRecord / decryptRecord', () => {
     it('should encrypt and decrypt customers record', async () => {
+      if (!redisAvailable) return;
       const record = {
         id: 'cust-1',
         tenant_id: testTenant,
@@ -594,6 +618,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should encrypt and decrypt orders record', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'ord-1', notes: 'Deliver before 5pm', delivery_address: 'Av. Test 456', total: 50.00 };
       const encrypted = await encryptRecord(testTenant, 'orders', record);
       expect(encrypted.total).toBe(50.00);
@@ -605,6 +630,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should encrypt and decrypt payments record', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'pay-1', reference: 'ref-abc-123', confirmed_by: 'admin@test.com', amount: 25 };
       const encrypted = await encryptRecord(testTenant, 'payments', record);
       const decrypted = await decryptRecord(testTenant, 'payments', encrypted);
@@ -613,6 +639,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should encrypt and decrypt leads record', async () => {
+      if (!redisAvailable) return;
       const record = {
         id: 'lead-1', name: 'Ana García', email: 'ana@test.com',
         phone: '+51 111 222 333', company: 'TechCorp', notes: 'Hot lead',
@@ -627,6 +654,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should encrypt and decrypt message_log record', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'msg-1', body: 'Hola, quiero hacer un pedido', push_name: 'Carlos' };
       const encrypted = await encryptRecord(testTenant, 'message_log', record);
       const decrypted = await decryptRecord(testTenant, 'message_log', encrypted);
@@ -635,6 +663,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should encrypt and decrypt yape_notifications record', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'yape-1', sender_name: 'María López', amount: 15.50 };
       const encrypted = await encryptRecord(testTenant, 'yape_notifications', record);
       const decrypted = await decryptRecord(testTenant, 'yape_notifications', encrypted);
@@ -642,6 +671,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should encrypt and decrypt business_context record', async () => {
+      if (!redisAvailable) return;
       const record = {
         id: 'ctx-1',
         business_description: 'We sell cakes',
@@ -654,6 +684,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should encrypt and decrypt appointments record', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'apt-1', notes: 'Follow-up meeting at 3pm' };
       const encrypted = await encryptRecord(testTenant, 'appointments', record);
       const decrypted = await decryptRecord(testTenant, 'appointments', encrypted);
@@ -661,6 +692,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should encrypt and decrypt admin_conversations record', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'ac-1', message: 'Internal admin note about client' };
       const encrypted = await encryptRecord(testTenant, 'admin_conversations', record);
       const decrypted = await decryptRecord(testTenant, 'admin_conversations', encrypted);
@@ -668,6 +700,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should encrypt and decrypt conversations record', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'conv-1', messages: '[{"role":"user","content":"hello"}]' };
       const encrypted = await encryptRecord(testTenant, 'conversations', record);
       const decrypted = await decryptRecord(testTenant, 'conversations', encrypted);
@@ -675,6 +708,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should skip null and undefined values', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'cust-null', name: null, phone: undefined, address: '' };
       const encrypted = await encryptRecord(testTenant, 'customers', record);
       expect(encrypted.name).toBeNull();
@@ -683,18 +717,21 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should skip non-string values', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'cust-num', name: 12345 as unknown };
       const encrypted = await encryptRecord(testTenant, 'customers', record);
       expect(encrypted.name).toBe(12345);
     });
 
     it('should pass through records for tables with no encrypted columns', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'prod-1', name: 'Widget', price: 9.99 };
       const encrypted = await encryptRecord(testTenant, 'products', record);
       expect(encrypted).toEqual(record);
     });
 
     it('should not double-encrypt already encrypted values', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'cust-2', name: 'Test Name', phone: '+51 123' };
       const encrypted = await encryptRecord(testTenant, 'customers', record);
 
@@ -705,6 +742,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should return record as-is when no DEK is cached', async () => {
+      if (!redisAvailable) return;
       const otherTenant = 'crypto-test-no-dek';
       const record = { id: 'cust-3', name: 'Plaintext Name' };
       const result = await encryptRecord(otherTenant, 'customers', record);
@@ -714,6 +752,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
 
   describe('decryptRecords (batch)', () => {
     it('should decrypt an array of records', async () => {
+      if (!redisAvailable) return;
       const records = [
         { id: 'cust-a', name: 'Alice', phone: '+51 111' },
         { id: 'cust-b', name: 'Bob', phone: '+51 222' },
@@ -732,6 +771,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should handle empty array', async () => {
+      if (!redisAvailable) return;
       const result = await decryptRecords(testTenant, 'customers', []);
       expect(result).toEqual([]);
     });
@@ -742,6 +782,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     const otherDek = crypto.randomBytes(32);
 
     beforeAll(async () => {
+      if (!redisAvailable) return;
       await cacheDEK(otherTenant, otherDek);
     });
 
@@ -750,6 +791,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
     });
 
     it('should fail to decrypt record with different tenant DEK', async () => {
+      if (!redisAvailable) return;
       const record = { id: 'cust-x', name: 'Secret Name' };
       const encrypted = await encryptRecord(testTenant, 'customers', record);
 
@@ -765,7 +807,7 @@ describe.skipIf(!redisAvailable)('crypto/middleware (Redis)', () => {
 // 7. Backup / Recovery (needs DB + Redis + RSA keys)
 // ===========================================================================
 
-describe.skipIf(!dbAvailable || !redisAvailable)('crypto/backup (DB + Redis + RSA)', () => {
+describe('crypto/backup (DB + Redis + RSA)', () => {
   // Generate RSA key pair for tests
   const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
@@ -778,6 +820,7 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/backup (DB + Redis + RS
   const password = 'backup-test-password!';
 
   beforeAll(async () => {
+    if (!dbAvailable || !redisAvailable) return;
     await provisionTenantKeys(testTenant, password);
   });
 
@@ -790,6 +833,7 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/backup (DB + Redis + RS
   });
 
   it('should create a recovery backup', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     const backup = await createRecoveryBackup(testTenant, publicKey);
     expect(Buffer.isBuffer(backup)).toBe(true);
     // Check version header
@@ -797,6 +841,7 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/backup (DB + Redis + RS
   });
 
   it('should recover from backup and restore keys', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     // Create backup
     const backup = await createRecoveryBackup(testTenant, publicKey);
 
@@ -815,6 +860,7 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/backup (DB + Redis + RS
   });
 
   it('should fail recovery with wrong tenant ID', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     const backup = await createRecoveryBackup(testTenant, publicKey);
     const wrongTenant = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
     const result = await recoverFromBackup(wrongTenant, backup, privateKey, password);
@@ -822,6 +868,7 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/backup (DB + Redis + RS
   });
 
   it('should fail recovery with wrong private key', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     const backup = await createRecoveryBackup(testTenant, publicKey);
 
     // Generate a different key pair
@@ -836,12 +883,14 @@ describe.skipIf(!dbAvailable || !redisAvailable)('crypto/backup (DB + Redis + RS
   });
 
   it('should throw for non-existent tenant during backup creation', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     await expect(
       createRecoveryBackup('nonexistent-not-a-real-tenant', publicKey),
     ).rejects.toThrow('No encryption keys found');
   });
 
   it('should preserve data decryptability after backup/restore cycle', async () => {
+    if (!dbAvailable || !redisAvailable) return;
     // Encrypt some data
     await unlockTenantKeys(testTenant, password);
     const dekBefore = await getCachedDEK(testTenant);

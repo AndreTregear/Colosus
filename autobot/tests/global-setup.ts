@@ -15,8 +15,19 @@ export const ADMIN_COOKIE_PATH = path.resolve(__dirname, '..', '.admin-cookie-ca
 
 export async function setup() {
   try {
-    const schema = fs.readFileSync(path.resolve(__dirname, '..', 'schema.sql'), 'utf-8');
-    await query(schema);
+    // Apply schemas in dependency order
+    const schemaFiles = [
+      'schema.sql',
+      'schema-warehouse.sql',
+      'schema-rl.sql',
+      'schema-customer-memories.sql',
+      'schema-subscriptions.sql',
+      'schema-rls.sql', // depends on all other tables
+    ];
+    for (const file of schemaFiles) {
+      const sql = fs.readFileSync(path.resolve(__dirname, '..', file), 'utf-8');
+      await query(sql);
+    }
   } catch {
     console.warn('[global-setup] PostgreSQL not available — DB tests will be skipped');
   }
