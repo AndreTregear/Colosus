@@ -43,7 +43,7 @@ export async function encryptRecord(
   const encrypted = { ...record };
   for (const col of columns) {
     const val = encrypted[col];
-    if (val != null && typeof val === 'string' && val.length > 0) {
+    if (val != null && typeof val === 'string' && val.length > 0 && !isEncrypted(val)) {
       encrypted[col] = encryptField(val, dek, tenantId, table, col);
     }
   }
