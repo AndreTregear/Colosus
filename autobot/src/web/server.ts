@@ -185,7 +185,7 @@ export function createWebServer(port: number = 3000): void {
   app.use('/api/v1/stream', streamRouter);
 
   // ── Encryption routes ──
-  app.use('/api/v1/encryption', encryptionRouter);
+  app.use('/api/v1/encryption', requireSession, encryptionRouter);
 
   // ── Data Warehouse routes ──
   app.use('/api/v1/warehouse', warehouseRouter);
