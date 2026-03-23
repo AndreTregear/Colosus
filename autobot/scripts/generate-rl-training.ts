@@ -142,7 +142,8 @@ function generatePriceInquiry(biz: BusinessTemplate): Turn[] {
 }
 
 function generateComplaint(biz: BusinessTemplate): Turn[] {
-  const product = pick(biz.products || biz.services!);
+  const items = biz.products.length > 0 ? biz.products : biz.services!;
+  const product = pick(items);
   return [
     { role: 'user', content: `Oye, el ${product.name} que pedí ayer llegó en mal estado. Quiero mi dinero de vuelta.` },
     { role: 'assistant', content: `Lamento mucho lo sucedido con tu ${product.name}. Voy a registrar tu reclamo y coordinar la devolución de S/${product.price.toFixed(2)}. ¿Me puedes enviar una foto del producto?`, reward: 1, rewardSource: 'explicit' },
@@ -152,7 +153,8 @@ function generateComplaint(biz: BusinessTemplate): Turn[] {
 }
 
 function generateBadResponse(biz: BusinessTemplate): Turn[] {
-  const product = pick(biz.products || biz.services!);
+  const items = biz.products.length > 0 ? biz.products : biz.services!;
+  const product = pick(items);
   return [
     { role: 'user', content: `Necesito 5 ${product.name}` },
     { role: 'assistant', content: 'I can help you with that! Let me check the inventory for you.', reward: -1, rewardSource: 'correction' },
@@ -183,7 +185,8 @@ function generateAppointment(biz: BusinessTemplate): Turn[] {
 }
 
 function generateBulkOrder(biz: BusinessTemplate): Turn[] {
-  const product = pick(biz.products || biz.services!);
+  const items = biz.products.length > 0 ? biz.products : biz.services!;
+  const product = pick(items);
   const qty = randomQty(20, 100);
   const total = (product.price * qty).toFixed(2);
   return [
@@ -195,7 +198,8 @@ function generateBulkOrder(biz: BusinessTemplate): Turn[] {
 }
 
 function generateYapePayment(biz: BusinessTemplate): Turn[] {
-  const product = pick(biz.products || biz.services!);
+  const items = biz.products.length > 0 ? biz.products : biz.services!;
+  const product = pick(items);
   const name = pick(NAMES);
   return [
     { role: 'user', content: `Ya hice el Yape de S/${product.price.toFixed(2)} por el ${product.name}` },
@@ -206,7 +210,8 @@ function generateYapePayment(biz: BusinessTemplate): Turn[] {
 }
 
 function generateStockCheck(biz: BusinessTemplate): Turn[] {
-  const product = pick(biz.products || biz.services!);
+  const items = biz.products.length > 0 ? biz.products : biz.services!;
+  const product = pick(items);
   return [
     { role: 'user', content: `¿Cuánto ${product.name} me queda en stock?` },
     { role: 'assistant', content: `Tienes 15 unidades de ${product.name} en stock. A tu ritmo de ventas, te duran unos 5 días. ¿Quieres que programe un reabastecimiento?`, reward: 1, rewardSource: 'explicit' },

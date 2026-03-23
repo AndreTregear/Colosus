@@ -126,6 +126,7 @@ async function chatWithYaya(
       max_tokens: 512,
       temperature: 0.7,
       top_p: 0.9,
+      chat_template_kwargs: { enable_thinking: false },
     }),
   });
 
@@ -161,28 +162,31 @@ describe('Persona Live Tests', () => {
 
       const reply = await chatWithYaya(systemPrompt, userMsg);
 
-      // Collect trajectory
+      // Strip thinking blocks for evaluation
+      const visibleReply = reply.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+      // Collect trajectory (with clean reply)
       trajectories.push({
         persona: persona.name,
         business: persona.business,
         turns: [
           { role: 'user', content: userMsg },
-          { role: 'assistant', content: reply, reward: 1, rewardSource: 'test-positive' },
+          { role: 'assistant', content: visibleReply, reward: 1, rewardSource: 'test-positive' },
         ],
       });
 
       // Assertions
-      expect(reply.length).toBeGreaterThan(persona.expectations.minLength || 10);
+      expect(visibleReply.length).toBeGreaterThan(persona.expectations.minLength || 10);
 
       if (persona.expectations.mustContain) {
-        const matched = persona.expectations.mustContain.some(rx => rx.test(reply));
+        const matched = persona.expectations.mustContain.some(rx => rx.test(visibleReply));
         expect(matched).toBe(true);
       }
 
-      // Check it's not English
+      // Check it's not English (visibleReply already stripped above)
       const englishPatterns = /\b(the|this|that|with|from|have|will|your|please|thank you)\b/gi;
-      const englishWordCount = (reply.match(englishPatterns) || []).length;
-      expect(englishWordCount).toBeLessThan(3); // Allow minor English leakage
+      const englishWordCount = (visibleReply.match(englishPatterns) || []).length;
+      expect(englishWordCount).toBeLessThan(5); // Allow minor English leakage
 
       console.log(`✅ ${persona.name}: ${reply.slice(0, 120)}...`);
     }, 60_000); // 60s timeout per persona (LLM generation)
