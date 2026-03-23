@@ -14,6 +14,7 @@ import { logger } from '../shared/logger.js';
 
 import * as businessContextRepo from '../db/business-context-repo.js';
 import * as tenantsRepo from '../db/tenants-repo.js';
+import { ensureTenantDbRole } from '../integrations/tenant-provisioner.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -107,10 +108,14 @@ async function callOpenClaw(message: string, sessionId?: string): Promise<{ repl
 
 /**
  * Build context string for the agent from tenant data.
+ * Injects RLS-scoped DB credentials so the agent uses a tenant-specific PostgreSQL role.
  */
 async function buildTenantContext(tenantId: string, jid: string, contactName?: string): Promise<string> {
-  const tenant = await tenantsRepo.getTenantById(tenantId);
-  const bizCtx = await businessContextRepo.getBusinessContext(tenantId);
+  const [tenant, bizCtx, dbCreds] = await Promise.all([
+    tenantsRepo.getTenantById(tenantId),
+    businessContextRepo.getBusinessContext(tenantId),
+    ensureTenantDbRole(tenantId),
+  ]);
 
   const tenantName = tenant?.name || 'Unknown';
   const parts: string[] = [];
@@ -119,8 +124,10 @@ async function buildTenantContext(tenantId: string, jid: string, contactName?: s
   if (bizCtx?.businessType) parts.push(`[Business type: ${bizCtx.businessType}]`);
   if (bizCtx?.businessDescription) parts.push(`[Description: ${bizCtx.businessDescription}]`);
 
-  // Tenant isolation: instruct the agent to scope all queries
-  parts.push(`\nCRITICAL SECURITY: You are operating for tenant ${tenantId} (${tenantName}). ALL database queries MUST include WHERE tenant_id = '${tenantId}'. NEVER query without tenant_id filter. NEVER access other tenants' data.`);
+  // RLS-enforced DB access: the tenant role can ONLY see its own data
+  parts.push(`\nDATABASE ACCESS: You have a dedicated database connection scoped to this tenant.`);
+  parts.push(`Use this for ALL database queries: PGPASSWORD='${dbCreds.password}' psql -h ${dbCreds.host} -p ${dbCreds.port} -U ${dbCreds.role} -d ${dbCreds.database} -c 'YOUR_SQL_HERE'`);
+  parts.push(`Your database role has Row-Level Security enforced — you can only see data for tenant ${tenantId}. You do NOT need to add WHERE tenant_id = '...' to your queries; it is enforced automatically.`);
 
   return parts.join(' ');
 }
@@ -172,10 +179,18 @@ export async function processOwnerWithOpenClaw(
   jid: string,
   text: string,
 ): Promise<{ reply: string }> {
-  const tenant = await tenantsRepo.getTenantById(tenantId);
+  const [tenant, dbCreds] = await Promise.all([
+    tenantsRepo.getTenantById(tenantId),
+    ensureTenantDbRole(tenantId),
+  ]);
   const sessionId = `o-${tenantId.slice(0,8)}-${Date.now()}`;
 
-  const messageWithContext = `[Owner of ${tenant?.name || 'business'} (${tenantId})] [This is the business owner talking to you directly]\n\nOwner message: ${text}`;
+  const parts: string[] = [];
+  parts.push(`[Owner of ${tenant?.name || 'business'} (${tenantId})] [This is the business owner talking to you directly]`);
+  parts.push(`\nDATABASE ACCESS: PGPASSWORD='${dbCreds.password}' psql -h ${dbCreds.host} -p ${dbCreds.port} -U ${dbCreds.role} -d ${dbCreds.database} -c 'YOUR_SQL_HERE'`);
+  parts.push(`Row-Level Security is enforced — queries are automatically scoped to your tenant.`);
+
+  const messageWithContext = `${parts.join(' ')}\n\nOwner message: ${text}`;
 
   const { reply } = await callOpenClaw(messageWithContext, sessionId);
 

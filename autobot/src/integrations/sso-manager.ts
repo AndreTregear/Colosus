@@ -13,6 +13,7 @@ import {
   CALCOM_API_URL, CALCOM_API_KEY,
   METABASE_API_URL, METABASE_API_KEY,
 } from '../config.js';
+import { provisionTenantDatabase } from './tenant-provisioner.js';
 
 // ── Types ──
 
@@ -219,8 +220,9 @@ export async function getMetabaseSsoUrl(tenantId: string, tenantName: string, em
 // ── Tenant Registration Hook ──
 
 export async function onTenantRegistered(tenantId: string, tenantName: string, email: string): Promise<void> {
-  // Fire-and-forget: create accounts in all services
+  // Fire-and-forget: create accounts in all services + provision DB role
   const results = await Promise.allSettled([
+    provisionTenantDatabase(tenantId),
     ensureLagoCustomer(tenantId, tenantName),
     ensureCalcomUser(tenantId, tenantName, email),
     ensureMetabaseUser(tenantId, tenantName, email),
