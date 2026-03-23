@@ -1,45 +1,129 @@
 /**
- * OpenClaw Bridge — replaces the Mastra-based AI engine.
+ * OpenClaw Bridge — calls the yaya-platform OpenClaw agent via CLI.
  *
- * Delegates all AI processing to the OpenClaw agent API via HTTP.
- * OpenClaw handles conversation memory, skill selection, and MCP tool execution.
- * This bridge is stateless — it just forwards tenant context and returns replies.
+ * Uses `openclaw agent --agent yaya-platform --message "..." --json`
+ * to invoke the local OpenClaw agent running on Qwen3.5-27B via vLLM.
+ *
+ * OpenClaw handles: conversation memory, system prompt (SOUL.md),
+ * skill selection, tool calling (exec, read, write, web_search, etc.)
  */
 
-import { OPENCLAW_API_URL, OPENCLAW_API_KEY } from '../config.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { logger } from '../shared/logger.js';
 
-// Re-export isOwnerChat from the DB layer directly (no Mastra dependency)
 import * as businessContextRepo from '../db/business-context-repo.js';
 import * as tenantsRepo from '../db/tenants-repo.js';
+
+const execFileAsync = promisify(execFile);
 
 export interface OpenClawBridgeResult {
   reply: string;
   imagesToSend: Array<{ imagePath: string; caption: string }>;
 }
 
-interface OpenClawChatRequest {
-  message: string;
-  context: {
-    tenantId: string;
-    channel: string;
-    contactJid: string;
-    contactName?: string;
-    isOwner: boolean;
-    imageUrl?: string;
+const OPENCLAW_BIN = process.env.OPENCLAW_BIN || 'openclaw';
+const OPENCLAW_AGENT = process.env.OPENCLAW_AGENT || 'yaya-platform';
+const OPENCLAW_TIMEOUT_MS = Number(process.env.OPENCLAW_TIMEOUT_MS) || 120_000;
+
+interface OpenClawResponse {
+  result?: {
+    payloads?: Array<{ text: string; mediaUrl?: string | null }>;
+    meta?: {
+      durationMs?: number;
+      agentMeta?: { model?: string; sessionId?: string };
+    };
   };
+  error?: string;
 }
-
-interface OpenClawChatResponse {
-  reply: string;
-  images?: Array<{ imagePath: string; caption: string }>;
-}
-
-const REQUEST_TIMEOUT_MS = 120_000;
 
 /**
- * Process a customer message through OpenClaw with streaming support.
- * Uses SSE if the OpenClaw API supports it, otherwise falls back to a single POST.
+ * Call the OpenClaw agent and return its reply.
+ */
+async function callOpenClaw(message: string, sessionId?: string): Promise<{ reply: string; durationMs: number }> {
+  const startTime = Date.now();
+
+  const args = [
+    'agent',
+    '--agent', OPENCLAW_AGENT,
+    '--message', message,
+    '--json',
+  ];
+
+  if (sessionId) {
+    args.push('--session-id', sessionId);
+  }
+
+  try {
+    logger.debug({ agent: OPENCLAW_AGENT, messageLength: message.length, sessionId }, 'Calling OpenClaw agent');
+
+    const { stdout, stderr } = await execFileAsync(OPENCLAW_BIN, args, {
+      timeout: OPENCLAW_TIMEOUT_MS,
+      maxBuffer: 1024 * 1024, // 1MB
+      env: { ...process.env },
+    });
+
+    if (stderr) {
+      logger.debug({ stderr: stderr.slice(0, 500) }, 'OpenClaw stderr');
+    }
+
+    // Parse JSON — openclaw may output non-JSON before the JSON (warnings, config writes)
+    // Find the first { that starts a JSON object
+    const jsonStart = stdout.indexOf('{');
+    if (jsonStart === -1) {
+      logger.error({ stdout: stdout.slice(0, 500) }, 'OpenClaw returned no JSON');
+      return { reply: '', durationMs: Date.now() - startTime };
+    }
+
+    const jsonStr = stdout.slice(jsonStart);
+    const data: OpenClawResponse = JSON.parse(jsonStr);
+
+    if (data.error) {
+      logger.error({ error: data.error }, 'OpenClaw agent error');
+      return { reply: '', durationMs: Date.now() - startTime };
+    }
+
+    const text = data.result?.payloads?.[0]?.text || '';
+    const modelDuration = data.result?.meta?.durationMs || 0;
+
+    logger.info({
+      agent: OPENCLAW_AGENT,
+      model: data.result?.meta?.agentMeta?.model,
+      replyLength: text.length,
+      modelDurationMs: modelDuration,
+      totalDurationMs: Date.now() - startTime,
+    }, 'OpenClaw agent replied');
+
+    return { reply: text, durationMs: Date.now() - startTime };
+  } catch (err: any) {
+    if (err.killed) {
+      logger.error({ timeoutMs: OPENCLAW_TIMEOUT_MS }, 'OpenClaw agent timed out');
+    } else {
+      logger.error({ err: err.message, code: err.code }, 'OpenClaw agent call failed');
+    }
+    return { reply: '', durationMs: Date.now() - startTime };
+  }
+}
+
+/**
+ * Build context string for the agent from tenant data.
+ */
+async function buildTenantContext(tenantId: string, jid: string, contactName?: string): Promise<string> {
+  const tenant = await tenantsRepo.getTenantById(tenantId);
+  const bizCtx = await businessContextRepo.getBusinessContext(tenantId);
+
+  const parts: string[] = [];
+  parts.push(`[Tenant: ${tenant?.name || 'Unknown'} (${tenantId})]`);
+  parts.push(`[Customer: ${contactName || jid}]`);
+  if (bizCtx?.businessType) parts.push(`[Business type: ${bizCtx.businessType}]`);
+  if (bizCtx?.businessDescription) parts.push(`[Description: ${bizCtx.businessDescription}]`);
+
+  return parts.join(' ');
+}
+
+/**
+ * Process a customer message through OpenClaw.
+ * Called from ai-queue.ts for incoming WhatsApp messages.
  */
 export async function processWithOpenClaw(
   tenantId: string,
@@ -49,118 +133,51 @@ export async function processWithOpenClaw(
   onChunk: (chunk: string) => Promise<void>,
   imageMediaPath?: string,
 ): Promise<OpenClawBridgeResult> {
-  const url = `${OPENCLAW_API_URL}/chat`;
+  const context = await buildTenantContext(tenantId, jid);
+  const sessionId = `tenant-${tenantId}-${jid.split('@')[0]}`;
 
-  const body: OpenClawChatRequest = {
-    message: text,
-    context: {
-      tenantId,
-      channel,
-      contactJid: jid,
-      isOwner: false,
-      ...(imageMediaPath && { imageUrl: imageMediaPath }),
-    },
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream, application/json',
-        ...(OPENCLAW_API_KEY && { 'Authorization': `Bearer ${OPENCLAW_API_KEY}` }),
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'unknown');
-      logger.error({ tenantId, jid, status: response.status, errorText }, 'OpenClaw API error');
-      return { reply: 'Lo siento, estoy teniendo dificultades técnicas. Por favor, intenta de nuevo en un momento.', imagesToSend: [] };
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-
-    // SSE streaming path
-    if (contentType.includes('text/event-stream') && response.body) {
-      return await handleSSEStream(response.body, onChunk, tenantId, jid);
-    }
-
-    // JSON fallback (non-streaming)
-    const data = await response.json() as OpenClawChatResponse;
-
-    if (data.reply) {
-      await onChunk(data.reply);
-    }
-
-    return {
-      reply: data.reply || '',
-      imagesToSend: data.images || [],
-    };
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'TimeoutError') {
-      logger.error({ tenantId, jid, timeoutMs: REQUEST_TIMEOUT_MS }, 'OpenClaw request timed out');
-    } else {
-      logger.error({ err, tenantId, jid }, 'OpenClaw bridge error');
-    }
-    return { reply: 'Lo siento, estoy teniendo dificultades técnicas. Por favor, intenta de nuevo en un momento.', imagesToSend: [] };
+  let fullMessage = text;
+  if (imageMediaPath) {
+    fullMessage += `\n[Customer sent an image: ${imageMediaPath}]`;
   }
+
+  // Prepend context so the agent knows who's talking
+  const messageWithContext = `${context}\n\nCustomer message: ${fullMessage}`;
+
+  const { reply } = await callOpenClaw(messageWithContext, sessionId);
+
+  if (!reply) {
+    const fallback = 'Lo siento, estoy teniendo dificultades técnicas. Por favor, intenta de nuevo en un momento.';
+    await onChunk(fallback);
+    return { reply: fallback, imagesToSend: [] };
+  }
+
+  // Send as single chunk (OpenClaw CLI doesn't stream)
+  await onChunk(reply);
+  return { reply, imagesToSend: [] };
 }
 
 /**
- * Process an owner/admin message through OpenClaw (non-streaming).
+ * Process an owner/admin message through OpenClaw.
+ * Called from ai-queue.ts for self-chat (owner messaging their own number).
  */
 export async function processOwnerWithOpenClaw(
   tenantId: string,
   jid: string,
   text: string,
 ): Promise<{ reply: string }> {
-  const url = `${OPENCLAW_API_URL}/chat`;
+  const tenant = await tenantsRepo.getTenantById(tenantId);
+  const sessionId = `owner-${tenantId}`;
 
-  const body: OpenClawChatRequest = {
-    message: text,
-    context: {
-      tenantId,
-      channel: 'whatsapp',
-      contactJid: jid,
-      isOwner: true,
-    },
-  };
+  const messageWithContext = `[Owner of ${tenant?.name || 'business'} (${tenantId})] [This is the business owner talking to you directly]\n\nOwner message: ${text}`;
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...(OPENCLAW_API_KEY && { 'Authorization': `Bearer ${OPENCLAW_API_KEY}` }),
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+  const { reply } = await callOpenClaw(messageWithContext, sessionId);
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'unknown');
-      logger.error({ tenantId, jid, status: response.status, errorText }, 'OpenClaw owner API error');
-      return { reply: 'Lo siento, hubo un error. Intenta de nuevo.' };
-    }
-
-    const data = await response.json() as OpenClawChatResponse;
-    return { reply: data.reply || 'Entendido. ¿Hay algo más que necesites?' };
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'TimeoutError') {
-      logger.error({ tenantId, jid, timeoutMs: REQUEST_TIMEOUT_MS }, 'OpenClaw owner request timed out');
-    } else {
-      logger.error({ err, tenantId, jid }, 'OpenClaw owner bridge error');
-    }
-    return { reply: 'Lo siento, hubo un error. Intenta de nuevo.' };
-  }
+  return { reply: reply || 'Lo siento, hubo un error. Intenta de nuevo.' };
 }
 
 /**
  * Check if a JID is the business owner (self-chat).
- * Inlined from owner-agent.ts — queries tenant_admin_settings directly.
  */
 export async function isOwnerChat(tenantId: string, jid: string): Promise<boolean> {
   const settings = await businessContextRepo.getAdminSettings(tenantId);
@@ -184,73 +201,4 @@ export async function isOwnerChat(tenantId: string, jid: string): Promise<boolea
   }
 
   return false;
-}
-
-// ── SSE Stream Handler ──
-
-async function handleSSEStream(
-  body: ReadableStream<Uint8Array>,
-  onChunk: (chunk: string) => Promise<void>,
-  tenantId: string,
-  jid: string,
-): Promise<OpenClawBridgeResult> {
-  const decoder = new TextDecoder();
-  const reader = body.getReader();
-  let fullReply = '';
-  let images: Array<{ imagePath: string; caption: string }> = [];
-  let buffer = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // Process complete SSE lines
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-
-        if (data === '[DONE]') continue;
-
-        try {
-          const event = JSON.parse(data) as {
-            type?: string;
-            text?: string;
-            chunk?: string;
-            reply?: string;
-            images?: Array<{ imagePath: string; caption: string }>;
-          };
-
-          if (event.type === 'chunk' || event.chunk || event.text) {
-            const chunk = event.chunk || event.text || '';
-            if (chunk) {
-              fullReply += chunk;
-              await onChunk(chunk);
-            }
-          } else if (event.type === 'done' || event.reply) {
-            // Final event with complete reply and images
-            if (event.reply) fullReply = event.reply;
-            if (event.images) images = event.images;
-          }
-        } catch {
-          // Non-JSON SSE data — treat as plain text chunk
-          if (data) {
-            fullReply += data;
-            await onChunk(data);
-          }
-        }
-      }
-    }
-  } catch (err) {
-    logger.error({ err, tenantId, jid }, 'SSE stream read error');
-  } finally {
-    reader.releaseLock();
-  }
-
-  return { reply: fullReply, imagesToSend: images };
 }
