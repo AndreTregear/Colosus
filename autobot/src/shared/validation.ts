@@ -78,7 +78,7 @@ export const createCustomerSchema = z.object({
 // ── Orders ───────────────────────────────────
 
 export const createOrderSchema = z.object({
-  customerId: z.number().int().positive(),
+  customerId: z.number().int().positive().nullable().optional(),
   items: z.array(z.object({
     productId: z.number().int().positive(),
     quantity: z.number().int().min(1),
