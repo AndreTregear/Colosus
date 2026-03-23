@@ -14,6 +14,7 @@ import { logger } from '../../shared/logger.js';
 import { validateBody } from '../../shared/validate.js';
 import { registerSchema } from '../../shared/validation.js';
 import { onTenantRegistered } from '../../integrations/sso-manager.js';
+import { provisionTenantKeys } from '../../crypto/tenant-keys.js';
 
 const router = Router();
 
@@ -76,14 +77,19 @@ router.post('/', validateBody(registerSchema), async (req, res) => {
       return;
     }
 
-    // 3. Auto-assign free plan
-    logger.debug({ email, tenantId: tenant.id }, 'Step 3: Assigning free plan');
+    // 3. Provision envelope encryption keys for the tenant
+    logger.debug({ email, tenantId: tenant.id }, 'Step 3: Provisioning encryption keys');
+    await provisionTenantKeys(tenant.id, password);
+    logger.debug({ email, tenantId: tenant.id }, 'Step 3 complete: Encryption keys provisioned');
+
+    // 4. Auto-assign free plan
+    logger.debug({ email, tenantId: tenant.id }, 'Step 4: Assigning free plan');
     const freePlan = await plansRepo.getPlanBySlug('free');
     if (freePlan) {
       await tenantSubsRepo.subscribe(tenant.id, freePlan.id, 'free');
-      logger.debug({ email, tenantId: tenant.id, planId: freePlan.id }, 'Step 3 complete: Free plan assigned');
+      logger.debug({ email, tenantId: tenant.id, planId: freePlan.id }, 'Step 4 complete: Free plan assigned');
     } else {
-      logger.debug({ email, tenantId: tenant.id }, 'Step 3: No free plan found, skipping');
+      logger.debug({ email, tenantId: tenant.id }, 'Step 4: No free plan found, skipping');
     }
 
     logger.info({ email, tenantId: tenant.id, slug }, 'New tenant registered via self-service');

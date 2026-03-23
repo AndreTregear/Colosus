@@ -15,6 +15,13 @@ export async function login(email, password) {
     throw new Error(err.message || 'Error al iniciar sesión');
   }
   const data = await res.json();
+  // Unlock encryption keys with the same password (fire-and-forget)
+  fetch('/api/v1/encryption/unlock', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ password }),
+  }).catch(() => {});
   // Fetch session to populate user info
   const session = await fetchSession();
   return session || data;
@@ -49,6 +56,8 @@ export async function fetchSession() {
 
 export async function logout() {
   try {
+    // Evict DEK from cache before signing out
+    await fetch('/api/v1/encryption/lock', { method: 'POST', credentials: 'include' }).catch(() => {});
     await fetch(`${AUTH_BASE}/sign-out`, { method: 'POST', credentials: 'include' });
   } catch { /* ok */ }
   setSession(null);

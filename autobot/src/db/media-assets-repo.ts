@@ -17,7 +17,7 @@ const rowToAsset = createRowMapper<MediaAsset>({
   transcription: 'transcription',
   processingStatus: 'processing_status',
   metadata: { col: 'metadata', type: 'json', default: {} },
-  encryptionKeyId: 'encryption_key_id',
+  encryptionTenantId: 'encryption_tenant_id',
   createdAt: { col: 'created_at', type: 'date' },
 });
 
@@ -29,10 +29,10 @@ export async function createAsset(asset: {
   sizeBytes: number;
   durationMs?: number;
   metadata?: Record<string, unknown>;
-  encryptionKeyId?: string;
+  encryptionTenantId?: string;
 }): Promise<MediaAsset> {
   const row = await queryOne<Record<string, unknown>>(
-    `INSERT INTO media_assets (tenant_id, category, original_key, mime_type, size_bytes, duration_ms, metadata, encryption_key_id)
+    `INSERT INTO media_assets (tenant_id, category, original_key, mime_type, size_bytes, duration_ms, metadata, encryption_tenant_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
     [
@@ -43,7 +43,7 @@ export async function createAsset(asset: {
       asset.sizeBytes,
       asset.durationMs ?? null,
       JSON.stringify(asset.metadata ?? {}),
-      asset.encryptionKeyId ?? null,
+      asset.encryptionTenantId ?? null,
     ],
   );
   return rowToAsset(row!);

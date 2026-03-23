@@ -1,135 +1,95 @@
 import { Router, type Request, type Response } from 'express';
-import { validatePublicKey, keyFingerprint, encryptField, parseEncryptedField } from '../../crypto/envelope.js';
-import * as encKeysRepo from '../../db/encryption-keys-repo.js';
+import { getCachedDEK, evictDEK, hasCachedDEK } from '../../crypto/key-cache.js';
+import { unlockTenantKeys } from '../../crypto/tenant-keys.js';
+import { encryptField, decryptField, isEncrypted } from '../../crypto/field-crypto.js';
 import { getTenantId } from '../../shared/validate.js';
 import { logger } from '../../shared/logger.js';
 
 export const encryptionRouter = Router();
 
-function param(req: Request, name: string): string {
-  const v = req.params[name];
-  return Array.isArray(v) ? v[0] : v;
-}
-
 /**
- * POST /api/v1/encryption/keys
+ * POST /api/v1/encryption/unlock
+ * Unlock tenant keys by providing password. Called after login.
  */
-encryptionRouter.post('/keys', async (req: Request, res: Response) => {
+encryptionRouter.post('/unlock', async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
-    const { publicKey } = req.body;
-    if (!publicKey || typeof publicKey !== 'string') {
-      res.status(400).json({ error: 'publicKey (PEM format) is required' });
+    const { password } = req.body;
+    if (!password || typeof password !== 'string') {
+      res.status(400).json({ error: 'password is required' });
       return;
     }
 
-    if (!validatePublicKey(publicKey)) {
-      res.status(400).json({ error: 'Invalid RSA public key' });
+    const ok = await unlockTenantKeys(tenantId, password);
+    if (!ok) {
+      res.status(401).json({ error: 'Failed to unlock encryption keys' });
       return;
     }
 
-    const fingerprint = keyFingerprint(publicKey);
-
-    const existing = await encKeysRepo.getKeyByFingerprint(tenantId, fingerprint);
-    if (existing) {
-      res.status(409).json({ error: 'Key already registered', keyId: existing.id });
-      return;
-    }
-
-    const key = await encKeysRepo.registerKey(tenantId, publicKey, fingerprint);
-
-    res.status(201).json({
-      id: key.id,
-      fingerprint: key.keyFingerprint,
-      status: key.status,
-      createdAt: key.createdAt,
-    });
+    res.json({ ok: true, message: 'Encryption keys unlocked' });
   } catch (err) {
-    logger.error({ err }, 'Register encryption key failed');
-    res.status(500).json({ error: 'Failed to register key' });
+    logger.error({ err }, 'Unlock encryption keys failed');
+    res.status(500).json({ error: 'Failed to unlock keys' });
   }
 });
 
 /**
- * GET /api/v1/encryption/keys
+ * POST /api/v1/encryption/lock
+ * Evict DEK from cache (on logout).
  */
-encryptionRouter.get('/keys', async (req: Request, res: Response) => {
+encryptionRouter.post('/lock', async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
-    const keys = await encKeysRepo.listKeys(tenantId);
-
-    res.json(keys.map(k => ({
-      id: k.id,
-      fingerprint: k.keyFingerprint,
-      algorithm: k.algorithm,
-      status: k.status,
-      createdAt: k.createdAt,
-      rotatedAt: k.rotatedAt,
-    })));
+    await evictDEK(tenantId);
+    res.json({ ok: true, message: 'Encryption keys locked' });
   } catch (err) {
-    logger.error({ err }, 'List encryption keys failed');
-    res.status(500).json({ error: 'Failed to list keys' });
+    logger.error({ err }, 'Lock encryption keys failed');
+    res.status(500).json({ error: 'Failed to lock keys' });
   }
 });
 
 /**
- * POST /api/v1/encryption/keys/:id/rotate
+ * GET /api/v1/encryption/status
+ * Check if tenant DEK is cached (keys are unlocked).
  */
-encryptionRouter.post('/keys/:id/rotate', async (req: Request, res: Response) => {
+encryptionRouter.get('/status', async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
-
-    const oldKey = await encKeysRepo.getKeyById(param(req, 'id'));
-    if (!oldKey || oldKey.tenantId !== tenantId) {
-      res.status(404).json({ error: 'Key not found' });
-      return;
-    }
-
-    const { publicKey } = req.body;
-    if (!publicKey || !validatePublicKey(publicKey)) {
-      res.status(400).json({ error: 'Valid new publicKey (PEM format) is required' });
-      return;
-    }
-
-    const fingerprint = keyFingerprint(publicKey);
-    await encKeysRepo.rotateKey(oldKey.id);
-    const newKey = await encKeysRepo.registerKey(tenantId, publicKey, fingerprint);
-
-    res.json({
-      rotatedKeyId: oldKey.id,
-      newKey: {
-        id: newKey.id,
-        fingerprint: newKey.keyFingerprint,
-        status: newKey.status,
-        createdAt: newKey.createdAt,
-      },
-    });
+    const unlocked = await hasCachedDEK(tenantId);
+    res.json({ unlocked });
   } catch (err) {
-    logger.error({ err }, 'Rotate encryption key failed');
-    res.status(500).json({ error: 'Failed to rotate key' });
+    logger.error({ err }, 'Encryption status check failed');
+    res.status(500).json({ error: 'Failed to check status' });
   }
 });
 
 /**
  * POST /api/v1/encryption/encrypt
+ * Encrypt a single value using the tenant's cached DEK.
  */
 encryptionRouter.post('/encrypt', async (req: Request, res: Response) => {
   try {
     const tenantId = getTenantId(req);
-    const { value } = req.body;
+    const { value, table, column } = req.body;
     if (!value || typeof value !== 'string') {
       res.status(400).json({ error: 'value (string) is required' });
       return;
     }
 
-    const activeKey = await encKeysRepo.getActiveKey(tenantId);
-    if (!activeKey) {
-      res.status(404).json({ error: 'No active encryption key. Register a key first.' });
+    const dek = await getCachedDEK(tenantId);
+    if (!dek) {
+      res.status(403).json({ error: 'Encryption keys not unlocked. Call /unlock first.' });
       return;
     }
 
-    const encrypted = encryptField(value, activeKey.publicKey);
-    res.json({ encrypted, keyFingerprint: activeKey.keyFingerprint, keyId: activeKey.id });
+    const encrypted = encryptField(
+      value,
+      dek,
+      tenantId,
+      table || '_manual',
+      column || '_value',
+    );
+    res.json({ encrypted });
   } catch (err) {
     logger.error({ err }, 'Encrypt value failed');
     res.status(500).json({ error: 'Encryption failed' });
@@ -137,37 +97,44 @@ encryptionRouter.post('/encrypt', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/v1/encryption/decrypt-request
+ * POST /api/v1/encryption/decrypt
+ * Decrypt a single value using the tenant's cached DEK.
  */
-encryptionRouter.post('/decrypt-request', async (req: Request, res: Response) => {
+encryptionRouter.post('/decrypt', async (req: Request, res: Response) => {
   try {
-    getTenantId(req); // auth check
-
-    const { encryptedFields } = req.body;
-    if (!Array.isArray(encryptedFields)) {
-      res.status(400).json({ error: 'encryptedFields (array of base64 strings) is required' });
+    const tenantId = getTenantId(req);
+    const { value, table, column } = req.body;
+    if (!value || typeof value !== 'string') {
+      res.status(400).json({ error: 'value (string) is required' });
       return;
     }
 
-    const results = encryptedFields.map((field: string) => {
-      try {
-        const payload = parseEncryptedField(field);
-        return {
-          wrappedDek: payload.wrappedDek,
-          iv: payload.iv,
-          authTag: payload.authTag,
-          encryptedData: payload.encryptedData,
-          keyFingerprint: payload.keyFingerprint,
-          algorithm: payload.algorithm,
-        };
-      } catch {
-        return { error: 'Invalid encrypted field' };
-      }
-    });
+    if (!isEncrypted(value)) {
+      res.status(400).json({ error: 'Value does not appear to be encrypted' });
+      return;
+    }
 
-    res.json({ fields: results });
+    const dek = await getCachedDEK(tenantId);
+    if (!dek) {
+      res.status(403).json({ error: 'Encryption keys not unlocked. Call /unlock first.' });
+      return;
+    }
+
+    const decrypted = decryptField(
+      value,
+      dek,
+      tenantId,
+      table || '_manual',
+      column || '_value',
+    );
+    if (decrypted === null) {
+      res.status(400).json({ error: 'Decryption failed (wrong key or tampered data)' });
+      return;
+    }
+
+    res.json({ decrypted });
   } catch (err) {
-    logger.error({ err }, 'Decrypt request failed');
-    res.status(500).json({ error: 'Decrypt request failed' });
+    logger.error({ err }, 'Decrypt value failed');
+    res.status(500).json({ error: 'Decryption failed' });
   }
 });

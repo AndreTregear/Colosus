@@ -6,18 +6,14 @@
 -- ═══════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS tenant_encryption_keys (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  public_key TEXT NOT NULL,
-  key_fingerprint VARCHAR(64) NOT NULL,
-  algorithm VARCHAR(20) NOT NULL DEFAULT 'RSA-OAEP',
-  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  encrypted_dek BYTEA NOT NULL,
+  dek_salt BYTEA NOT NULL,
+  dek_nonce BYTEA NOT NULL,
+  key_version INT NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   rotated_at TIMESTAMPTZ
 );
-
-CREATE INDEX IF NOT EXISTS idx_enc_keys_tenant ON tenant_encryption_keys(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_enc_keys_fingerprint ON tenant_encryption_keys(key_fingerprint);
 
 -- ═══════════════════════════════════════════════
 -- Media Assets (shared between media server + warehouse)
@@ -38,7 +34,7 @@ CREATE TABLE IF NOT EXISTS media_assets (
   transcription TEXT,
   processing_status TEXT NOT NULL DEFAULT 'pending',
   metadata JSONB NOT NULL DEFAULT '{}',
-  encryption_key_id UUID REFERENCES tenant_encryption_keys(id),
+  encryption_tenant_id UUID REFERENCES tenant_encryption_keys(tenant_id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

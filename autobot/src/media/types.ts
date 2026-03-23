@@ -17,7 +17,7 @@ export interface MediaAsset {
   transcription: string | null;
   processingStatus: ProcessingStatus;
   metadata: Record<string, unknown>;
-  encryptionKeyId: string | null;
+  encryptionTenantId: string | null;
   createdAt: string;
 }
 
