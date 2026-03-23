@@ -42,6 +42,27 @@ export async function getCustomerByJid(tenantId: string, jid: string, channel: s
   return repo.findOneByColumns({ jid, channel }, tenantId);
 }
 
+export async function createCustomer(tenantId: string, input: {
+  name: string;
+  phone?: string | null;
+  channel?: string;
+  jid?: string;
+  address?: string | null;
+  notes?: string | null;
+}): Promise<Customer> {
+  const jid = input.jid || input.phone || `web-${Date.now()}`;
+  const channel = input.channel || 'web';
+  return repo.create({
+    tenantId,
+    channel,
+    jid,
+    name: input.name,
+    phone: input.phone ?? null,
+    address: input.address ?? null,
+    notes: input.notes ?? null,
+  } as Partial<Customer>, tenantId);
+}
+
 export async function getOrCreateCustomer(tenantId: string, jid: string, channel: string = 'whatsapp'): Promise<Customer> {
   const existing = await getCustomerByJid(tenantId, jid, channel);
   if (existing) return existing;

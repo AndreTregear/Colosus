@@ -57,6 +57,25 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   next();
 }
 
+export function requireTenantOwner(req: Request, res: Response, next: NextFunction): void {
+  if (!req.sessionUser) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+  if (!req.sessionUser.tenantId) {
+    res.status(403).json({ error: 'No tenant associated with this account' });
+    return;
+  }
+  // If a tenantId is specified in the route (e.g. /api/tenants/:tenantId),
+  // verify the user owns that tenant. Otherwise, just require a tenant.
+  const paramTenantId = req.params.tenantId;
+  if (paramTenantId && paramTenantId !== req.sessionUser.tenantId) {
+    res.status(403).json({ error: 'Access denied: you can only access your own tenant' });
+    return;
+  }
+  next();
+}
+
 export function requireCustomer(req: Request, res: Response, next: NextFunction): void {
   if (!req.sessionUser?.tenantId) {
     res.status(403).json({ error: 'Tenant access required' });

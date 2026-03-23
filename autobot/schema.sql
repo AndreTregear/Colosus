@@ -557,6 +557,19 @@ DO $$ BEGIN
   ALTER TABLE products ADD CONSTRAINT chk_products_stock CHECK (stock >= 0);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- Tenant service accounts (SSO mappings to external services)
+CREATE TABLE IF NOT EXISTS tenant_service_accounts (
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  service TEXT NOT NULL,  -- 'lago', 'calcom', 'metabase'
+  external_id TEXT NOT NULL,
+  external_email TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (tenant_id, service)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_service_accounts_service ON tenant_service_accounts(service);
+
 -- ── Performance indices for common tenant-scoped queries ──
 CREATE INDEX IF NOT EXISTS idx_orders_tenant_created ON orders(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_customers_tenant_created ON customers(tenant_id, created_at DESC);

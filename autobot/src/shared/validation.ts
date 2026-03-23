@@ -64,7 +64,29 @@ export const createProductSchema = z.object({
 
 export const updateProductSchema = createProductSchema.partial();
 
+// ── Customers ───────────────────────────────
+
+export const createCustomerSchema = z.object({
+  name: z.string().min(1).max(300),
+  phone: z.string().max(50).nullable().optional(),
+  channel: z.string().max(50).default('web'),
+  jid: z.string().max(255).optional(),
+  address: z.string().max(500).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
+
 // ── Orders ───────────────────────────────────
+
+export const createOrderSchema = z.object({
+  customerId: z.number().int().positive(),
+  items: z.array(z.object({
+    productId: z.number().int().positive(),
+    quantity: z.number().int().min(1),
+  })).min(1),
+  deliveryType: z.string().max(50).default('none'),
+  deliveryAddress: z.string().max(500).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
 
 export const updateOrderStatusSchema = z.object({
   status: orderStatusEnum,

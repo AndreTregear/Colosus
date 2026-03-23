@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from '../auth/auth.js';
-import { requireSession, requireAdmin } from './middleware/session-auth.js';
+import { requireSession, requireAdmin, requireTenantOwner } from './middleware/session-auth.js';
 import { logger } from '../shared/logger.js';
 import { BETTER_AUTH_URL, UPLOADS_DIR } from '../config.js';
 
@@ -39,6 +39,7 @@ import { aiUsageAdminRouter } from './routes/api-ai-usage.js';
 import { businessIntelligenceRouter } from './routes/api-business-intelligence.js';
 import { leadsRouter } from './routes/api-leads.js';
 import { websiteLeadsRouter } from './routes/api-website-leads.js';
+import { ssoRouter } from './routes/api-sso.js';
 // simulate route removed — was Mastra-only demo
 import { redeployRouter } from './routes/api-redeploy.js';
 
@@ -158,12 +159,12 @@ export function createWebServer(port: number = 3000): void {
   // ── Admin routes (session + admin role) ──
   app.use('/api/rules', requireSession, requireAdmin, rulesRouter);
   app.use('/api/messages', requireSession, requireAdmin, messagesRouter);
-  app.use('/api/status', requireSession, requireAdmin, statusRouter);
-  app.use('/api/qr', requireSession, requireAdmin, qrRouter);
+  app.use('/api/status', requireSession, requireTenantOwner, statusRouter);
+  app.use('/api/qr', requireSession, requireTenantOwner, qrRouter);
   app.use('/api/admin', requireSession, requireAdmin, adminRouter);
   app.use('/api/admin/plans', requireSession, requireAdmin, adminPlansRouter);
   app.use('/api/admin/ai-usage', requireSession, requireAdmin, aiUsageAdminRouter);
-  app.use('/api/tenants', requireSession, requireAdmin, tenantsRouter);
+  app.use('/api/tenants', requireSession, requireTenantOwner, tenantsRouter);
   app.use('/api/queue', requireSession, requireAdmin, queueRouter);
 
   // ── Tenant routes (auth middleware applied inside routers) ──
@@ -177,6 +178,7 @@ export function createWebServer(port: number = 3000): void {
   app.use('/api/calendar', calendarRouter);
   app.use('/api/merchant-ai', merchantAIRouter);
   app.use('/api/leads', requireSession, leadsRouter);
+  app.use('/api/sso', requireSession, ssoRouter);
 
   // ── Media Server routes ──
   app.use('/api/v1/media', mediaRouter);

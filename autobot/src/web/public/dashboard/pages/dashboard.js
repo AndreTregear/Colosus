@@ -42,6 +42,15 @@ export function mount(container) {
       <button class="action-card" onclick="location.hash='#payments'">
         <span class="action-icon">💰</span> Ver Pagos Yape
       </button>
+      <button class="action-card" onclick="window.open('/api/sso/lago','_blank')">
+        <span class="action-icon">🧾</span> Ver Facturación
+      </button>
+      <button class="action-card" onclick="window.open('/api/sso/calcom','_blank')">
+        <span class="action-icon">📅</span> Ver Agenda
+      </button>
+      <button class="action-card" onclick="window.open('/api/sso/metabase','_blank')">
+        <span class="action-icon">📊</span> Ver Analíticas
+      </button>
     </div>
 
     <div class="content-grid">

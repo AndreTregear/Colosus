@@ -13,6 +13,7 @@ import { query } from '../../db/pool.js';
 import { logger } from '../../shared/logger.js';
 import { validateBody } from '../../shared/validate.js';
 import { registerSchema } from '../../shared/validation.js';
+import { onTenantRegistered } from '../../integrations/sso-manager.js';
 
 const router = Router();
 
@@ -20,8 +21,11 @@ router.post('/', validateBody(registerSchema), async (req, res) => {
   const { email, password, name, businessName } = req.body;
   logger.debug({ email, businessName }, 'Registration attempt started');
 
-  // Derive slug from business name
+  // Derive slug from business name (with Spanish transliteration)
   const slug = businessName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')  // strip diacritics: á→a, é→e, í→i, ó→o, ú→u
+    .replace(/ñ/gi, 'n')             // ñ→n
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
@@ -83,6 +87,11 @@ router.post('/', validateBody(registerSchema), async (req, res) => {
     }
 
     logger.info({ email, tenantId: tenant.id, slug }, 'New tenant registered via self-service');
+
+    // Fire-and-forget: create SSO accounts in Lago, Cal.com, Metabase
+    onTenantRegistered(tenant.id, businessName, email).catch(err =>
+      logger.warn({ err, tenantId: tenant.id }, 'SSO account provisioning failed (non-blocking)'),
+    );
 
     res.status(201).json({
       ok: true,

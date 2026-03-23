@@ -112,11 +112,15 @@ async function buildTenantContext(tenantId: string, jid: string, contactName?: s
   const tenant = await tenantsRepo.getTenantById(tenantId);
   const bizCtx = await businessContextRepo.getBusinessContext(tenantId);
 
+  const tenantName = tenant?.name || 'Unknown';
   const parts: string[] = [];
-  parts.push(`[Tenant: ${tenant?.name || 'Unknown'} (${tenantId})]`);
+  parts.push(`[Tenant: ${tenantName} (${tenantId})]`);
   parts.push(`[Customer: ${contactName || jid}]`);
   if (bizCtx?.businessType) parts.push(`[Business type: ${bizCtx.businessType}]`);
   if (bizCtx?.businessDescription) parts.push(`[Description: ${bizCtx.businessDescription}]`);
+
+  // Tenant isolation: instruct the agent to scope all queries
+  parts.push(`\nCRITICAL SECURITY: You are operating for tenant ${tenantId} (${tenantName}). ALL database queries MUST include WHERE tenant_id = '${tenantId}'. NEVER query without tenant_id filter. NEVER access other tenants' data.`);
 
   return parts.join(' ');
 }
@@ -134,7 +138,9 @@ export async function processWithOpenClaw(
   imageMediaPath?: string,
 ): Promise<OpenClawBridgeResult> {
   const context = await buildTenantContext(tenantId, jid);
-  const sessionId = `tenant-${tenantId}-${jid.split('@')[0]}`;
+  // Fresh session per message to avoid context overflow with 32K model
+  // TODO: implement proper conversation memory with context windowing
+  const sessionId = `t-${tenantId.slice(0,8)}-${Date.now()}`;
 
   let fullMessage = text;
   if (imageMediaPath) {
@@ -167,7 +173,7 @@ export async function processOwnerWithOpenClaw(
   text: string,
 ): Promise<{ reply: string }> {
   const tenant = await tenantsRepo.getTenantById(tenantId);
-  const sessionId = `owner-${tenantId}`;
+  const sessionId = `o-${tenantId.slice(0,8)}-${Date.now()}`;
 
   const messageWithContext = `[Owner of ${tenant?.name || 'business'} (${tenantId})] [This is the business owner talking to you directly]\n\nOwner message: ${text}`;
 
