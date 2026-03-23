@@ -15,7 +15,8 @@ export function mountProductRoutes(router: Router, prefix: string): void {
     } else if (category) {
       res.json(await productsRepo.getProductsByCategory(tenantId, category));
     } else {
-      res.json(await productsRepo.getAllProducts(tenantId));
+      const products = await productsRepo.getAllProducts(tenantId);
+      res.json({ data: products, total: products.length });
     }
   });
 
