@@ -1,0 +1,260 @@
+# ═══════════════════════════════════════════════════════════════
+# Yaya Platform — Full Stack Docker Compose
+# ═══════════════════════════════════════════════════════════════
+# Usage:
+#   ./start.sh              # First run: init DBs + start everything
+#   docker compose up -d    # Subsequent runs
+#   docker compose logs -f  # Watch logs
+#   docker compose down     # Stop everything (data preserved in volumes)
+
+services:
+  # ── Core Infrastructure ──────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-yaya_prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}
+      POSTGRES_DB: ${POSTGRES_DB:-yaya}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./autobot/scripts/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yaya_prod}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - yaya-net
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - yaya-net
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-yaya_s3_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-yaya_s3cur3_m1n10_2024!}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - yaya-net
+
+  # ── AI / ML Services ─────────────────────────────────────────
+
+  vllm:
+    image: vllm/vllm-openai:qwen3_5
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ${MODEL_PATH:-/home/yaya/models/Qwen3.5-27B-AWQ}:/model:ro
+    ports:
+      - "8000:8000"
+    command: >
+      --model /model
+      --served-model-name qwen3.5-27b
+      --host 0.0.0.0 --port 8000
+      --tensor-parallel-size 2
+      --max-model-len 65536
+      --gpu-memory-utilization 0.92
+      --quantization awq_marlin
+      --dtype float16
+      --enable-auto-tool-choice
+      --tool-call-parser qwen3_coder
+      --reasoning-parser qwen3
+      --language-model-only
+      --enable-prefix-caching
+      --enable-chunked-prefill
+      --max-num-seqs 16
+      --api-key ${AI_API_KEY:-megustalaia}
+    ipc: host
+    networks:
+      - yaya-net
+
+  whisper:
+    image: fedirz/faster-whisper-server:latest-cuda
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    ports:
+      - "9300:8000"
+    environment:
+      WHISPER__MODEL: large-v3-turbo
+      WHISPER__LANGUAGE: es
+      WHISPER__DEVICE: cuda
+    networks:
+      - yaya-net
+
+  kokoro-tts:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    restart: unless-stopped
+    ports:
+      - "9400:8880"
+    networks:
+      - yaya-net
+
+  # ── OSS Business Services ────────────────────────────────────
+
+  calcom:
+    image: calcom.docker.scarf.sh/calcom/cal.com:latest
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    environment:
+      DATABASE_URL: postgresql://${CALCOM_DB_USER:-calcom}:${CALCOM_DB_PASS:-calcom_s3cur3}@postgres:5432/calcom_db
+      NEXTAUTH_SECRET: ${CALCOM_SECRET:-yaya-calcom-secret-2026-change-me}
+      NEXT_PUBLIC_WEBAPP_URL: ${CALCOM_URL:-http://localhost:3002}
+      NEXT_PUBLIC_API_V2_URL: ${CALCOM_URL:-http://localhost:3002}/api/v2
+      CALENDSO_ENCRYPTION_KEY: ${CALCOM_ENCRYPTION_KEY:-yaya-calcom-enc-key-32chars!!!!!}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - yaya-net
+
+  lago-api:
+    image: getlago/api:v1.20.1
+    restart: unless-stopped
+    ports:
+      - "3010:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yaya_prod}:${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}@postgres:5432/lago_db
+      REDIS_URL: redis://redis:6379/1
+      LAGO_API_URL: ${LAGO_API_URL:-http://localhost:3010}
+      SECRET_KEY_BASE: ${LAGO_SECRET:-yaya-lago-secret-base-2026-production-key-change-me-please}
+      LAGO_RSA_PRIVATE_KEY: ${LAGO_RSA_PRIVATE_KEY:-}
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENC_PRIMARY:-yaya-lago-primary-key-32chars!!!!}
+      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENC_DETERMINISTIC:-yaya-lago-det-key-32-chars!!!!!!}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENC_SALT:-yaya-lago-salt-32-characters!!!!!}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - yaya-net
+
+  lago-worker:
+    image: getlago/api:v1.20.1
+    restart: unless-stopped
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yaya_prod}:${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}@postgres:5432/lago_db
+      REDIS_URL: redis://redis:6379/1
+      SECRET_KEY_BASE: ${LAGO_SECRET:-yaya-lago-secret-base-2026-production-key-change-me-please}
+      RAILS_ENV: production
+      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENC_PRIMARY:-yaya-lago-primary-key-32chars!!!!}
+      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENC_DETERMINISTIC:-yaya-lago-det-key-32-chars!!!!!!}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENC_SALT:-yaya-lago-salt-32-characters!!!!!}
+    depends_on:
+      lago-api:
+        condition: service_started
+    networks:
+      - yaya-net
+
+  lago-front:
+    image: getlago/front:v1.20.1
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      API_URL: ${LAGO_API_URL:-http://localhost:3010}
+      APP_ENV: production
+    depends_on:
+      lago-api:
+        condition: service_started
+    networks:
+      - yaya-net
+
+  metabase:
+    image: metabase/metabase:latest
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase_db
+      MB_DB_PORT: 5432
+      MB_DB_USER: ${POSTGRES_USER:-yaya_prod}
+      MB_DB_PASS: ${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}
+      MB_DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - yaya-net
+
+  # ── Backup ───────────────────────────────────────────────────
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-yaya_prod}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}
+      PGDATABASE: ${POSTGRES_DB:-yaya}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c '
+        apk add --no-cache dcron &&
+        echo "0 3 * * * pg_dump -Fc > /backups/yaya_$$(date +\%Y\%m\%d_\%H\%M\%S).dump && find /backups -name yaya_*.dump -mtime +7 -delete 2>&1" | crontab - &&
+        echo "[backup] Daily at 3am UTC" &&
+        crond -f -l 2
+      '
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - yaya-net
+
+networks:
+  yaya-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
