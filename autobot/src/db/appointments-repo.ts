@@ -2,6 +2,7 @@ import { BaseRepository } from './base-repository.js';
 import { query, queryOne, transaction } from './pool.js';
 import type { Appointment } from '../shared/types.js';
 import type { Spec } from './row-mapper.js';
+import { encryptRecord, decryptRecord, decryptRecords } from '../crypto/middleware.js';
 
 const appointmentSpec: Spec<Appointment> = {
   id: 'id',
@@ -23,7 +24,17 @@ const repo = new BaseRepository<Appointment>({
   tenantColumn: 'tenant_id',
 });
 
-export const getAppointmentById = (tenantId: string, id: number) => repo.findById(id, tenantId);
+// Encryption helpers — 'notes' entity name matches DB column name
+async function dec(tenantId: string, entity: Appointment | undefined): Promise<Appointment | undefined> {
+  if (!entity) return undefined;
+  return decryptRecord(tenantId, 'appointments', entity as unknown as Record<string, unknown>) as unknown as Appointment;
+}
+async function decAll(tenantId: string, entities: Appointment[]): Promise<Appointment[]> {
+  return decryptRecords(tenantId, 'appointments', entities as unknown as Record<string, unknown>[]) as unknown as Appointment[];
+}
+
+export const getAppointmentById = async (tenantId: string, id: number) =>
+  dec(tenantId, await repo.findById(id, tenantId));
 
 export async function createAppointment(
   tenantId: string,
@@ -33,7 +44,13 @@ export async function createAppointment(
   durationMinutes: number,
   notes?: string,
 ): Promise<Appointment> {
-  return repo.create({ tenantId, customerId, serviceName, scheduledAt, durationMinutes, notes: notes || null, status: 'confirmed', reminderSent: false } as Partial<Appointment>, tenantId);
+  const encrypted = await encryptRecord(tenantId, 'appointments', { notes: notes || null });
+  const result = await repo.create({
+    tenantId, customerId, serviceName, scheduledAt, durationMinutes,
+    notes: encrypted.notes as string | null,
+    status: 'confirmed', reminderSent: false,
+  } as Partial<Appointment>, tenantId);
+  return (await dec(tenantId, result))!;
 }
 
 export async function getAppointmentsByDate(tenantId: string, date: string): Promise<Appointment[]> {
@@ -41,7 +58,7 @@ export async function getAppointmentsByDate(tenantId: string, date: string): Pro
     `SELECT * FROM appointments WHERE tenant_id = $1 AND scheduled_at >= $2::date AND scheduled_at < ($2::date + INTERVAL '1 day') AND status NOT IN ('cancelled') ORDER BY scheduled_at`,
     [tenantId, date],
   );
-  return result.rows.map(r => repo.toEntity(r));
+  return decAll(tenantId, result.rows.map(r => repo.toEntity(r)));
 }
 
 export async function getUpcomingAppointments(tenantId: string, customerId: number): Promise<Appointment[]> {
@@ -49,7 +66,7 @@ export async function getUpcomingAppointments(tenantId: string, customerId: numb
     `SELECT * FROM appointments WHERE tenant_id = $1 AND customer_id = $2 AND scheduled_at > now() AND status NOT IN ('cancelled', 'completed', 'no_show') ORDER BY scheduled_at LIMIT 10`,
     [tenantId, customerId],
   );
-  return result.rows.map(r => repo.toEntity(r));
+  return decAll(tenantId, result.rows.map(r => repo.toEntity(r)));
 }
 
 export async function isSlotAvailable(tenantId: string, scheduledAt: string, durationMinutes: number): Promise<boolean> {
@@ -82,7 +99,8 @@ export async function getAvailableSlots(tenantId: string, date: string, duration
 }
 
 export async function updateAppointmentStatus(tenantId: string, id: number, status: string): Promise<Appointment | undefined> {
-  return repo.update(id, { status } as Partial<Appointment>, tenantId);
+  const result = await repo.update(id, { status } as Partial<Appointment>, tenantId);
+  return dec(tenantId, result);
 }
 
 export async function getUpcomingForReminders(hoursAhead: number = 24): Promise<(Appointment & { customerJid: string; customerChannel: string })[]> {
@@ -90,10 +108,14 @@ export async function getUpcomingForReminders(hoursAhead: number = 24): Promise<
     `SELECT a.*, c.jid as customer_jid, c.channel as customer_channel FROM appointments a JOIN customers c ON a.customer_id = c.id AND a.tenant_id = c.tenant_id WHERE a.reminder_sent = false AND a.status NOT IN ('cancelled', 'completed', 'no_show') AND a.scheduled_at > now() AND a.scheduled_at <= now() + ($1 || ' hours')::INTERVAL ORDER BY a.scheduled_at`,
     [hoursAhead],
   );
-  return result.rows.map(r => ({
-    ...repo.toEntity(r),
-    customerJid: String(r.customer_jid),
-    customerChannel: String(r.customer_channel),
+  return Promise.all(result.rows.map(async r => {
+    const tid = r.tenant_id as string;
+    const d = await decryptRecord(tid, 'appointments', r);
+    return {
+      ...repo.toEntity(d),
+      customerJid: String(d.customer_jid),
+      customerChannel: String(d.customer_channel),
+    };
   }));
 }
 

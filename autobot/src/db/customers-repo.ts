@@ -1,6 +1,7 @@
 import { BaseRepository } from './base-repository.js';
 import type { Customer, UpdateCustomerInput } from '../shared/types.js';
 import type { Spec } from './row-mapper.js';
+import { encryptRecord, decryptRecord, decryptRecords } from '../crypto/middleware.js';
 
 const customerSpec: Spec<Customer> = {
   id: 'id',
@@ -25,21 +26,32 @@ const repo = new BaseRepository<Customer>({
   tenantColumn: 'tenant_id',
 });
 
-export const getCustomerById = (tenantId: string, id: number) => repo.findById(id, tenantId);
-export const getAllCustomers = (tenantId: string, limit = 100, offset = 0) =>
-  repo.findAll(tenantId, { orderBy: 'updated_at', orderDir: 'DESC', limit, offset });
+// Encryption helpers — encrypted field entity names match DB column names for this table
+async function dec(tenantId: string, entity: Customer | undefined): Promise<Customer | undefined> {
+  if (!entity) return undefined;
+  return decryptRecord(tenantId, 'customers', entity as unknown as Record<string, unknown>) as unknown as Customer;
+}
+async function decAll(tenantId: string, entities: Customer[]): Promise<Customer[]> {
+  return decryptRecords(tenantId, 'customers', entities as unknown as Record<string, unknown>[]) as unknown as Customer[];
+}
+
+export const getCustomerById = async (tenantId: string, id: number) =>
+  dec(tenantId, await repo.findById(id, tenantId));
+export const getAllCustomers = async (tenantId: string, limit = 100, offset = 0) =>
+  decAll(tenantId, await repo.findAll(tenantId, { orderBy: 'updated_at', orderDir: 'DESC', limit, offset }));
 export const getCustomerCount = (tenantId: string) => repo.count(tenantId);
+
 export async function getCustomersByTag(tenantId: string, tag: string): Promise<Customer[]> {
   const { query: dbQuery } = await import('./pool.js');
   const result = await dbQuery<Record<string, unknown>>(
     `SELECT * FROM customers WHERE tenant_id = $1 AND tags @> $2::jsonb ORDER BY updated_at DESC`,
     [tenantId, JSON.stringify([tag])],
   );
-  return result.rows.map(r => repo.toEntity(r));
+  return decAll(tenantId, result.rows.map(r => repo.toEntity(r)));
 }
 
 export async function getCustomerByJid(tenantId: string, jid: string, channel: string = 'whatsapp'): Promise<Customer | undefined> {
-  return repo.findOneByColumns({ jid, channel }, tenantId);
+  return dec(tenantId, await repo.findOneByColumns({ jid, channel }, tenantId));
 }
 
 export async function createCustomer(tenantId: string, input: {
@@ -52,28 +64,36 @@ export async function createCustomer(tenantId: string, input: {
 }): Promise<Customer> {
   const jid = input.jid || input.phone || `web-${Date.now()}`;
   const channel = input.channel || 'web';
-  return repo.create({
-    tenantId,
-    channel,
-    jid,
+  const encrypted = await encryptRecord(tenantId, 'customers', {
     name: input.name,
     phone: input.phone ?? null,
     address: input.address ?? null,
     notes: input.notes ?? null,
+  });
+  const result = await repo.create({
+    tenantId,
+    channel,
+    jid,
+    name: encrypted.name,
+    phone: encrypted.phone ?? null,
+    address: encrypted.address ?? null,
+    notes: encrypted.notes ?? null,
   } as Partial<Customer>, tenantId);
+  return (await dec(tenantId, result))!;
 }
 
 export async function getOrCreateCustomer(tenantId: string, jid: string, channel: string = 'whatsapp'): Promise<Customer> {
   const existing = await getCustomerByJid(tenantId, jid, channel);
   if (existing) return existing;
-  return repo.create({ tenantId, channel, jid } as Partial<Customer>, tenantId);
+  const result = await repo.create({ tenantId, channel, jid } as Partial<Customer>, tenantId);
+  return (await dec(tenantId, result))!;
 }
 
 export async function updateCustomer(tenantId: string, id: number, input: UpdateCustomerInput): Promise<Customer | undefined> {
-  const existing = await getCustomerById(tenantId, id);
+  const existing = await repo.findById(id, tenantId);
   if (!existing) return undefined;
 
-  const data: Partial<Customer> = {};
+  const data: Record<string, unknown> = {};
   if (input.name !== undefined) data.name = input.name;
   if (input.phone !== undefined) data.phone = input.phone;
   if (input.location !== undefined) data.location = input.location;
@@ -82,7 +102,9 @@ export async function updateCustomer(tenantId: string, id: number, input: Update
   if (input.address !== undefined) data.address = input.address;
   if (input.notes !== undefined) data.notes = input.notes;
 
-  return repo.update(id, data, tenantId);
+  const encrypted = await encryptRecord(tenantId, 'customers', data);
+  const result = await repo.update(id, encrypted as Partial<Customer>, tenantId);
+  return dec(tenantId, result);
 }
 
 export async function updateCustomerLocation(
@@ -108,7 +130,8 @@ export async function addTag(tenantId: string, customerId: number, tag: string):
   const customer = await getCustomerById(tenantId, customerId);
   if (!customer) return undefined;
   if (!customer.tags.includes(tag)) {
-    return repo.update(customerId, { tags: [...customer.tags, tag] } as Partial<Customer>, tenantId);
+    const result = await repo.update(customerId, { tags: [...customer.tags, tag] } as Partial<Customer>, tenantId);
+    return dec(tenantId, result);
   }
   return customer;
 }
@@ -116,5 +139,6 @@ export async function addTag(tenantId: string, customerId: number, tag: string):
 export async function removeTag(tenantId: string, customerId: number, tag: string): Promise<Customer | undefined> {
   const customer = await getCustomerById(tenantId, customerId);
   if (!customer) return undefined;
-  return repo.update(customerId, { tags: customer.tags.filter(t => t !== tag) } as Partial<Customer>, tenantId);
+  const result = await repo.update(customerId, { tags: customer.tags.filter(t => t !== tag) } as Partial<Customer>, tenantId);
+  return dec(tenantId, result);
 }

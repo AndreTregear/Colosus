@@ -64,16 +64,30 @@ export function createWebServer(port: number = 3000): void {
   app.use(securityHeaders());
 
   // ── CORS — restrict to known origins ──
-  const allowedOrigins = BETTER_AUTH_URL
-    ? [BETTER_AUTH_URL]
-    : ['http://localhost:3000', 'http://localhost:' + port];
+  const allowedOrigins: string[] = [];
+  if (BETTER_AUTH_URL) {
+    allowedOrigins.push(BETTER_AUTH_URL);
+    // Also allow the http variant for local/proxy access
+    if (BETTER_AUTH_URL.startsWith('https://')) {
+      allowedOrigins.push(BETTER_AUTH_URL.replace('https://', 'http://'));
+    }
+  }
+  // Support extra origins via ALLOWED_ORIGINS env var (comma-separated)
+  if (process.env.ALLOWED_ORIGINS) {
+    allowedOrigins.push(...process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean));
+  }
+  if (allowedOrigins.length === 0) {
+    allowedOrigins.push('http://localhost:3000', 'http://localhost:' + port);
+  }
   app.use(cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, curl, server-to-server)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        // Return false instead of Error to avoid 500 — browser handles the rejection
+        logger.debug({ origin, allowedOrigins }, 'CORS origin rejected');
+        callback(null, false);
       }
     },
     credentials: true,
@@ -131,8 +145,67 @@ export function createWebServer(port: number = 3000): void {
   app.all('/api/auth/{*splat}', toNodeHandler(auth));
 
   // ── Health check (no auth) ──
-  app.get('/api/v1/health', (_req, res) => {
-    res.json({ ok: true });
+  // Returns 200 if all critical deps are reachable, 503 otherwise
+  app.get('/api/v1/health', async (_req, res) => {
+    const checks: Record<string, { status: 'ok' | 'error'; latencyMs?: number; error?: string }> = {};
+
+    // Postgres
+    try {
+      const start = Date.now();
+      const { getPool } = await import('../db/pool.js');
+      await getPool().query('SELECT 1');
+      checks.postgres = { status: 'ok', latencyMs: Date.now() - start };
+    } catch (e: any) {
+      checks.postgres = { status: 'error', error: e.message };
+    }
+
+    // Redis
+    try {
+      const start = Date.now();
+      const { getRedisConnection } = await import('../queue/redis.js');
+      await getRedisConnection().ping();
+      checks.redis = { status: 'ok', latencyMs: Date.now() - start };
+    } catch (e: any) {
+      checks.redis = { status: 'error', error: e.message };
+    }
+
+    // vLLM
+    try {
+      const start = Date.now();
+      const resp = await fetch(`${process.env.AI_BASE_URL || 'http://localhost:8000/v1'}/models`, {
+        headers: { Authorization: `Bearer ${process.env.AI_API_KEY || ''}` },
+        signal: AbortSignal.timeout(3000),
+      });
+      checks.vllm = resp.ok
+        ? { status: 'ok', latencyMs: Date.now() - start }
+        : { status: 'error', error: `HTTP ${resp.status}` };
+    } catch (e: any) {
+      checks.vllm = { status: 'error', error: e.message };
+    }
+
+    // Whisper
+    try {
+      const start = Date.now();
+      const whisperBase = (process.env.WHISPER_BASE_URL || 'http://localhost:9300/v1').replace(/\/v1\/?$/, '');
+      const resp = await fetch(`${whisperBase}/health`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      checks.whisper = resp.ok
+        ? { status: 'ok', latencyMs: Date.now() - start }
+        : { status: 'error', error: `HTTP ${resp.status}` };
+    } catch (e: any) {
+      checks.whisper = { status: 'error', error: e.message };
+    }
+
+    const critical = ['postgres', 'redis'];
+    const allCriticalOk = critical.every(k => checks[k]?.status === 'ok');
+    const allOk = Object.values(checks).every(c => c.status === 'ok');
+
+    res.status(allCriticalOk ? 200 : 503).json({
+      status: allCriticalOk ? (allOk ? 'healthy' : 'degraded') : 'unhealthy',
+      timestamp: new Date().toISOString(),
+      checks,
+    });
   });
 
   // ── Internal dev routes (no auth — admin use only, port 3000 should not be public-facing) ──

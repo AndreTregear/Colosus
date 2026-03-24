@@ -3,9 +3,9 @@ import * as settingsRepo from '../db/settings-repo.js';
 import { createCache } from '../shared/cache.js';
 import { logger } from '../shared/logger.js';
 
-const DEFAULT_RATE_LIMIT = 60;
+const DEFAULT_RATE_LIMIT = 20;
 const DEFAULT_RATE_WINDOW_SEC = 60;
-const DEFAULT_AI_CONCURRENCY = 3;
+const DEFAULT_AI_CONCURRENCY = 5;
 const CONCURRENCY_STALE_MS = 5 * 60 * 1000; // 5 minutes — auto-cleanup dead entries
 
 const CACHE_TTL_MS = 60_000;

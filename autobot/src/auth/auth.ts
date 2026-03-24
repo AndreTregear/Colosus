@@ -2,7 +2,8 @@ import { betterAuth } from 'better-auth';
 import { admin } from 'better-auth/plugins';
 import { hashPassword } from 'better-auth/crypto';
 import pg from 'pg';
-import { DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL } from '../config.js';
+import crypto from 'node:crypto';
+import { DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL, BUSINESS_NAME } from '../config.js';
 import { logger } from '../shared/logger.js';
 
 const { Pool } = pg;
@@ -93,6 +94,9 @@ export async function seedAdminIfNeeded(): Promise<void> {
         [hashedPassword, rows[0].id, 'credential']
       );
       logger.info({ email }, 'Admin password synced from env');
+
+      // Ensure admin has a tenant (required for dashboard, QR, WhatsApp pairing)
+      await ensureAdminTenant(pool, rows[0].id, name);
       return;
     }
 
@@ -108,9 +112,63 @@ export async function seedAdminIfNeeded(): Promise<void> {
     logger.debug({ email, userId }, 'Setting admin role in DB');
     await pool.query('UPDATE "user" SET role = $1 WHERE id = $2', ['admin', userId]);
     logger.info({ email, userId }, 'Admin user auto-created from ADMIN_EMAIL env var');
+
+    // Create a tenant for the admin so they can use dashboard/QR/WhatsApp
+    await ensureAdminTenant(pool, userId, name);
   } catch (err) {
     logger.error({ err, email }, 'Admin seed failed - this may be normal if user already exists');
   } finally {
     await pool.end();
   }
+}
+
+/** Ensure the admin user has a tenant linked. Creates one from BUSINESS_NAME if missing. */
+async function ensureAdminTenant(pool: pg.Pool, userId: string, adminName: string): Promise<void> {
+  const { rows } = await pool.query('SELECT "tenantId" FROM "user" WHERE id = $1', [userId]);
+  if (rows[0]?.tenantId) {
+    logger.debug({ userId, tenantId: rows[0].tenantId }, 'Admin already has a tenant');
+    return;
+  }
+
+  const businessName = process.env.ADMIN_BUSINESS_NAME || BUSINESS_NAME || `${adminName}'s Business`;
+  const slug = businessName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ñ/gi, 'n')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'admin';
+
+  // Check if slug already exists — if so, the tenant may exist but just not be linked
+  const existing = await pool.query('SELECT id FROM tenants WHERE slug = $1', [slug]);
+  let tenantId: string;
+
+  if (existing.rows.length > 0) {
+    tenantId = existing.rows[0].id;
+    logger.info({ userId, tenantId, slug }, 'Linking admin to existing tenant');
+  } else {
+    const apiKey = crypto.randomBytes(32).toString('hex');
+    const result = await pool.query(
+      `INSERT INTO tenants (name, slug, api_key, status, settings)
+       VALUES ($1, $2, $3, 'active', '{}')
+       RETURNING id`,
+      [businessName, slug, apiKey],
+    );
+    tenantId = result.rows[0].id;
+    // Initialize default settings and session row
+    await pool.query(
+      `INSERT INTO settings (tenant_id, key, value) VALUES ($1, 'system_prompt', ''), ($1, 'ai_enabled', '1')
+       ON CONFLICT DO NOTHING`,
+      [tenantId],
+    );
+    await pool.query(
+      `INSERT INTO tenant_sessions (tenant_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+      [tenantId],
+    );
+    logger.info({ userId, tenantId, slug, businessName }, 'Created tenant for admin user');
+  }
+
+  await pool.query('UPDATE "user" SET "tenantId" = $1 WHERE id = $2', [tenantId, userId]);
+  logger.info({ userId, tenantId }, 'Admin user linked to tenant');
 }

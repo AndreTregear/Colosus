@@ -13,6 +13,7 @@ import * as mobileUsersRepo from '../../db/mobile-users-repo.js';
 import * as tenantSubsRepo from '../../db/tenant-subscriptions-repo.js';
 import { getTenantSubscriptionStatus } from '../../services/subscription-service.js';
 import * as plansRepo from '../../db/platform-plans-repo.js';
+import { provisionTenantKeys, unlockTenantKeys } from '../../crypto/tenant-keys.js';
 import { logger } from '../../shared/logger.js';
 import { validateBody } from '../../shared/validate.js';
 import { mobileRegisterSchema, mobileLoginSchema } from '../../shared/validation.js';
@@ -104,13 +105,16 @@ router.post('/register', validateBody(mobileRegisterSchema), withTimeout(async (
       phone, passwordHash, tenant.id, name, email,
     );
 
-    // 4. Auto-assign free plan
+    // 4. Provision encryption keys for the tenant
+    await provisionTenantKeys(tenant.id, password);
+
+    // 5. Auto-assign free plan
     const freePlan = await plansRepo.getPlanBySlug('free');
     if (freePlan) {
       await tenantSubsRepo.subscribe(tenant.id, freePlan.id, 'free');
     }
 
-    // 5. Sign tokens
+    // 6. Sign tokens
     const token = signAccessToken(user.id, tenant.id, phone);
     const refreshToken = signRefreshToken(user.id, tenant.id);
 
@@ -153,6 +157,11 @@ router.post('/login', validateBody(mobileLoginSchema), withTimeout(async (req, r
     res.status(403).json({ error: 'Account is not active.' });
     return;
   }
+
+  // Unlock encryption keys (DEK cached in Redis for the session)
+  await unlockTenantKeys(tenant.id, password).catch(err =>
+    logger.warn({ err, tenantId: tenant.id }, 'Failed to unlock encryption keys on login (non-blocking)'),
+  );
 
   const token = signAccessToken(user.id, tenant.id, phone);
   const refreshToken = signRefreshToken(user.id, tenant.id);

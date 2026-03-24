@@ -1,4 +1,5 @@
 import { query, queryOne } from './pool.js';
+import { encryptRecord, decryptRecord } from '../crypto/middleware.js';
 
 export async function logMessagePg(msg: {
   tenantId: string;
@@ -9,10 +10,14 @@ export async function logMessagePg(msg: {
   body: string;
   timestamp: string;
 }): Promise<void> {
+  const encrypted = await encryptRecord(msg.tenantId, 'message_log', {
+    body: msg.body,
+    push_name: msg.pushName,
+  });
   await query(
     `INSERT INTO message_log (tenant_id, channel, jid, push_name, direction, body, timestamp)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [msg.tenantId, msg.channel, msg.jid, msg.pushName, msg.direction, msg.body, msg.timestamp],
+    [msg.tenantId, msg.channel, msg.jid, encrypted.push_name, msg.direction, encrypted.body, msg.timestamp],
   );
 }
 
@@ -24,7 +29,6 @@ export async function getMessageCountForTenant(tenantId: string, since?: string)
     );
     return Number(result?.count ?? 0);
   }
-  // Fallback: count outgoing messages in the current calendar month
   const result = await queryOne<{ count: string }>(
     `SELECT COUNT(*)::text AS count FROM message_log WHERE tenant_id = $1 AND direction = $2 AND timestamp >= date_trunc('month', now())`,
     [tenantId, 'outgoing'],
@@ -53,7 +57,6 @@ export async function getConversationList(
   );
   const total = Number(countResult?.count ?? 0);
 
-  // SQL-level pagination using a CTE for DISTINCT ON + ORDER BY + LIMIT/OFFSET
   const rows = await query(
     `WITH latest AS (
        SELECT DISTINCT ON (ml.jid)
@@ -73,39 +76,42 @@ export async function getConversationList(
     [tenantId, limit, offset],
   );
 
-  // Get unread counts for all conversations in one query
   const jids = (rows.rows ?? []).map((r: any) => r.jid);
   let unreadCounts: Map<string, number> = new Map();
-  
+
   if (jids.length > 0) {
     const unreadResult = await query(
-      `SELECT 
+      `SELECT
         ml.jid,
         COUNT(*)::int as unread_count
        FROM message_log ml
-       LEFT JOIN conversation_reads cr 
-         ON cr.tenant_id = ml.tenant_id 
+       LEFT JOIN conversation_reads cr
+         ON cr.tenant_id = ml.tenant_id
          AND cr.jid = ml.jid
-       WHERE ml.tenant_id = $1 
+       WHERE ml.tenant_id = $1
          AND ml.jid = ANY($2)
          AND ml.direction = 'incoming'
          AND (cr.last_read_at IS NULL OR ml.timestamp > cr.last_read_at)
        GROUP BY ml.jid`,
       [tenantId, jids]
     );
-    
+
     for (const row of (unreadResult.rows ?? [])) {
       unreadCounts.set(row.jid as string, row.unread_count as number);
     }
   }
 
-  const conversations = (rows.rows ?? []).map((r: any) => ({
-    jid: r.jid,
-    customerName: r.customer_name,
-    lastMessage: r.last_message,
-    lastMessageDirection: r.last_message_direction,
-    lastMessageAt: r.last_message_at,
-    unreadCount: unreadCounts.get(r.jid) || 0,
+  const conversations = await Promise.all((rows.rows ?? []).map(async (r: any) => {
+    const msgDec = await decryptRecord(tenantId, 'message_log', { body: r.last_message });
+    const custDec = await decryptRecord(tenantId, 'customers', { name: r.customer_name });
+    return {
+      jid: r.jid,
+      customerName: (custDec.name as string | null) ?? null,
+      lastMessage: (msgDec.body as string) ?? r.last_message,
+      lastMessageDirection: r.last_message_direction,
+      lastMessageAt: r.last_message_at,
+      unreadCount: unreadCounts.get(r.jid) || 0,
+    };
   }));
 
   return { conversations, total };
@@ -142,20 +148,24 @@ export async function getConversationMessages(
     [tenantId, jid, limit, offset],
   );
 
-  const messages = (msgRows.rows ?? []).map((r: any) => ({
-    id: r.id,
-    direction: r.direction,
-    body: r.body,
-    timestamp: r.timestamp,
-    pushName: r.push_name,
+  const messages = await Promise.all((msgRows.rows ?? []).map(async (r: any) => {
+    const d = await decryptRecord(tenantId, 'message_log', { body: r.body, push_name: r.push_name });
+    return {
+      id: r.id,
+      direction: r.direction,
+      body: (d.body as string) ?? r.body,
+      timestamp: r.timestamp,
+      pushName: (d.push_name as string | null) ?? r.push_name,
+    };
   }));
 
   const customerRow = await queryOne<{ name: string }>(
     'SELECT name FROM customers WHERE tenant_id = $1 AND jid = $2',
     [tenantId, jid],
   );
+  const custDec = customerRow ? await decryptRecord(tenantId, 'customers', { name: customerRow.name }) : { name: null };
 
-  return { messages, total, customerName: customerRow?.name ?? null };
+  return { messages, total, customerName: (custDec.name as string | null) ?? null };
 }
 
 export async function markConversationAsRead(
@@ -165,7 +175,7 @@ export async function markConversationAsRead(
   await query(
     `INSERT INTO conversation_reads (tenant_id, jid, last_read_at, updated_at)
      VALUES ($1, $2, now(), now())
-     ON CONFLICT (tenant_id, jid) 
+     ON CONFLICT (tenant_id, jid)
      DO UPDATE SET last_read_at = now(), updated_at = now()`,
     [tenantId, jid],
   );
@@ -191,11 +201,14 @@ export async function getConversationHistory(
     [tenantId, jid, limit],
   );
 
-  return {
-    messages: (result.rows ?? []).map((r: any) => ({
-      direction: r.direction,
-      body: r.body,
+  const messages = await Promise.all((result.rows ?? []).map(async (r: any) => {
+    const d = await decryptRecord(tenantId, 'message_log', { body: r.body });
+    return {
+      direction: r.direction as 'incoming' | 'outgoing',
+      body: (d.body as string) ?? r.body,
       timestamp: r.timestamp,
-    })).reverse(), // Return in chronological order
-  };
+    };
+  }));
+
+  return { messages: messages.reverse() };
 }

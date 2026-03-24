@@ -3,7 +3,7 @@ import { DelayedError, type Job } from 'bullmq';
 import { QueueFactory, registerQueue } from './queue-factory.js';
 import { processWithOpenClaw, processOwnerWithOpenClaw, isOwnerChat } from '../ai/openclaw-bridge.js';
 import { tenantManager } from '../bot/tenant-manager.js';
-import { acquireTenantSlot, releaseTenantSlot } from './rate-limiter.js';
+import { acquireTenantSlot, releaseTenantSlot, checkAndIncrementRateLimit } from './rate-limiter.js';
 import * as pgMessagesRepo from '../db/pg-messages-repo.js';
 import { canTenantSendMessages } from '../services/subscription-service.js';
 import { appBus } from '../shared/events.js';
@@ -75,6 +75,18 @@ async function processAIJob(job: Job<AIJobData, AIJobResult>): Promise<AIJobResu
       return { reply: '', chunksSent: 0 };
     }
   }
+  // Per-tenant rate limiting (skip for self-chat)
+  if (!isSelfChat) {
+    const withinLimit = await checkAndIncrementRateLimit(tenantId);
+    if (!withinLimit) {
+      logger.warn({ tenantId, jid, jobId: job.id }, 'Rate limit exceeded for tenant');
+      try {
+        await tenantManager.sendMessage(tenantId, jid, 'Estamos recibiendo muchos mensajes. Por favor espera un momento.');
+      } catch { /* best effort */ }
+      return { reply: '', chunksSent: 0 };
+    }
+  }
+
   // Show typing indicator while processing
   tenantManager.sendPresenceUpdate(tenantId, jid, 'composing');
 

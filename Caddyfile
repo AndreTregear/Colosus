@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════════════════
+# Yaya Platform — Caddy Reverse Proxy
+# ═══════════════════════════════════════════════════════════════
+# Install on server: sudo cp Caddyfile /etc/caddy/Caddyfile
+# Reload: sudo systemctl reload caddy
+#
+# Caddy auto-provisions TLS certificates via Let's Encrypt.
+# ═══════════════════════════════════════════════════════════════
+
+# Autobot dashboard + API
+cx.yaya.sh {
+	reverse_proxy localhost:3000
+	encode gzip zstd
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	# Health endpoint — no buffering
+	@health path /api/v1/health
+	reverse_proxy @health localhost:3000 {
+		flush_interval -1
+	}
+
+	log {
+		output file /var/log/caddy/cx-access.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+	}
+}

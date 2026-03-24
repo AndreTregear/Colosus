@@ -1,4 +1,5 @@
 import { query, queryOne } from '../db/pool.js';
+import { encryptRecord, decryptRecord } from '../crypto/middleware.js';
 
 export interface BusinessContext {
   id: string;
@@ -64,22 +65,25 @@ export async function getBusinessContext(tenantId: string): Promise<BusinessCont
 
   if (!row) return null;
 
+  // Decrypt encrypted columns (business_description, special_instructions)
+  const d = await decryptRecord(tenantId, 'business_context', row as unknown as Record<string, unknown>);
+
   return {
-    id: row.id,
-    tenantId: row.tenant_id,
-    businessName: row.business_name,
-    businessDescription: row.business_description,
-    businessType: row.business_type,
-    operatingHours: row.operating_hours,
-    servicesOffered: row.services_offered || [],
-    productsCategories: row.products_categories || [],
-    toneOfVoice: row.tone_of_voice,
-    specialInstructions: row.special_instructions,
-    adminConversationContext: row.admin_conversation_context,
-    adminConfigurationSummary: row.admin_configuration_summary,
-    contextVersion: row.context_version,
-    lastUpdatedBy: row.last_updated_by,
-    lastUpdatedAt: row.last_updated_at,
+    id: d.id as string,
+    tenantId: d.tenant_id as string,
+    businessName: d.business_name as string | null,
+    businessDescription: d.business_description as string | null,
+    businessType: d.business_type as string | null,
+    operatingHours: d.operating_hours as Record<string, unknown>,
+    servicesOffered: (d.services_offered as string[]) || [],
+    productsCategories: (d.products_categories as string[]) || [],
+    toneOfVoice: d.tone_of_voice as string,
+    specialInstructions: d.special_instructions as string | null,
+    adminConversationContext: d.admin_conversation_context as string | null,
+    adminConfigurationSummary: d.admin_configuration_summary as string | null,
+    contextVersion: d.context_version as number,
+    lastUpdatedBy: d.last_updated_by as string | null,
+    lastUpdatedAt: d.last_updated_at as Date,
   };
 }
 
@@ -95,13 +99,21 @@ export async function updateBusinessContext(
   const values: unknown[] = [];
   let paramIndex = 1;
 
+  // Encrypt sensitive fields before building the SET clause
+  const toEncrypt: Record<string, unknown> = {};
+  if (updates.businessDescription !== undefined) toEncrypt.business_description = updates.businessDescription;
+  if (updates.specialInstructions !== undefined) toEncrypt.special_instructions = updates.specialInstructions;
+  const enc = Object.keys(toEncrypt).length > 0
+    ? await encryptRecord(tenantId, 'business_context', toEncrypt)
+    : toEncrypt;
+
   if (updates.businessName !== undefined) {
     fields.push(`business_name = $${paramIndex++}`);
     values.push(updates.businessName);
   }
   if (updates.businessDescription !== undefined) {
     fields.push(`business_description = $${paramIndex++}`);
-    values.push(updates.businessDescription);
+    values.push(enc.business_description);
   }
   if (updates.businessType !== undefined) {
     fields.push(`business_type = $${paramIndex++}`);
@@ -125,7 +137,7 @@ export async function updateBusinessContext(
   }
   if (updates.specialInstructions !== undefined) {
     fields.push(`special_instructions = $${paramIndex++}`);
-    values.push(updates.specialInstructions);
+    values.push(enc.special_instructions);
   }
   if (updates.adminConversationContext !== undefined) {
     fields.push(`admin_conversation_context = $${paramIndex++}`);
@@ -186,11 +198,12 @@ export async function logAdminConversation(
   messageType: string = 'chat',
   extractedConfig?: Record<string, unknown>
 ): Promise<void> {
+  const encrypted = await encryptRecord(tenantId, 'admin_conversations', { message });
   await query(
-    `INSERT INTO admin_conversations 
+    `INSERT INTO admin_conversations
      (tenant_id, session_id, message, direction, message_type, extracted_config)
      VALUES ($1, $2, $3, $4, $5, $6)`,
-    [tenantId, sessionId, message, direction, messageType, JSON.stringify(extractedConfig || {})]
+    [tenantId, sessionId, encrypted.message, direction, messageType, JSON.stringify(extractedConfig || {})]
   );
 }
 
@@ -212,22 +225,25 @@ export async function getAdminConversationHistory(
     extracted_config: Record<string, unknown>;
     timestamp: Date;
   }>(
-    `SELECT * FROM admin_conversations 
+    `SELECT * FROM admin_conversations
      WHERE tenant_id = $1 AND session_id = $2
      ORDER BY timestamp DESC
      LIMIT $3`,
     [tenantId, sessionId, limit]
   );
 
-  return (rows.rows ?? []).map((row: any) => ({
-    id: row.id,
-    tenantId: row.tenant_id,
-    sessionId: row.session_id,
-    message: row.message,
-    direction: row.direction,
-    messageType: row.message_type,
-    extractedConfig: row.extracted_config,
-    timestamp: row.timestamp,
+  return Promise.all((rows.rows ?? []).map(async (row: any) => {
+    const d = await decryptRecord(tenantId, 'admin_conversations', row as Record<string, unknown>);
+    return {
+      id: d.id as string,
+      tenantId: d.tenant_id as string,
+      sessionId: d.session_id as string,
+      message: d.message as string,
+      direction: d.direction as 'incoming' | 'outgoing',
+      messageType: d.message_type as string,
+      extractedConfig: d.extracted_config as Record<string, unknown>,
+      timestamp: d.timestamp as Date,
+    };
   }));
 }
 
@@ -302,11 +318,10 @@ export async function updateAdminSettings(
 export async function isOwner(tenantId: string, jid: string): Promise<boolean> {
   const settings = await getAdminSettings(tenantId);
   if (!settings?.ownerJid) return false;
-  
-  // Normalize JIDs for comparison (remove @s.whatsapp.net or @lid)
+
   const normalizedOwner = settings.ownerJid.split('@')[0];
   const normalizedJid = jid.split('@')[0];
-  
+
   return normalizedOwner === normalizedJid;
 }
 
@@ -317,7 +332,7 @@ export async function setOwnerJid(tenantId: string, ownerJid: string): Promise<v
   await query(
     `INSERT INTO tenant_admin_settings (tenant_id, owner_jid)
      VALUES ($1, $2)
-     ON CONFLICT (tenant_id) 
+     ON CONFLICT (tenant_id)
      DO UPDATE SET owner_jid = $2, updated_at = NOW()`,
     [tenantId, ownerJid]
   );

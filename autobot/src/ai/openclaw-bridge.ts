@@ -38,10 +38,12 @@ interface OpenClawResponse {
   error?: string;
 }
 
+type CallErrorType = 'timeout' | 'empty' | 'parse_error' | 'agent_error';
+
 /**
  * Call the OpenClaw agent and return its reply.
  */
-async function callOpenClaw(message: string, sessionId?: string): Promise<{ reply: string; durationMs: number }> {
+async function callOpenClaw(message: string, sessionId?: string): Promise<{ reply: string; durationMs: number; error?: CallErrorType }> {
   const startTime = Date.now();
 
   const args = [
@@ -69,23 +71,34 @@ async function callOpenClaw(message: string, sessionId?: string): Promise<{ repl
     }
 
     // Parse JSON — openclaw may output non-JSON before the JSON (warnings, config writes)
-    // Find the first { that starts a JSON object
     const jsonStart = stdout.indexOf('{');
     if (jsonStart === -1) {
       logger.error({ stdout: stdout.slice(0, 500) }, 'OpenClaw returned no JSON');
-      return { reply: '', durationMs: Date.now() - startTime };
+      return { reply: '', durationMs: Date.now() - startTime, error: 'empty' };
     }
 
     const jsonStr = stdout.slice(jsonStart);
-    const data: OpenClawResponse = JSON.parse(jsonStr);
+    let data: OpenClawResponse;
+    try {
+      data = JSON.parse(jsonStr);
+    } catch {
+      logger.error({ jsonStr: jsonStr.slice(0, 500) }, 'OpenClaw returned invalid JSON');
+      return { reply: '', durationMs: Date.now() - startTime, error: 'parse_error' };
+    }
 
     if (data.error) {
       logger.error({ error: data.error }, 'OpenClaw agent error');
-      return { reply: '', durationMs: Date.now() - startTime };
+      return { reply: '', durationMs: Date.now() - startTime, error: 'agent_error' };
     }
 
     const text = data.result?.payloads?.[0]?.text || '';
     const modelDuration = data.result?.meta?.durationMs || 0;
+
+    // Check for empty/garbage reply
+    if (!text || text.trim().length === 0) {
+      logger.warn({ agent: OPENCLAW_AGENT }, 'OpenClaw returned empty reply');
+      return { reply: '', durationMs: Date.now() - startTime, error: 'empty' };
+    }
 
     logger.info({
       agent: OPENCLAW_AGENT,
@@ -99,10 +112,26 @@ async function callOpenClaw(message: string, sessionId?: string): Promise<{ repl
   } catch (err: any) {
     if (err.killed) {
       logger.error({ timeoutMs: OPENCLAW_TIMEOUT_MS }, 'OpenClaw agent timed out');
+      return { reply: '', durationMs: Date.now() - startTime, error: 'timeout' };
     } else {
       logger.error({ err: err.message, code: err.code }, 'OpenClaw agent call failed');
+      return { reply: '', durationMs: Date.now() - startTime, error: 'agent_error' };
     }
-    return { reply: '', durationMs: Date.now() - startTime };
+  }
+}
+
+/**
+ * Get the appropriate Spanish fallback message for an error type.
+ */
+function getFallbackMessage(error?: CallErrorType): string {
+  switch (error) {
+    case 'timeout':
+      return 'Estoy procesando tu solicitud, dame un momento...';
+    case 'empty':
+    case 'parse_error':
+    case 'agent_error':
+    default:
+      return 'Lo siento, tuve un problema. \u00bfPodr\u00edas repetirme?';
   }
 }
 
@@ -135,6 +164,7 @@ async function buildTenantContext(tenantId: string, jid: string, contactName?: s
 /**
  * Process a customer message through OpenClaw.
  * Called from ai-queue.ts for incoming WhatsApp messages.
+ * Never throws — all errors are caught and return a friendly fallback.
  */
 export async function processWithOpenClaw(
   tenantId: string,
@@ -144,57 +174,67 @@ export async function processWithOpenClaw(
   onChunk: (chunk: string) => Promise<void>,
   imageMediaPath?: string,
 ): Promise<OpenClawBridgeResult> {
-  const context = await buildTenantContext(tenantId, jid);
-  // Fresh session per message to avoid context overflow with 32K model
-  // TODO: implement proper conversation memory with context windowing
-  const sessionId = `t-${tenantId.slice(0,8)}-${Date.now()}`;
+  try {
+    const context = await buildTenantContext(tenantId, jid);
+    const sessionId = `t-${tenantId.slice(0,8)}-${Date.now()}`;
 
-  let fullMessage = text;
-  if (imageMediaPath) {
-    fullMessage += `\n[Customer sent an image: ${imageMediaPath}]`;
-  }
+    let fullMessage = text;
+    if (imageMediaPath) {
+      fullMessage += `\n[Customer sent an image: ${imageMediaPath}]`;
+    }
 
-  // Prepend context so the agent knows who's talking
-  const messageWithContext = `${context}\n\nCustomer message: ${fullMessage}`;
+    const messageWithContext = `${context}\n\nCustomer message: ${fullMessage}`;
 
-  const { reply } = await callOpenClaw(messageWithContext, sessionId);
+    const { reply, error } = await callOpenClaw(messageWithContext, sessionId);
 
-  if (!reply) {
-    const fallback = 'Lo siento, estoy teniendo dificultades técnicas. Por favor, intenta de nuevo en un momento.';
-    await onChunk(fallback);
+    if (!reply) {
+      const fallback = getFallbackMessage(error);
+      await onChunk(fallback);
+      return { reply: fallback, imagesToSend: [] };
+    }
+
+    // Send as single chunk (OpenClaw CLI doesn't stream)
+    await onChunk(reply);
+    return { reply, imagesToSend: [] };
+  } catch (err) {
+    logger.error({ err, tenantId, jid }, 'OpenClaw bridge processWithOpenClaw failed');
+    const fallback = getFallbackMessage();
+    try { await onChunk(fallback); } catch { /* best effort */ }
     return { reply: fallback, imagesToSend: [] };
   }
-
-  // Send as single chunk (OpenClaw CLI doesn't stream)
-  await onChunk(reply);
-  return { reply, imagesToSend: [] };
 }
 
 /**
  * Process an owner/admin message through OpenClaw.
  * Called from ai-queue.ts for self-chat (owner messaging their own number).
+ * Never throws — all errors are caught and return a friendly fallback.
  */
 export async function processOwnerWithOpenClaw(
   tenantId: string,
   jid: string,
   text: string,
 ): Promise<{ reply: string }> {
-  const [tenant, dbCreds] = await Promise.all([
-    tenantsRepo.getTenantById(tenantId),
-    ensureTenantDbRole(tenantId),
-  ]);
-  const sessionId = `o-${tenantId.slice(0,8)}-${Date.now()}`;
+  try {
+    const [tenant, dbCreds] = await Promise.all([
+      tenantsRepo.getTenantById(tenantId),
+      ensureTenantDbRole(tenantId),
+    ]);
+    const sessionId = `o-${tenantId.slice(0,8)}-${Date.now()}`;
 
-  const parts: string[] = [];
-  parts.push(`[Owner of ${tenant?.name || 'business'} (${tenantId})] [This is the business owner talking to you directly]`);
-  parts.push(`\nDATABASE ACCESS: PGPASSWORD='${dbCreds.password}' psql -h ${dbCreds.host} -p ${dbCreds.port} -U ${dbCreds.role} -d ${dbCreds.database} -c 'YOUR_SQL_HERE'`);
-  parts.push(`Row-Level Security is enforced — queries are automatically scoped to your tenant.`);
+    const parts: string[] = [];
+    parts.push(`[Owner of ${tenant?.name || 'business'} (${tenantId})] [This is the business owner talking to you directly]`);
+    parts.push(`\nDATABASE ACCESS: PGPASSWORD='${dbCreds.password}' psql -h ${dbCreds.host} -p ${dbCreds.port} -U ${dbCreds.role} -d ${dbCreds.database} -c 'YOUR_SQL_HERE'`);
+    parts.push(`Row-Level Security is enforced — queries are automatically scoped to your tenant.`);
 
-  const messageWithContext = `${parts.join(' ')}\n\nOwner message: ${text}`;
+    const messageWithContext = `${parts.join(' ')}\n\nOwner message: ${text}`;
 
-  const { reply } = await callOpenClaw(messageWithContext, sessionId);
+    const { reply, error } = await callOpenClaw(messageWithContext, sessionId);
 
-  return { reply: reply || 'Lo siento, hubo un error. Intenta de nuevo.' };
+    return { reply: reply || getFallbackMessage(error) };
+  } catch (err) {
+    logger.error({ err, tenantId, jid }, 'OpenClaw bridge processOwnerWithOpenClaw failed');
+    return { reply: getFallbackMessage() };
+  }
 }
 
 /**

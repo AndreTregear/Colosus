@@ -4,6 +4,7 @@ import { logger } from '../shared/logger.js';
 import type { Order, OrderItem, OrderWithItems, OrderItemInput, OrderStatus } from '../shared/types.js';
 import type { OrderRow, OrderItemRow, ProductRow, CustomerRow } from './row-types.js';
 import * as catalogService from '../services/catalog-service.js';
+import { encryptRecord, decryptRecord } from '../crypto/middleware.js';
 
 const rowToOrder = createRowMapper<Order>({
   id: 'id',
@@ -19,6 +20,29 @@ const rowToOrder = createRowMapper<Order>({
   createdAt: { col: 'created_at', type: 'date' },
   updatedAt: { col: 'updated_at', type: 'date' },
 });
+
+// Decrypt raw order row (column names) before row mapping
+async function decOrderRow(tenantId: string, row: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return decryptRecord(tenantId, 'orders', row);
+}
+
+// Decrypt customer name from a JOIN result
+async function decCustName(tenantId: string, name: unknown): Promise<string | null> {
+  if (!name) return null;
+  const d = await decryptRecord(tenantId, 'customers', { name });
+  return (d.name as string | null) ?? null;
+}
+
+function mapItems(rows: OrderItemRow[]): OrderItem[] {
+  return rows.map((r: OrderItemRow) => ({
+    id: r.id,
+    orderId: r.order_id,
+    productId: r.product_id,
+    quantity: r.quantity,
+    unitPrice: Number(r.unit_price),
+    productName: r.product_name ?? '',
+  }));
+}
 
 export async function createOrder(
   tenantId: string,
@@ -50,11 +74,17 @@ export async function createOrder(
       total += Number(product.price) * item.quantity;
     }
 
+    // Encrypt order fields before INSERT
+    const enc = await encryptRecord(tenantId, 'orders', {
+      notes: notes ?? null,
+      delivery_address: deliveryAddress ?? null,
+    });
+
     const orderResult = await client.query<OrderRow>(
       `INSERT INTO orders (tenant_id, customer_id, status, total, delivery_type, delivery_address, notes)
        VALUES ($1, $2, 'pending', $3, $4, $5, $6)
        RETURNING *`,
-      [tenantId, customerId, total, deliveryType, deliveryAddress ?? null, notes ?? null],
+      [tenantId, customerId, total, deliveryType, enc.delivery_address ?? null, enc.notes ?? null],
     );
     const insertedOrder = orderResult.rows[0];
     if (!insertedOrder) throw new Error('Failed to create order');
@@ -83,17 +113,14 @@ export async function createOrder(
       'SELECT name, jid FROM customers WHERE id = $1', [customerId],
     );
 
+    // Decrypt order row and customer name
+    const decRow = await decOrderRow(tenantId, orderRow as unknown as Record<string, unknown>);
+    const custName = await decCustName(tenantId, customerRow.rows[0]?.name);
+
     return {
-      ...rowToOrder(orderRow),
-      items: itemRows.rows.map((r: OrderItemRow) => ({
-        id: r.id,
-        orderId: r.order_id,
-        productId: r.product_id,
-        quantity: r.quantity,
-        unitPrice: Number(r.unit_price),
-        productName: r.product_name ?? '',
-      })),
-      customerName: customerRow.rows[0]?.name ?? null,
+      ...rowToOrder(decRow as OrderRow),
+      items: mapItems(itemRows.rows),
+      customerName: custName,
       customerJid: customerRow.rows[0]?.jid ?? '',
     };
   });
@@ -108,7 +135,8 @@ async function getOrderByIdInternal(tenantId: string, id: number): Promise<Order
   const row = await queryOne<OrderRow>('SELECT * FROM orders WHERE tenant_id = $1 AND id = $2', [tenantId, id]);
   if (!row) return undefined;
 
-  const order = rowToOrder(row);
+  const decRow = await decOrderRow(tenantId, row as unknown as Record<string, unknown>);
+  const order = rowToOrder(decRow as OrderRow);
   const itemResult = await query<OrderItemRow>(
     `SELECT oi.*, p.name as product_name FROM order_items oi
      JOIN products p ON oi.product_id = p.id WHERE oi.order_id = $1`,
@@ -116,18 +144,12 @@ async function getOrderByIdInternal(tenantId: string, id: number): Promise<Order
   );
 
   const customerRow = await queryOne<CustomerRow>('SELECT name, jid FROM customers WHERE id = $1', [row.customer_id]);
+  const custName = await decCustName(tenantId, customerRow?.name);
 
   return {
     ...order,
-    items: itemResult.rows.map((r: OrderItemRow) => ({
-      id: r.id,
-      orderId: r.order_id,
-      productId: r.product_id,
-      quantity: r.quantity,
-      unitPrice: Number(r.unit_price),
-      productName: r.product_name ?? '',
-    })),
-    customerName: customerRow?.name ?? null,
+    items: mapItems(itemResult.rows),
+    customerName: custName,
     customerJid: customerRow?.jid ?? '',
   };
 }
@@ -141,7 +163,10 @@ export async function getOrdersByCustomer(tenantId: string, customerId: number):
     'SELECT * FROM orders WHERE tenant_id = $1 AND customer_id = $2 ORDER BY created_at DESC',
     [tenantId, customerId],
   );
-  return result.rows.map(rowToOrder);
+  return Promise.all(result.rows.map(async r => {
+    const d = await decOrderRow(tenantId, r as unknown as Record<string, unknown>);
+    return rowToOrder(d as OrderRow);
+  }));
 }
 
 export async function getOrdersByStatus(tenantId: string, status: string): Promise<Order[]> {
@@ -149,7 +174,10 @@ export async function getOrdersByStatus(tenantId: string, status: string): Promi
     'SELECT * FROM orders WHERE tenant_id = $1 AND status = $2 ORDER BY created_at DESC',
     [tenantId, status],
   );
-  return result.rows.map(rowToOrder);
+  return Promise.all(result.rows.map(async r => {
+    const d = await decOrderRow(tenantId, r as unknown as Record<string, unknown>);
+    return rowToOrder(d as OrderRow);
+  }));
 }
 
 export async function getAllOrders(tenantId: string, options: { limit: number; offset: number; status?: string }): Promise<Order[]> {
@@ -160,7 +188,10 @@ export async function getAllOrders(tenantId: string, options: { limit: number; o
     `SELECT * FROM orders WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT $${params.push(options.limit)} OFFSET $${params.push(options.offset)}`,
     params,
   );
-  return result.rows.map(rowToOrder);
+  return Promise.all(result.rows.map(async r => {
+    const d = await decOrderRow(tenantId, r as unknown as Record<string, unknown>);
+    return rowToOrder(d as OrderRow);
+  }));
 }
 
 export async function updateOrderStatus(tenantId: string, id: number, status: OrderStatus): Promise<Order | undefined> {
@@ -168,7 +199,9 @@ export async function updateOrderStatus(tenantId: string, id: number, status: Or
     'UPDATE orders SET status = $1, updated_at = now() WHERE tenant_id = $2 AND id = $3 RETURNING *',
     [status, tenantId, id],
   );
-  return row ? rowToOrder(row) : undefined;
+  if (!row) return undefined;
+  const d = await decOrderRow(tenantId, row as unknown as Record<string, unknown>);
+  return rowToOrder(d as OrderRow);
 }
 
 export async function getOrderCount(tenantId: string, status?: string): Promise<number> {
@@ -184,7 +217,6 @@ export async function getOrdersByDateRange(
   startDate: Date,
   endDate: Date
 ): Promise<OrderWithItems[]> {
-  // Single query with JOINs instead of N+1
   const result = await query<OrderRow & { customer_name: string; customer_jid: string }>(
     `SELECT o.*, c.name as customer_name, c.jid as customer_jid
      FROM orders o
@@ -207,7 +239,6 @@ export async function getOrdersByDateRange(
     [orderIds],
   );
 
-  // Group items by order_id
   const itemsByOrderId = new Map<number, OrderItemRow[]>();
   for (const item of itemsResult.rows) {
     const list = itemsByOrderId.get(item.order_id) || [];
@@ -215,26 +246,18 @@ export async function getOrdersByDateRange(
     itemsByOrderId.set(item.order_id, list);
   }
 
-  return result.rows.map(row => ({
-    ...rowToOrder(row),
-    items: (itemsByOrderId.get(row.id) || []).map((r: OrderItemRow) => ({
-      id: r.id,
-      orderId: r.order_id,
-      productId: r.product_id,
-      quantity: r.quantity,
-      unitPrice: Number(r.unit_price),
-      productName: r.product_name ?? '',
-    })),
-    customerName: row.customer_name ?? null,
-    customerJid: row.customer_jid ?? '',
+  return Promise.all(result.rows.map(async row => {
+    const d = await decOrderRow(tenantId, row as unknown as Record<string, unknown>);
+    const custName = await decCustName(tenantId, row.customer_name);
+    return {
+      ...rowToOrder(d as OrderRow),
+      items: mapItems(itemsByOrderId.get(row.id) || []),
+      customerName: custName,
+      customerJid: row.customer_jid ?? '',
+    };
   }));
 }
 
-/**
- * Get orders that need payment follow-up reminders.
- * Finds orders in 'payment_requested' status older than hoursAfterRequest
- * that haven't exceeded maxReminders.
- */
 export async function getOrdersNeedingPaymentReminder(
   tenantId?: string,
   hoursAfterRequest: number = 4,
@@ -258,10 +281,14 @@ export async function getOrdersNeedingPaymentReminder(
      ORDER BY o.created_at`,
     params,
   );
-  return result.rows.map(r => ({
-    ...rowToOrder(r),
-    customerJid: String(r.customer_jid),
-    customerChannel: String(r.customer_channel),
+  return Promise.all(result.rows.map(async r => {
+    const tid = (r as unknown as Record<string, unknown>).tenant_id as string;
+    const d = await decOrderRow(tid, r as unknown as Record<string, unknown>);
+    return {
+      ...rowToOrder(d as OrderRow),
+      customerJid: String(r.customer_jid),
+      customerChannel: String(r.customer_channel),
+    };
   }));
 }
 
@@ -272,17 +299,12 @@ export async function incrementReminderCount(tenantId: string, orderId: number):
   );
 }
 
-/**
- * Modify an existing order's items. Replaces all current items with a new list.
- * Only allowed for orders that haven't been paid yet (pending, confirmed, payment_requested).
- */
 export async function modifyOrder(
   tenantId: string,
   orderId: number,
   newItems: { productId: number; quantity: number }[],
 ): Promise<OrderWithItems> {
   return transaction(async (client) => {
-    // Get current order and validate status
     const orderResult = await client.query<OrderRow>(
       'SELECT * FROM orders WHERE tenant_id = $1 AND id = $2 FOR UPDATE',
       [tenantId, orderId],
@@ -307,10 +329,8 @@ export async function modifyOrder(
       }
     }
 
-    // Delete old items
     await client.query('DELETE FROM order_items WHERE order_id = $1', [orderId]);
 
-    // Insert new items and compute total
     let total = 0;
     const resolvedItems: { productId: number; quantity: number; unitPrice: number; productName: string }[] = [];
 
@@ -342,7 +362,6 @@ export async function modifyOrder(
       }
     }
 
-    // Update order total
     const updatedOrder = await client.query<OrderRow>(
       'UPDATE orders SET total = $1, updated_at = now() WHERE tenant_id = $2 AND id = $3 RETURNING *',
       [total, tenantId, orderId],
@@ -352,8 +371,12 @@ export async function modifyOrder(
       'SELECT name, jid FROM customers WHERE id = $1', [orderRow.customer_id],
     );
 
+    // Decrypt order row and customer name
+    const decRow = await decOrderRow(tenantId, updatedOrder.rows[0] as unknown as Record<string, unknown>);
+    const custName = await decCustName(tenantId, customerRow.rows[0]?.name);
+
     return {
-      ...rowToOrder(updatedOrder.rows[0]),
+      ...rowToOrder(decRow as OrderRow),
       items: resolvedItems.map(i => ({
         id: 0,
         orderId,
@@ -362,7 +385,7 @@ export async function modifyOrder(
         unitPrice: i.unitPrice,
         productName: i.productName,
       })),
-      customerName: customerRow.rows[0]?.name ?? null,
+      customerName: custName,
       customerJid: customerRow.rows[0]?.jid ?? '',
     };
   });
