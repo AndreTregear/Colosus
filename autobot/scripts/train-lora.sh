@@ -3,8 +3,8 @@
 # OpenClaw-RL LoRA Training Script for Yaya Platform
 # ═══════════════════════════════════════════════════════════════
 #
-# Trains a LoRA adapter on conversation trajectories using GRPO.
-# Designed for 2× RTX A5000 (24GB each).
+# Trains a LoRA adapter on conversation trajectories.
+# Designed for 2x RTX A5000 (24GB each).
 #
 # Usage:
 #   bash scripts/train-lora.sh                    # Full training
@@ -13,7 +13,7 @@
 #   bash scripts/train-lora.sh --run-id 42        # Custom run ID
 #
 # Prerequisites:
-#   pip install unsloth trl transformers datasets peft accelerate
+#   pip install unsloth trl transformers datasets peft accelerate bitsandbytes
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -47,40 +47,54 @@ done
 
 ADAPTER_PATH="$OUTPUT_DIR/run-$RUN_ID"
 
-echo "═══════════════════════════════════════════════"
+echo "==============================================="
 echo "  OpenClaw-RL LoRA Training"
-echo "═══════════════════════════════════════════════"
+echo "==============================================="
 echo "  Base model:    $BASE_MODEL"
 echo "  Rollout dir:   $ROLLOUT_DIR"
 echo "  Output:        $ADAPTER_PATH"
 echo "  Run ID:        $RUN_ID"
 echo "  LoRA rank:     $LORA_RANK"
 echo "  LoRA alpha:    $LORA_ALPHA"
-echo "  Batch size:    $BATCH_SIZE × $GRADIENT_ACCUMULATION (eff: $((BATCH_SIZE * GRADIENT_ACCUMULATION)))"
+echo "  Batch size:    $BATCH_SIZE x $GRADIENT_ACCUMULATION (eff: $((BATCH_SIZE * GRADIENT_ACCUMULATION)))"
 echo "  Epochs:        $NUM_EPOCHS"
 echo "  LR:            $LEARNING_RATE"
 echo "  Dry run:       $DRY_RUN"
-echo "═══════════════════════════════════════════════"
+echo "==============================================="
 
-# ── Validate rollout data ──
+# ── Validate rollout data using Python (reliable counting) ──
 ROLLOUT_FILES=$(find "$ROLLOUT_DIR" -name "*.jsonl" 2>/dev/null | sort)
 if [ -z "$ROLLOUT_FILES" ]; then
-  echo "❌ No JSONL files found in $ROLLOUT_DIR"
+  echo "ERROR: No JSONL files found in $ROLLOUT_DIR"
   exit 1
 fi
 
-TOTAL_LINES=0
-TOTAL_POSITIVE=0
-TOTAL_NEGATIVE=0
-for f in $ROLLOUT_FILES; do
-  LINES=$(wc -l < "$f")
-  POS=$(grep -c '"reward":1' "$f" 2>/dev/null || echo 0)
-  NEG=$(grep -c '"reward":-1' "$f" 2>/dev/null || echo 0)
-  TOTAL_LINES=$((TOTAL_LINES + LINES))
-  TOTAL_POSITIVE=$((TOTAL_POSITIVE + POS))
-  TOTAL_NEGATIVE=$((TOTAL_NEGATIVE + NEG))
-  echo "  📄 $f: $LINES trajectories ($POS positive, $NEG negative)"
-done
+STATS=$(python3 -c "
+import json, os, sys
+d = sys.argv[1]
+total = pos = neg = 0
+for fname in sorted(os.listdir(d)):
+    if not fname.endswith('.jsonl'): continue
+    fp = os.path.join(d, fname)
+    lines = [l for l in open(fp).readlines() if l.strip()]
+    p = n = 0
+    for l in lines:
+        for t in json.loads(l).get('turns', []):
+            r = t.get('reward')
+            if r == 1: p += 1
+            elif r == -1: n += 1
+    total += len(lines)
+    pos += p; neg += n
+    print(f'  {fname}: {len(lines)} trajectories ({p} positive, {n} negative)', file=sys.stderr)
+print(f'{total} {pos} {neg}')
+" "$ROLLOUT_DIR" 2>&1)
+
+# Last line has the counts, earlier lines are per-file details
+echo "$STATS" | head -n -1
+COUNTS=$(echo "$STATS" | tail -1)
+TOTAL_LINES=$(echo "$COUNTS" | awk '{print $1}')
+TOTAL_POSITIVE=$(echo "$COUNTS" | awk '{print $2}')
+TOTAL_NEGATIVE=$(echo "$COUNTS" | awk '{print $3}')
 
 echo ""
 echo "  Total trajectories: $TOTAL_LINES"
@@ -89,13 +103,12 @@ echo "  Total negative turns: $TOTAL_NEGATIVE"
 echo ""
 
 if [ "$TOTAL_LINES" -lt 10 ]; then
-  echo "❌ Need at least 10 trajectories for training (got $TOTAL_LINES)"
+  echo "ERROR: Need at least 10 trajectories for training (got $TOTAL_LINES)"
   exit 1
 fi
 
 if [ "$DRY_RUN" = true ]; then
-  echo "✅ Dry run: data validation passed ($TOTAL_LINES trajectories)"
-  echo "   Run without --dry-run to start training."
+  echo "OK: Dry run passed ($TOTAL_LINES trajectories, $TOTAL_POSITIVE positive, $TOTAL_NEGATIVE negative)"
   exit 0
 fi
 
@@ -103,188 +116,131 @@ fi
 mkdir -p "$ADAPTER_PATH"
 
 # ── Launch training ──
-echo "🚀 Starting LoRA training..."
+echo "Starting LoRA training..."
 
-python3 -c "
-import json
-import os
-import sys
+python3 << TRAINEOF
+import json, os, sys, datetime
 
-# ── Load and convert trajectories to chat format ──
-rollout_dir = '$ROLLOUT_DIR'
-adapter_path = '$ADAPTER_PATH'
-base_model = '$BASE_MODEL'
+rollout_dir = "$ROLLOUT_DIR"
+adapter_path = "$ADAPTER_PATH"
+base_model = "$BASE_MODEL"
 
-print('Loading trajectories...')
+# Load trajectories
+print("Loading trajectories...")
 trajectories = []
 for fname in sorted(os.listdir(rollout_dir)):
-    if not fname.endswith('.jsonl'):
-        continue
+    if not fname.endswith(".jsonl"): continue
     with open(os.path.join(rollout_dir, fname)) as f:
         for line in f:
             line = line.strip()
-            if not line:
-                continue
+            if not line: continue
             try:
-                traj = json.loads(line)
-                trajectories.append(traj)
+                trajectories.append(json.loads(line))
             except json.JSONDecodeError:
                 continue
 
-print(f'Loaded {len(trajectories)} trajectories')
+print(f"Loaded {len(trajectories)} trajectories")
 
-# Convert to SFT chat format (positive examples only for SFT phase)
-# For GRPO, we'd need the full reward signals, but SFT is the first step
+# Convert to chat format (positive examples only for SFT)
 train_data = []
 for traj in trajectories:
     messages = []
-    for turn in traj.get('turns', []):
-        role = turn.get('role', 'user')
-        content = turn.get('content', '')
-        reward = turn.get('reward')
-        
-        # For SFT: only include turns from positive conversations
-        messages.append({'role': role, 'content': content})
-    
-    # Only use trajectories with at least one positive reward
-    has_positive = any(t.get('reward', 0) > 0 for t in traj.get('turns', []))
+    for turn in traj.get("turns", []):
+        messages.append({"role": turn["role"], "content": turn["content"]})
+    has_positive = any(t.get("reward", 0) > 0 for t in traj.get("turns", []))
     if has_positive and len(messages) >= 2:
-        train_data.append({'messages': messages})
+        train_data.append({"messages": messages})
 
-print(f'Prepared {len(train_data)} training conversations')
-
+print(f"Prepared {len(train_data)} training conversations")
 if len(train_data) < 5:
-    print('❌ Not enough positive training data')
+    print("ERROR: Not enough positive training data")
     sys.exit(1)
 
-# Save as JSON for the trainer
-data_path = os.path.join(adapter_path, 'train_data.json')
-with open(data_path, 'w') as f:
+# Save training data
+data_path = os.path.join(adapter_path, "train_data.json")
+with open(data_path, "w") as f:
     json.dump(train_data, f, ensure_ascii=False, indent=2)
-print(f'Saved training data to {data_path}')
+print(f"Saved training data to {data_path}")
 
-# ── Try Unsloth (fast) or fall back to standard HF ──
+# Try loading model
 try:
     from unsloth import FastLanguageModel
     import torch
-    
-    print('Loading model with Unsloth...')
+    print("Loading model with Unsloth...")
     model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=base_model,
-        max_seq_length=$MAX_SEQ_LENGTH,
-        dtype=torch.float16,
-        load_in_4bit=True,
+        model_name=base_model, max_seq_length=$MAX_SEQ_LENGTH,
+        dtype=torch.float16, load_in_4bit=True,
     )
-    
     model = FastLanguageModel.get_peft_model(
-        model,
-        r=$LORA_RANK,
-        lora_alpha=$LORA_ALPHA,
-        lora_dropout=$LORA_DROPOUT,
-        bias='none',
-        use_gradient_checkpointing='unsloth',
-        random_state=42,
+        model, r=$LORA_RANK, lora_alpha=$LORA_ALPHA,
+        lora_dropout=$LORA_DROPOUT, bias="none",
+        use_gradient_checkpointing="unsloth", random_state=42,
     )
-    
-    print('Model loaded with Unsloth LoRA')
-    USE_UNSLOTH = True
-
+    print("Unsloth LoRA model ready")
 except ImportError:
-    print('Unsloth not available, using standard transformers + peft...')
+    print("Unsloth not available, using transformers + peft...")
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
     from peft import LoraConfig, get_peft_model, TaskType
     import torch
-    
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type='nf4',
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
+    bnb = BitsAndBytesConfig(
+        load_in_4bit=True, bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16, bnb_4bit_use_double_quant=True,
     )
-    
-    print('Loading model...')
+    print("Loading model...")
     model = AutoModelForCausalLM.from_pretrained(
-        base_model,
-        quantization_config=bnb_config,
-        device_map='auto',
-        trust_remote_code=True,
+        base_model, quantization_config=bnb, device_map="auto", trust_remote_code=True,
     )
     tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
-    
     lora_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,
-        r=$LORA_RANK,
-        lora_alpha=$LORA_ALPHA,
+        task_type=TaskType.CAUSAL_LM, r=$LORA_RANK, lora_alpha=$LORA_ALPHA,
         lora_dropout=$LORA_DROPOUT,
-        target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'],
-        bias='none',
+        target_modules=["q_proj","k_proj","v_proj","o_proj","gate_proj","up_proj","down_proj"],
+        bias="none",
     )
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
-    USE_UNSLOTH = False
 
-# ── Prepare dataset ──
+# Prepare dataset
 from datasets import Dataset
-
 dataset = Dataset.from_list(train_data)
-print(f'Dataset: {len(dataset)} conversations')
+print(f"Dataset: {len(dataset)} conversations")
 
-# ── Train with SFT first (then GRPO in future iterations) ──
+# Train
 from trl import SFTTrainer, SFTConfig
-
 sft_config = SFTConfig(
-    output_dir=adapter_path,
-    num_train_epochs=$NUM_EPOCHS,
+    output_dir=adapter_path, num_train_epochs=$NUM_EPOCHS,
     per_device_train_batch_size=$BATCH_SIZE,
     gradient_accumulation_steps=$GRADIENT_ACCUMULATION,
-    learning_rate=$LEARNING_RATE,
-    lr_scheduler_type='cosine',
-    warmup_steps=10,
-    weight_decay=0.01,
-    logging_steps=5,
-    save_strategy='epoch',
-    bf16=False,
-    fp16=True,
-    max_seq_length=$MAX_SEQ_LENGTH,
-    optim='paged_adamw_8bit',
-    max_grad_norm=0.3,
-    seed=42,
+    learning_rate=$LEARNING_RATE, lr_scheduler_type="cosine",
+    warmup_steps=10, weight_decay=0.01, logging_steps=5,
+    save_strategy="epoch", bf16=False, fp16=True,
+    max_seq_length=$MAX_SEQ_LENGTH, optim="paged_adamw_8bit",
+    max_grad_norm=0.3, seed=42,
 )
+trainer = SFTTrainer(model=model, tokenizer=tokenizer, train_dataset=dataset, args=sft_config)
 
-trainer = SFTTrainer(
-    model=model,
-    tokenizer=tokenizer,
-    train_dataset=dataset,
-    args=sft_config,
-)
-
-print('Starting training...')
+print("Training started...")
 trainer.train()
 
-# ── Save adapter ──
+# Save
 model.save_pretrained(adapter_path)
 tokenizer.save_pretrained(adapter_path)
-print(f'✅ LoRA adapter saved to {adapter_path}')
+print(f"LoRA adapter saved to {adapter_path}")
 
-# Save training metadata
-import datetime
 meta = {
-    'run_id': '$RUN_ID',
-    'base_model': base_model,
-    'adapter_path': adapter_path,
-    'trajectories': len(trajectories),
-    'train_conversations': len(train_data),
-    'lora_rank': $LORA_RANK,
-    'lora_alpha': $LORA_ALPHA,
-    'completed_at': datetime.datetime.now().isoformat(),
+    "run_id": "$RUN_ID", "base_model": base_model,
+    "adapter_path": adapter_path, "trajectories": len(trajectories),
+    "train_conversations": len(train_data),
+    "lora_rank": $LORA_RANK, "lora_alpha": $LORA_ALPHA,
+    "completed_at": datetime.datetime.now().isoformat(),
 }
-with open(os.path.join(adapter_path, 'training_meta.json'), 'w') as f:
+with open(os.path.join(adapter_path, "training_meta.json"), "w") as f:
     json.dump(meta, f, indent=2)
-print(f'Training metadata saved')
-"
+print("Training complete!")
+TRAINEOF
 
 echo ""
-echo "═══════════════════════════════════════════════"
-echo "  ✅ Training complete!"
+echo "==============================================="
+echo "  Training complete!"
 echo "  Adapter: $ADAPTER_PATH"
-echo "═══════════════════════════════════════════════"
+echo "==============================================="
