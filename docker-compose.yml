@@ -139,6 +139,7 @@ services:
       - "3002:3000"
     environment:
       DATABASE_URL: postgresql://${CALCOM_DB_USER:-calcom}:${CALCOM_DB_PASS:-calcom_s3cur3}@postgres:5432/calcom_db
+      DATABASE_DIRECT_URL: postgresql://${CALCOM_DB_USER:-calcom}:${CALCOM_DB_PASS:-calcom_s3cur3}@postgres:5432/calcom_db
       NEXTAUTH_SECRET: ${CALCOM_SECRET:-yaya-calcom-secret-2026-change-me}
       NEXT_PUBLIC_WEBAPP_URL: ${CALCOM_URL:-http://localhost:3002}
       NEXT_PUBLIC_API_V2_URL: ${CALCOM_URL:-http://localhost:3002}/api/v2
@@ -155,14 +156,17 @@ services:
     restart: unless-stopped
     ports:
       - "3010:3000"
+    env_file:
+      - autobot/.env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-yaya_prod}:${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}@postgres:5432/lago_db
       REDIS_URL: redis://redis:6379/1
       LAGO_API_URL: ${LAGO_API_URL:-http://localhost:3010}
       SECRET_KEY_BASE: ${LAGO_SECRET:-yaya-lago-secret-base-2026-production-key-change-me-please}
-      LAGO_RSA_PRIVATE_KEY: ${LAGO_RSA_PRIVATE_KEY:-}
+      LAGO_RSA_PRIVATE_KEY: ${LAGO_RSA_PRIVATE_KEY}
       RAILS_ENV: production
       RAILS_LOG_TO_STDOUT: "true"
+      LAGO_DISABLE_SIGNUP: "false"
       ENCRYPTION_PRIMARY_KEY: ${LAGO_ENC_PRIMARY:-yaya-lago-primary-key-32chars!!!!}
       ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENC_DETERMINISTIC:-yaya-lago-det-key-32-chars!!!!!!}
       ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENC_SALT:-yaya-lago-salt-32-characters!!!!!}
@@ -177,12 +181,14 @@ services:
   lago-worker:
     image: getlago/api:v1.20.1
     restart: unless-stopped
-    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
-    working_dir: /app
+    command: ["./scripts/start.worker.sh"]
+    env_file:
+      - autobot/.env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-yaya_prod}:${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}@postgres:5432/lago_db
       REDIS_URL: redis://redis:6379/1
       SECRET_KEY_BASE: ${LAGO_SECRET:-yaya-lago-secret-base-2026-production-key-change-me-please}
+      LAGO_RSA_PRIVATE_KEY: ${LAGO_RSA_PRIVATE_KEY}
       RAILS_ENV: production
       ENCRYPTION_PRIMARY_KEY: ${LAGO_ENC_PRIMARY:-yaya-lago-primary-key-32chars!!!!}
       ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENC_DETERMINISTIC:-yaya-lago-det-key-32-chars!!!!!!}
@@ -256,5 +262,11 @@ networks:
 
 volumes:
   pgdata:
+    external: true
+    name: autobot_pgdata
   redisdata:
+    external: true
+    name: autobot_redisdata
   miniodata:
+    external: true
+    name: autobot_miniodata
