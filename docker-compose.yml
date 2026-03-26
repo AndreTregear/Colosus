@@ -16,7 +16,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-yaya_prod}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}
-      POSTGRES_DB: ${POSTGRES_DB:-yaya}
+      POSTGRES_DB: ${POSTGRES_DB:-yaya_business}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -297,7 +297,7 @@ services:
       PGHOST: postgres
       PGUSER: ${POSTGRES_USER:-yaya_prod}
       PGPASSWORD: ${POSTGRES_PASSWORD:-yaya_s3cur3_db_2024!}
-      PGDATABASE: ${POSTGRES_DB:-yaya}
+      PGDATABASE: ${POSTGRES_DB:-yaya_business}
     volumes:
       - ./backups:/backups
     deploy:
