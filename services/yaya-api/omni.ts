@@ -1,5 +1,11 @@
-import { execFileSync, spawn } from 'child_process';
-import { promisify } from 'util';
+/**
+ * vLLM-Omni client for Yaya Platform.
+ *
+ * NOTE: When @yaya/core is wired as a dependency, the audio conversion
+ * utilities (convertOggToWav, convertWavToOpus) should be imported from
+ * '@yaya/core/ai' instead of being inlined here.
+ */
+import { spawn } from 'child_process';
 import { tools, executeTool, buildSystemPrompt } from './ai.js';
 import * as db from './db.js';
 
