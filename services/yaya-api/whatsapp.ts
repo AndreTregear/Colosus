@@ -11,8 +11,10 @@ import { Boom } from '@hapi/boom';
 import QRCode from 'qrcode';
 import pino from 'pino';
 import { EventEmitter } from 'events';
+import { randomUUID } from 'crypto';
 import * as db from './db.js';
 import { chat } from './ai.js';
+import { chatOmni, isOmniEnabled, convertOggToWav, convertWavToOpus } from './omni.js';
 import { handleOnboardingMessage, isOnboarding } from './onboarding.js';
 
 // ── SSE broadcast ────────────────────────────────────────────
@@ -283,47 +285,56 @@ class WhatsAppManager {
 
     // Handle audio/voice messages
     const audioMsg = raw.message.audioMessage;
+    let audioBuffer: Buffer | null = null;
     if (audioMsg && !text) {
       try {
-        console.log('[WA] Voice message received, transcribing...');
+        console.log('[WA] Voice message received...');
         const { downloadMediaMessage } = await import('@whiskeysockets/baileys');
-        const buffer = await downloadMediaMessage(raw, 'buffer', {}) as Buffer;
+        audioBuffer = await downloadMediaMessage(raw, 'buffer', {}) as Buffer;
         
-        // Send to Whisper API (OpenAI-compatible endpoint or local)
-        const whisperUrl = process.env.WHISPER_URL || process.env.AI_API_URL || 'https://ai.yaya.sh/v1';
-        const whisperKey = process.env.WHISPER_API_KEY || process.env.AI_API_KEY || '';
-        
-        const FormData = (await import('node:buffer')).Buffer;
-        const boundary = '----FormBoundary' + crypto.randomUUID().replace(/-/g, '');
-        
-        // Build multipart form data manually
-        const parts: Buffer[] = [];
-        parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="voice.ogg"\r\nContent-Type: audio/ogg\r\n\r\n`));
-        parts.push(buffer);
-        parts.push(Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n`));
-        parts.push(Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\nes\r\n`));
-        parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
-        const body = Buffer.concat(parts);
-
-        const resp = await fetch(`${whisperUrl}/audio/transcriptions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${whisperKey}`,
-            'Content-Type': `multipart/form-data; boundary=${boundary}`,
-          },
-          body,
-        });
-
-        if (resp.ok) {
-          const result = await resp.json() as { text?: string };
-          text = result.text || null;
-          if (text) {
-            console.log(`[WA] Transcribed voice: "${text.substring(0, 80)}..."`);
-          }
+        if (isOmniEnabled()) {
+          console.log('[WA] Using Omni for audio processing');
+          // For omni mode, we'll process the audio directly in the AI response section
+          // Set a placeholder text to indicate this is a voice message
+          text = ''; // Empty text, but we have audioBuffer for omni processing
         } else {
-          console.error(`[WA] Whisper transcription failed: ${resp.status} ${resp.statusText}`);
-          // Fallback: tell user we can't process audio right now
-          text = null;
+          console.log('[WA] Using Whisper transcription...');
+          // Send to Whisper API (OpenAI-compatible endpoint or local)
+          const whisperUrl = process.env.WHISPER_URL || process.env.AI_API_URL || 'https://ai.yaya.sh/v1';
+          const whisperKey = process.env.WHISPER_API_KEY || process.env.AI_API_KEY || '';
+          
+          const FormData = (await import('node:buffer')).Buffer;
+          const boundary = '----FormBoundary' + randomUUID().replace(/-/g, '');
+          
+          // Build multipart form data manually
+          const parts: Buffer[] = [];
+          parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="voice.ogg"\r\nContent-Type: audio/ogg\r\n\r\n`));
+          parts.push(audioBuffer);
+          parts.push(Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n`));
+          parts.push(Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\nes\r\n`));
+          parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+          const body = Buffer.concat(parts);
+
+          const resp = await fetch(`${whisperUrl}/audio/transcriptions`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${whisperKey}`,
+              'Content-Type': `multipart/form-data; boundary=${boundary}`,
+            },
+            body,
+          });
+
+          if (resp.ok) {
+            const result = await resp.json() as { text?: string };
+            text = result.text || null;
+            if (text) {
+              console.log(`[WA] Transcribed voice: "${text.substring(0, 80)}..."`);
+            }
+          } else {
+            console.error(`[WA] Whisper transcription failed: ${resp.status} ${resp.statusText}`);
+            // Fallback: tell user we can't process audio right now
+            text = null;
+          }
         }
       } catch (err: any) {
         console.error('[WA] Voice processing error:', err.message);
@@ -331,8 +342,8 @@ class WhatsAppManager {
       }
     }
 
-    if (!text) {
-      // If still no text (unsupported media or transcription failed), send helpful reply
+    if (!text && !audioBuffer) {
+      // If still no text and no audio buffer (unsupported media or transcription failed), send helpful reply
       if (audioMsg) {
         const contactName = raw.pushName || remoteJid.split('@')[0];
         if (!raw.key.fromMe) {
@@ -347,8 +358,8 @@ class WhatsAppManager {
     const isVoiceMessage = !!audioMsg; // Track if original was voice
 
     // Store incoming message
-    const msgId = `wa_${crypto.randomUUID().slice(0, 12)}`;
-    db.insertWaMessage(msgId, userId, remoteJid, contactName, fromMe, text, isVoiceMessage ? 'voice' : 'text');
+    const msgId = `wa_${randomUUID().slice(0, 12)}`;
+    db.insertWaMessage(msgId, userId, remoteJid, contactName, fromMe, text || '', isVoiceMessage ? 'voice' : 'text');
 
     // Broadcast to web UI
     broadcast('wa:message', {
@@ -356,7 +367,7 @@ class WhatsAppManager {
       remote_jid: remoteJid,
       contact_name: contactName,
       from_me: fromMe,
-      content: text,
+      content: text || '',
       created_at: new Date().toISOString(),
     });
 
@@ -376,10 +387,10 @@ class WhatsAppManager {
 
     // Check if onboarding is needed
     if (isOnboarding(userId)) {
-      const response = await handleOnboardingMessage(userId, text, contactName);
+      const response = await handleOnboardingMessage(userId, text || '', contactName);
       if (response) {
         await this.sendMessage(remoteJid, response);
-        const respId = `wa_${crypto.randomUUID().slice(0, 12)}`;
+        const respId = `wa_${randomUUID().slice(0, 12)}`;
         db.insertWaMessage(respId, userId, remoteJid, 'Yaya', true, response, 'text');
         broadcast('wa:message', {
           id: respId,
@@ -401,18 +412,58 @@ class WhatsAppManager {
         await this.sock.sendPresenceUpdate('composing', remoteJid);
       }
 
-      const response = await chat(userId, text);
+      let response: { role: string; content: string; metadata?: any };
+      let audioResponseBuffer: Buffer | null = null;
+
+      if (isOmniEnabled() && (audioBuffer || text)) {
+        // Use Omni for audio-native conversation
+        let audioBase64: string | undefined;
+        let audioFormat: string | undefined;
+        
+        if (audioBuffer) {
+          // Convert OGG to base64 for omni (librosa supports OGG directly)
+          audioBase64 = audioBuffer.toString('base64');
+          audioFormat = 'ogg';
+        }
+        
+        const omniResponse = await chatOmni(userId, text || '', audioBase64, audioFormat);
+        response = { role: 'assistant', content: omniResponse.text };
+        
+        // Convert audio response if available
+        if (omniResponse.audioBase64 && omniResponse.audioFormat === 'wav') {
+          try {
+            audioResponseBuffer = await convertWavToOpus(omniResponse.audioBase64);
+          } catch (audioErr: any) {
+            console.error('[WA] Audio conversion error:', audioErr.message);
+            // Continue with text response if audio fails
+          }
+        }
+      } else {
+        // Use traditional text-based AI
+        response = await chat(userId, text || '');
+      }
+
       const aiText = response.content;
 
-      // Send AI response via WhatsApp — voice reply if user sent voice, text otherwise
-      if (isVoiceMessage) {
+      // Send AI response via WhatsApp
+      if (isVoiceMessage && audioResponseBuffer) {
+        // Send audio response for voice messages when available
+        console.log(`[WA] Sending voice response (${audioResponseBuffer.length} bytes)`);
+        await this.sock!.sendMessage(remoteJid, {
+          audio: audioResponseBuffer,
+          mimetype: 'audio/ogg; codecs=opus',
+          ptt: true,
+        });
+      } else if (isVoiceMessage && !audioResponseBuffer && !isOmniEnabled()) {
+        // Fallback to Kokoro TTS for voice messages when not using omni
         await this.sendVoiceNote(remoteJid, aiText);
       } else {
+        // Send text response
         await this.sendMessage(remoteJid, aiText);
       }
 
       // Store AI response
-      const respId = `wa_${crypto.randomUUID().slice(0, 12)}`;
+      const respId = `wa_${randomUUID().slice(0, 12)}`;
       db.insertWaMessage(respId, userId, remoteJid, 'Yaya', true, aiText, 'text', aiText);
 
       // Broadcast to web UI

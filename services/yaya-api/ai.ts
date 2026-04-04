@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import type { Response } from 'express';
+import { randomUUID } from 'crypto';
 import * as db from './db.js';
 
 const AI_API_URL = process.env.AI_API_URL || 'https://ai.yaya.sh/v1';
@@ -10,7 +11,7 @@ const client = new OpenAI({ baseURL: AI_API_URL, apiKey: AI_API_KEY });
 
 // ── Tool definitions for the LLM ──────────────────────────────
 
-const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+export const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
@@ -103,7 +104,7 @@ function dateRange(range: string): { start: string; end: string } {
   return { start, end };
 }
 
-function executeTool(name: string, args: any, userId: string): string {
+export function executeTool(name: string, args: any, userId: string): string {
   switch (name) {
     case 'get_revenue': {
       const { start, end } = dateRange(args.range || 'today');
@@ -143,7 +144,7 @@ function executeTool(name: string, args: any, userId: string): string {
 
 // ── System prompt builder ─────────────────────────────────────
 
-function buildSystemPrompt(userId: string): string {
+export function buildSystemPrompt(userId: string): string {
   const user = db.getUserById(userId);
   const products = db.getProducts(userId);
   const productList = products.map(p => `- ${p.name}: S/${p.price}`).join('\n');
@@ -284,8 +285,8 @@ export async function chatStream(userId: string, userMessage: string, res: Respo
 
     // Save to DB
     const fullContent = assistantMsg.content;
-    db.insertAgentMessage(crypto.randomUUID(), userId, 'user', userMessage);
-    db.insertAgentMessage(crypto.randomUUID(), userId, 'assistant', fullContent);
+    db.insertAgentMessage(randomUUID(), userId, 'user', userMessage);
+    db.insertAgentMessage(randomUUID(), userId, 'assistant', fullContent);
     return;
   }
 
@@ -316,6 +317,6 @@ export async function chatStream(userId: string, userMessage: string, res: Respo
   res.end();
 
   // Save both messages to DB
-  db.insertAgentMessage(crypto.randomUUID(), userId, 'user', userMessage);
-  db.insertAgentMessage(crypto.randomUUID(), userId, 'assistant', fullContent);
+  db.insertAgentMessage(randomUUID(), userId, 'user', userMessage);
+  db.insertAgentMessage(randomUUID(), userId, 'assistant', fullContent);
 }

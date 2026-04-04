@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import { randomUUID } from 'crypto';
 
 const DB_PATH = process.env.DB_PATH || './data/yaya.db';
 
@@ -395,7 +396,7 @@ export function getSettings(userId: string) {
 
 export function setSetting(userId: string, key: string, value: string) {
   getDb().prepare(`INSERT INTO settings (id, user_id, key, value) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`)
-    .run(crypto.randomUUID(), userId, key, value);
+    .run(randomUUID(), userId, key, value);
 }
 
 // ── WhatsApp auth state queries ─────────────────────────────
