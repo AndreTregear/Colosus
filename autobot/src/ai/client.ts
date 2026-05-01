@@ -5,6 +5,7 @@ import {
   WHISPER_BASE_URL, WHISPER_API_KEY, WHISPER_MODEL,
 } from '../config.js';
 import { logger } from '../shared/logger.js';
+import { qwenNoThinkFetch } from './qwen-fetch.js';
 
 let client: OpenAI | null = null;
 let visionClient: OpenAI | null = null;
@@ -12,7 +13,7 @@ let visionClient: OpenAI | null = null;
 export function getAIClient(): OpenAI {
   if (!client) {
     logger.debug({ baseUrl: AI_BASE_URL, model: AI_MODEL }, 'Initializing AI client');
-    client = new OpenAI({ baseURL: AI_BASE_URL, apiKey: AI_API_KEY });
+    client = new OpenAI({ baseURL: AI_BASE_URL, apiKey: AI_API_KEY, fetch: qwenNoThinkFetch });
   }
   return client;
 }

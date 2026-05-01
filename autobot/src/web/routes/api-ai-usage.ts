@@ -13,9 +13,9 @@ const router = Router();
 router.use(requireAdmin);
 
 /**
- * GET /api/admin/ai-usage/dashboard
+ * Returns the same payload for `/` and `/dashboard`.
  */
-router.get('/dashboard', async (req: Request, res: Response) => {
+async function aiUsageDashboard(_req: Request, res: Response): Promise<void> {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -25,12 +25,12 @@ router.get('/dashboard', async (req: Request, res: Response) => {
       query<{ requests: string; tokens: string; cost: string }>(
         `SELECT COUNT(*)::text as requests,
                 COALESCE(SUM(prompt_tokens + completion_tokens), 0)::text as tokens,
-                COALESCE(SUM(cost), 0)::text as cost
+                COALESCE(SUM(total_cost), 0)::text as cost
          FROM ai_usage_events WHERE timestamp >= $1`, [today]),
       query<{ requests: string; tokens: string; cost: string }>(
         `SELECT COUNT(*)::text as requests,
                 COALESCE(SUM(prompt_tokens + completion_tokens), 0)::text as tokens,
-                COALESCE(SUM(cost), 0)::text as cost
+                COALESCE(SUM(total_cost), 0)::text as cost
          FROM ai_usage_events WHERE timestamp >= $1`, [lastWeek]),
     ]);
 
@@ -53,7 +53,10 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     logger.error({ err }, 'AI usage dashboard failed');
     res.status(500).json({ error: 'Failed to load dashboard' });
   }
-});
+}
+
+router.get('/', aiUsageDashboard);
+router.get('/dashboard', aiUsageDashboard);
 
 /**
  * GET /api/admin/ai-usage/by-tenant

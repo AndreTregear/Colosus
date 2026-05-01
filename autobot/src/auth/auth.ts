@@ -11,7 +11,12 @@ const { Pool } = pg;
 const authOptions = {
   baseURL: BETTER_AUTH_URL,
   secret: BETTER_AUTH_SECRET,
-  trustedOrigins: [BETTER_AUTH_URL],
+  trustedOrigins: [
+    BETTER_AUTH_URL,
+    // Local dev / test harness — vitest hits the running autobot directly on :3000
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+  ],
   database: new Pool({ connectionString: DATABASE_URL, statement_timeout: 10000, query_timeout: 15000, connectionTimeoutMillis: 5000 }),
   emailAndPassword: {
     enabled: true,

@@ -1,6 +1,9 @@
 -- Autobot PostgreSQL schema
 -- Run once: psql $DATABASE_URL -f schema.sql
 
+-- pgcrypto provides gen_random_bytes() used by create_tenant_role()
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 -- ── Better Auth tables (must exist before app initializes auth) ──
 
 CREATE TABLE IF NOT EXISTS "user" (

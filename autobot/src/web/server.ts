@@ -43,6 +43,7 @@ import { websiteLeadsRouter } from './routes/api-website-leads.js';
 import { ssoRouter } from './routes/api-sso.js';
 // simulate route removed — was Mastra-only demo
 import { redeployRouter } from './routes/api-redeploy.js';
+import { shareRouter } from './routes/api-share.js';
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[FATAL] Unhandled Rejection:', reason);
@@ -109,13 +110,15 @@ export function createWebServer(port: number = 3000): void {
   });
 
   // ── Rate limiting ──
+  const isTestEnv = process.env.NODE_ENV === 'test';
+
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 300,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many requests, please try again later' },
-    skip: (req) => req.path === '/v1/health' || req.path.startsWith('/internal/'),
+    skip: (req) => isTestEnv || req.path === '/v1/health' || req.path.startsWith('/internal/'),
   });
   app.use('/api/', globalLimiter);
 
@@ -123,6 +126,7 @@ export function createWebServer(port: number = 3000): void {
     windowMs: 15 * 60 * 1000,
     max: 20,
     message: { error: 'Too many auth attempts, please try again later' },
+    skip: () => isTestEnv,
   });
   app.use('/api/auth/', authLimiter);
   app.use('/api/register', authLimiter);
@@ -132,6 +136,7 @@ export function createWebServer(port: number = 3000): void {
     windowMs: 60 * 1000, // 1 minute
     max: 5,
     message: { error: 'Too many submissions, please try again later' },
+    skip: () => isTestEnv,
   });
   app.use('/api/website/leads', leadsLimiter);
 
@@ -217,6 +222,7 @@ export function createWebServer(port: number = 3000): void {
   app.use('/api/v1/yape', yapeRouter);
   app.use('/api/v1/mobile/auth', mobileAuthRouter);
   app.use('/api/website/leads', websiteLeadsRouter);
+  app.use('/api/v1/share', shareRouter);
 
   app.use('/api/v1/darwin', redeployRouter); // secret-based auth, separate from session-based admin
 
@@ -232,7 +238,7 @@ export function createWebServer(port: number = 3000): void {
   app.use('/api/queue', requireSession, requireAdmin, queueRouter);
 
   // ── Tenant routes (auth middleware applied inside routers) ──
-  app.use('/api/account', requireSession, accountRouter);
+  app.use('/api/account', requireSession, requireTenantOwner, accountRouter);
   app.use('/api/business', requireSession, businessIntelligenceRouter);
   app.use('/api/web/dashboard', dashboardApiRouter);
   app.use('/api/web', webRouter);

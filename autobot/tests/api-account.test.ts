@@ -50,12 +50,16 @@ describe('Section 7: Account Management Routes', () => {
     expect(res.status).toBe(401);
   });
 
-  it('Test 7.2: GET /api/account with admin session (no tenantId) returns 403', async () => {
-    // Admin user has no tenantId — account endpoint requires one
+  it('Test 7.2: GET /api/account with admin session returns 200 with the auto-linked tenant', async () => {
+    // ensureAdminTenant() in src/auth/auth.ts links the admin user to a tenant on every
+    // boot (admins need a tenant for dashboard/QR/WhatsApp pairing), so /api/account is
+    // accessible. The "no tenantId → 403" contract is exercised by the requireTenantOwner
+    // middleware tests (api-tenants.test.ts, api-status.test.ts) using non-tenant users.
     const res = await request({ path: '/api/account', cookies: adminCookie });
-    expect(res.status).toBe(403);
-    const body = res.json<{ error: string }>();
-    expect(body.error).toMatch(/no tenant/i);
+    expect(res.status).toBe(200);
+    const body = res.json<{ id: string; name: string; status: string }>();
+    expect(body.id).toBeTruthy();
+    expect(body.status).toBeTruthy();
   });
 
   it('Test 7.3: GET /api/account with tenant user session returns 200 with tenant info', async () => {

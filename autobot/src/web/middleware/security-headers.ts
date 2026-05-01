@@ -27,7 +27,7 @@ export function securityHeaders() {
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
     // Disable unused browser APIs
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=()');
 
     // Content Security Policy
     res.setHeader(

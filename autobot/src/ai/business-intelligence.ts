@@ -6,8 +6,9 @@
 import { generateText } from 'ai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { AI_BASE_URL, AI_API_KEY, AI_MODEL } from '../config.js';
+import { qwenNoThinkFetch } from './qwen-fetch.js';
 
-const provider = createOpenAICompatible({ name: 'yaya', baseURL: AI_BASE_URL, apiKey: AI_API_KEY });
+const provider = createOpenAICompatible({ name: 'yaya', baseURL: AI_BASE_URL, apiKey: AI_API_KEY, fetch: qwenNoThinkFetch });
 const aiModel = provider.chatModel(AI_MODEL);
 import * as productsRepo from '../db/products-repo.js';
 import * as ordersRepo from '../db/orders-repo.js';

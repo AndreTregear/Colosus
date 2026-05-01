@@ -81,11 +81,12 @@ describe('security headers', () => {
     expect(headers.get('x-frame-options')).toBe('DENY');
   });
 
-  it('Permissions-Policy disables camera, microphone, geolocation', async () => {
+  it('Permissions-Policy disables camera & geolocation, allows mic for self', async () => {
     const { headers } = await fetchHeaders();
     const pp = headers.get('permissions-policy')!;
     expect(pp).toContain('camera=()');
-    expect(pp).toContain('microphone=()');
+    // microphone is allowed for same-origin so the dashboard can record voice
+    expect(pp).toContain('microphone=(self)');
     expect(pp).toContain('geolocation=()');
   });
 
