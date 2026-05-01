@@ -1,0 +1,174 @@
+# ERPNext + Frappe HR
+# Full ERP/CRM/HR suite. Uses MariaDB (Frappe requirement) + Redis.
+# Frappe bench runs: backend, frontend (nginx), workers, scheduler.
+
+services:
+  # Frappe/ERPNext backend (gunicorn)
+  erpnext-backend:
+    image: frappe/erpnext:v15
+    restart: unless-stopped
+    environment:
+      - FRAPPE_SITE_NAME_HEADER=${ERPNEXT_SITE:-erp.${DOMAIN:-oficina.local}}
+    volumes:
+      - ${DATA_DIR}/erpnext/sites:/home/frappe/frappe-bench/sites
+      - ${DATA_DIR}/erpnext/logs:/home/frappe/frappe-bench/logs
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    networks:
+      - oficina-net
+    profiles:
+      - erp
+
+  # Frappe/ERPNext frontend (nginx serving static + proxying to backend)
+  erpnext-frontend:
+    image: frappe/erpnext:v15
+    restart: unless-stopped
+    command: nginx-entrypoint.sh
+    environment:
+      BACKEND: erpnext-backend:8000
+      FRAPPE_SITE_NAME_HEADER: ${ERPNEXT_SITE:-erp.${DOMAIN:-oficina.local}}
+      SOCKETIO: erpnext-websocket:9000
+      UPSTREAM_REAL_IP_ADDRESS: caddy
+    volumes:
+      - ${DATA_DIR}/erpnext/sites:/home/frappe/frappe-bench/sites:ro
+    depends_on:
+      - erpnext-backend
+    ports:
+      - "127.0.0.1:8080:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - oficina-net
+    profiles:
+      - erp
+
+  # Frappe background workers (long + short + default queues)
+  erpnext-worker-default:
+    image: frappe/erpnext:v15
+    restart: unless-stopped
+    command: bench worker --queue default
+    volumes:
+      - ${DATA_DIR}/erpnext/sites:/home/frappe/frappe-bench/sites
+      - ${DATA_DIR}/erpnext/logs:/home/frappe/frappe-bench/logs
+    depends_on:
+      - erpnext-backend
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - oficina-net
+    profiles:
+      - erp
+
+  erpnext-worker-long:
+    image: frappe/erpnext:v15
+    restart: unless-stopped
+    command: bench worker --queue long
+    volumes:
+      - ${DATA_DIR}/erpnext/sites:/home/frappe/frappe-bench/sites
+      - ${DATA_DIR}/erpnext/logs:/home/frappe/frappe-bench/logs
+    depends_on:
+      - erpnext-backend
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - oficina-net
+    profiles:
+      - erp
+
+  erpnext-worker-short:
+    image: frappe/erpnext:v15
+    restart: unless-stopped
+    command: bench worker --queue short
+    volumes:
+      - ${DATA_DIR}/erpnext/sites:/home/frappe/frappe-bench/sites
+      - ${DATA_DIR}/erpnext/logs:/home/frappe/frappe-bench/logs
+    depends_on:
+      - erpnext-backend
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - oficina-net
+    profiles:
+      - erp
+
+  # Frappe scheduler (cron-like jobs)
+  erpnext-scheduler:
+    image: frappe/erpnext:v15
+    restart: unless-stopped
+    command: bench schedule
+    volumes:
+      - ${DATA_DIR}/erpnext/sites:/home/frappe/frappe-bench/sites
+      - ${DATA_DIR}/erpnext/logs:/home/frappe/frappe-bench/logs
+    depends_on:
+      - erpnext-backend
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - oficina-net
+    profiles:
+      - erp
+
+  # Frappe WebSocket server (real-time updates)
+  erpnext-websocket:
+    image: frappe/erpnext:v15
+    restart: unless-stopped
+    command: node /home/frappe/frappe-bench/apps/frappe/socketio.js
+    volumes:
+      - ${DATA_DIR}/erpnext/sites:/home/frappe/frappe-bench/sites:ro
+    depends_on:
+      - erpnext-backend
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - oficina-net
+    profiles:
+      - erp
+
+  # ERPNext Redis queue (separate from shared Redis to avoid conflicts)
+  erpnext-redis-queue:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    networks:
+      - oficina-net
+    profiles:
+      - erp
+
+  # ERPNext Redis cache
+  erpnext-redis-cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    networks:
+      - oficina-net
+    profiles:
+      - erp

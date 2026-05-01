@@ -1,0 +1,50 @@
+[Unit]
+Description=YayaPay Server (Rust/Axum) — billing rail for agente.ceo
+Documentation=https://agente.ceo
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=yaya
+Group=yaya
+WorkingDirectory=/home/yaya/Project/yayapay-server
+EnvironmentFile=/home/yaya/Project/yayapay-server/.env
+ExecStart=/home/yaya/Project/yayapay-server/target/release/yayapay-server
+Restart=always
+RestartSec=5
+StartLimitBurst=10
+StartLimitIntervalSec=60
+
+# Process hygiene
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# Minimal hardening — the server is local-first but this is still
+# defense in depth. We don't lock down too hard because it needs to
+# reach the dockerised postgres on :5432.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/yaya/Project/yayapay-server
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+PrivateTmp=yes
+
+# Resource caps
+MemoryMax=1G
+TasksMax=256
+
+StandardOutput=append:/var/log/yayapay-server/yayapay-server.log
+StandardError=append:/var/log/yayapay-server/yayapay-server.err
+
+[Install]
+WantedBy=multi-user.target

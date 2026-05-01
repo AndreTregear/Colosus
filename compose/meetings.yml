@@ -1,0 +1,169 @@
+# Jitsi Meet + Jibri Recording
+# Video conferencing with automatic meeting recording.
+# 5 containers: web, prosody, jicofo, jvb, jibri
+
+services:
+  # ── Jitsi Web UI ─────────────────────────────
+  jitsi-web:
+    image: jitsi/web:stable
+    restart: unless-stopped
+    environment:
+      XMPP_SERVER: jitsi-prosody
+      JICOFO_AUTH_USER: focus
+      PUBLIC_URL: "https://meet.${DOMAIN:-oficina.local}"
+      TZ: ${TIMEZONE:-America/Lima}
+      ENABLE_RECORDING: 1
+      ENABLE_GUESTS: 1
+      ENABLE_AUTH: 0
+      XMPP_DOMAIN: meet.jitsi
+      XMPP_AUTH_DOMAIN: auth.meet.jitsi
+      XMPP_INTERNAL_MUC_DOMAIN: internal-muc.meet.jitsi
+      XMPP_MUC_DOMAIN: muc.meet.jitsi
+      XMPP_RECORDER_DOMAIN: recorder.meet.jitsi
+      JIBRI_BREWERY_MUC: jibribrewery
+      JIBRI_PENDING_TIMEOUT: 90
+      JIBRI_XMPP_USER: jibri
+      JIBRI_XMPP_PASSWORD: ${JIBRI_XMPP_PASSWORD:?JIBRI_XMPP_PASSWORD required}
+      JIBRI_RECORDER_USER: recorder
+      JIBRI_RECORDER_PASSWORD: ${JIBRI_RECORDER_PASSWORD:?JIBRI_RECORDER_PASSWORD required}
+    ports:
+      - "127.0.0.1:8443:443"
+      - "127.0.0.1:8000:80"
+    volumes:
+      - ${DATA_DIR}/jitsi/web:/config
+      - ${DATA_DIR}/jitsi/transcripts:/usr/share/jitsi-meet/transcripts
+    depends_on:
+      - jitsi-prosody
+    networks:
+      oficina-net:
+        aliases:
+          - jitsi-web
+    profiles:
+      - meetings
+
+  # ── Prosody XMPP Server ─────────────────────
+  jitsi-prosody:
+    image: jitsi/prosody:stable
+    restart: unless-stopped
+    environment:
+      PUBLIC_URL: "https://meet.${DOMAIN:-oficina.local}"
+      XMPP_DOMAIN: meet.jitsi
+      XMPP_AUTH_DOMAIN: auth.meet.jitsi
+      XMPP_INTERNAL_MUC_DOMAIN: internal-muc.meet.jitsi
+      XMPP_MUC_DOMAIN: muc.meet.jitsi
+      XMPP_RECORDER_DOMAIN: recorder.meet.jitsi
+      JICOFO_AUTH_USER: focus
+      JICOFO_AUTH_PASSWORD: ${JICOFO_AUTH_PASSWORD:?JICOFO_AUTH_PASSWORD required}
+      JVB_AUTH_USER: jvb
+      JVB_AUTH_PASSWORD: ${JVB_AUTH_PASSWORD:?JVB_AUTH_PASSWORD required}
+      JIBRI_XMPP_USER: jibri
+      JIBRI_XMPP_PASSWORD: ${JIBRI_XMPP_PASSWORD:?JIBRI_XMPP_PASSWORD required}
+      JIBRI_RECORDER_USER: recorder
+      JIBRI_RECORDER_PASSWORD: ${JIBRI_RECORDER_PASSWORD:?JIBRI_RECORDER_PASSWORD required}
+      TZ: ${TIMEZONE:-America/Lima}
+    volumes:
+      - ${DATA_DIR}/jitsi/prosody/config:/config
+      - ${DATA_DIR}/jitsi/prosody/plugins:/prosody-plugins-custom
+    networks:
+      oficina-net:
+        aliases:
+          - jitsi-prosody
+    profiles:
+      - meetings
+
+  # ── Jicofo (Conference Focus) ────────────────
+  jitsi-jicofo:
+    image: jitsi/jicofo:stable
+    restart: unless-stopped
+    environment:
+      XMPP_SERVER: jitsi-prosody
+      XMPP_DOMAIN: meet.jitsi
+      XMPP_AUTH_DOMAIN: auth.meet.jitsi
+      XMPP_INTERNAL_MUC_DOMAIN: internal-muc.meet.jitsi
+      XMPP_MUC_DOMAIN: muc.meet.jitsi
+      JICOFO_AUTH_USER: focus
+      JICOFO_AUTH_PASSWORD: ${JICOFO_AUTH_PASSWORD:?JICOFO_AUTH_PASSWORD required}
+      JVB_BREWERY_MUC: jvbbrewery
+      JIBRI_BREWERY_MUC: jibribrewery
+      TZ: ${TIMEZONE:-America/Lima}
+    volumes:
+      - ${DATA_DIR}/jitsi/jicofo:/config
+    depends_on:
+      - jitsi-prosody
+    networks:
+      - oficina-net
+    profiles:
+      - meetings
+
+  # ── JVB (Videobridge — media router) ─────────
+  jitsi-jvb:
+    image: jitsi/jvb:stable
+    restart: unless-stopped
+    environment:
+      XMPP_SERVER: jitsi-prosody
+      XMPP_DOMAIN: meet.jitsi
+      XMPP_AUTH_DOMAIN: auth.meet.jitsi
+      XMPP_INTERNAL_MUC_DOMAIN: internal-muc.meet.jitsi
+      JVB_AUTH_USER: jvb
+      JVB_AUTH_PASSWORD: ${JVB_AUTH_PASSWORD:?JVB_AUTH_PASSWORD required}
+      JVB_BREWERY_MUC: jvbbrewery
+      JVB_PORT: 10000
+      JVB_STUN_SERVERS: meet-jit-si-turnrelay.jitsi.net:443
+      TZ: ${TIMEZONE:-America/Lima}
+    ports:
+      - "10000:10000/udp"
+    volumes:
+      - ${DATA_DIR}/jitsi/jvb:/config
+    depends_on:
+      - jitsi-prosody
+    networks:
+      - oficina-net
+    profiles:
+      - meetings
+
+  # ── Jibri (Recording + Streaming) ────────────
+  jitsi-jibri:
+    image: jitsi/jibri:stable
+    restart: unless-stopped
+    environment:
+      XMPP_SERVER: jitsi-prosody
+      XMPP_DOMAIN: meet.jitsi
+      XMPP_AUTH_DOMAIN: auth.meet.jitsi
+      XMPP_INTERNAL_MUC_DOMAIN: internal-muc.meet.jitsi
+      XMPP_RECORDER_DOMAIN: recorder.meet.jitsi
+      JIBRI_XMPP_USER: jibri
+      JIBRI_XMPP_PASSWORD: ${JIBRI_XMPP_PASSWORD:?JIBRI_XMPP_PASSWORD required}
+      JIBRI_RECORDER_USER: recorder
+      JIBRI_RECORDER_PASSWORD: ${JIBRI_RECORDER_PASSWORD:?JIBRI_RECORDER_PASSWORD required}
+      JIBRI_BREWERY_MUC: jibribrewery
+      JIBRI_RECORDING_DIR: /config/recordings
+      JIBRI_FINALIZE_RECORDING_SCRIPT_PATH: /config/finalize.sh
+      DISPLAY: ":0"
+      TZ: ${TIMEZONE:-America/Lima}
+      # Required by /config/finalize.sh (no defaults — must be set in .env)
+      NEXTCLOUD_URL: ${NEXTCLOUD_INTERNAL_URL:-http://nextcloud}
+      NEXTCLOUD_USER: ${JIBRI_NEXTCLOUD_USER:?JIBRI_NEXTCLOUD_USER required}
+      NEXTCLOUD_PASS: ${JIBRI_NEXTCLOUD_PASS:?JIBRI_NEXTCLOUD_PASS required}
+      N8N_URL: ${N8N_INTERNAL_URL:-http://n8n:5678}
+      N8N_WEBHOOK_TOKEN: ${N8N_WEBHOOK_TOKEN:?N8N_WEBHOOK_TOKEN required}
+    volumes:
+      - ${DATA_DIR}/jitsi/jibri:/config
+      - ${DATA_DIR}/jitsi/recordings:/config/recordings
+      - /dev/shm:/dev/shm
+    cap_add:
+      - SYS_ADMIN
+      - NET_BIND_SERVICE
+    devices:
+      - /dev/snd:/dev/snd
+    depends_on:
+      - jitsi-prosody
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G
+    networks:
+      - oficina-net
+    profiles:
+      - meetings

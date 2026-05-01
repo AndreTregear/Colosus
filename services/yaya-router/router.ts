@@ -16,7 +16,9 @@
  *   WORKERS=http://hpc:8080,http://hpc:8081,http://hpc:8082,http://hpc:8083 tsx router.ts
  */
 
-import http from 'http';
+import * as http from 'http';
+import * as https from 'https';
+import Redis from 'ioredis';
 
 // ── Configuration ──
 
@@ -28,6 +30,9 @@ const ROUTER_API_KEY = process.env.ROUTER_API_KEY || ''; // Optional auth for cl
 const MAX_QUEUE_PER_WORKER = parseInt(process.env.MAX_QUEUE_PER_WORKER || '50');
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '60000');
 const STICKY_TTL_MS = parseInt(process.env.STICKY_TTL_MS || '300000'); // 5 min session stickiness
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+
+const redis = new Redis(REDIS_URL);
 
 // ── Worker State ──
 
@@ -59,31 +64,19 @@ const workers: WorkerState[] = WORKERS_RAW.split(',').map(url => ({
 
 // ── Session Stickiness ──
 
-const sessionMap = new Map<string, { workerIndex: number; expiresAt: number }>();
-
-function cleanExpiredSessions() {
-  const now = Date.now();
-  for (const [key, val] of sessionMap) {
-    if (val.expiresAt < now) sessionMap.delete(key);
-  }
-}
-
-setInterval(cleanExpiredSessions, 60000);
-
-// ── Worker Selection ──
-
-function selectWorker(sessionKey?: string): WorkerState | null {
-  // Check sticky session
+async function selectWorker(sessionKey?: string): Promise<WorkerState | null> {
+  // Check sticky session in Redis
   if (sessionKey) {
-    const sticky = sessionMap.get(sessionKey);
-    if (sticky && sticky.expiresAt > Date.now()) {
-      const w = workers[sticky.workerIndex];
-      if (w.healthy && w.activeConnections < MAX_QUEUE_PER_WORKER) {
-        sticky.expiresAt = Date.now() + STICKY_TTL_MS; // refresh TTL
+    const cachedIndex = await redis.get(`session:${sessionKey}`);
+    if (cachedIndex !== null) {
+      const idx = parseInt(cachedIndex);
+      const w = workers[idx];
+      if (w && w.healthy && w.activeConnections < MAX_QUEUE_PER_WORKER) {
+        await redis.expire(`session:${sessionKey}`, Math.floor(STICKY_TTL_MS / 1000)); // refresh TTL
         return w;
       }
       // Worker unhealthy or overloaded — fall through to pick new one
-      sessionMap.delete(sessionKey);
+      await redis.del(`session:${sessionKey}`);
     }
   }
 
@@ -108,9 +101,9 @@ function selectWorker(sessionKey?: string): WorkerState | null {
     }
   }
 
-  // Set sticky session
+  // Set sticky session in Redis
   if (sessionKey) {
-    sessionMap.set(sessionKey, { workerIndex: best.i, expiresAt: Date.now() + STICKY_TTL_MS });
+    await redis.set(`session:${sessionKey}`, best.i.toString(), 'EX', Math.floor(STICKY_TTL_MS / 1000));
   }
 
   return best.w;
@@ -164,81 +157,80 @@ async function proxyRequest(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   worker: WorkerState,
-  body: Buffer,
 ): Promise<void> {
   const startTime = Date.now();
   worker.activeConnections++;
   worker.totalRequests++;
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  return new Promise((resolve) => {
+    const targetUrl = new URL(`${worker.url}${req.url}`);
+    const isHttps = targetUrl.protocol === 'https:';
+    const requester = isHttps ? https : http;
 
-    const headers: Record<string, string> = {
-      'Authorization': `Bearer ${WORKER_API_KEY}`,
-      'Content-Type': req.headers['content-type'] || 'application/json',
-    };
+    const proxyReq = requester.request(
+      targetUrl,
+      {
+        method: req.method,
+        headers: {
+          ...req.headers,
+          'authorization': `Bearer ${WORKER_API_KEY}`,
+          'host': targetUrl.host,
+        },
+        timeout: REQUEST_TIMEOUT_MS,
+      },
+      (proxyRes) => {
+        const latencyMs = Date.now() - startTime;
+        
+        // Update latency tracking
+        worker.latencyWindow.push(latencyMs);
+        if (worker.latencyWindow.length > 100) worker.latencyWindow.shift();
+        worker.avgLatencyMs = worker.latencyWindow.reduce((a, b) => a + b, 0) / worker.latencyWindow.length;
 
-    // Forward accept header for streaming
-    if (req.headers.accept) headers['Accept'] = req.headers.accept;
+        // Forward response headers
+        res.writeHead(proxyRes.statusCode || 200, {
+          ...proxyRes.headers,
+          'X-Yaya-Worker': worker.url,
+          'X-Yaya-Latency': String(latencyMs),
+        });
 
-    const workerResp = await fetch(`${worker.url}${req.url}`, {
-      method: req.method || 'POST',
-      headers,
-      body: ['GET', 'HEAD'].includes(req.method || '') ? undefined : body,
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-
-    const latencyMs = Date.now() - startTime;
-
-    // Update latency tracking
-    worker.latencyWindow.push(latencyMs);
-    if (worker.latencyWindow.length > 100) worker.latencyWindow.shift();
-    worker.avgLatencyMs = worker.latencyWindow.reduce((a, b) => a + b, 0) / worker.latencyWindow.length;
-
-    // Forward response headers
-    res.writeHead(workerResp.status, {
-      'Content-Type': workerResp.headers.get('content-type') || 'application/json',
-      'X-Yaya-Worker': worker.url,
-      'X-Yaya-Latency': String(latencyMs),
-    });
-
-    // Stream response body
-    if (workerResp.body) {
-      const reader = workerResp.body.getReader();
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(value);
-        }
-      } finally {
-        reader.releaseLock();
+        // Pipe response
+        proxyRes.pipe(res);
+        proxyRes.on('end', () => {
+          worker.activeConnections--;
+          resolve();
+        });
       }
-    }
+    );
 
-    res.end();
-  } catch (err: any) {
-    worker.totalErrors++;
-    const latencyMs = Date.now() - startTime;
+    proxyReq.on('error', (err: any) => {
+      worker.activeConnections--;
+      worker.totalErrors++;
+      const latencyMs = Date.now() - startTime;
 
-    if (err.name === 'AbortError') {
-      res.writeHead(504, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Worker timeout', worker: worker.url, latencyMs }));
-    } else {
       // Mark worker as potentially unhealthy after repeated errors
       if (worker.totalErrors > 3 && worker.totalErrors / worker.totalRequests > 0.3) {
         worker.healthy = false;
         console.warn(`[Router] Worker ${worker.url} marked unhealthy (error rate: ${(worker.totalErrors / worker.totalRequests * 100).toFixed(1)}%)`);
       }
 
-      res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Worker error', message: err.message, worker: worker.url }));
-    }
-  } finally {
-    worker.activeConnections--;
-  }
+      if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') {
+        res.writeHead(504, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Worker timeout or reset', worker: worker.url, latencyMs }));
+      } else {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Worker error', message: err.message, worker: worker.url }));
+      }
+      resolve();
+    });
+
+    proxyReq.on('timeout', () => {
+      proxyReq.destroy();
+      // Error handler will be called by destroy()
+    });
+
+    // Pipe the incoming request body directly to the proxy request
+    req.pipe(proxyReq);
+  });
 }
 
 // ── HTTP Server ──
@@ -265,7 +257,6 @@ const server = http.createServer(async (req, res) => {
         avgLatencyMs: Math.round(w.avgLatencyMs),
         lastError: w.lastError,
       })),
-      sessions: sessionMap.size,
       timestamp: new Date().toISOString(),
     }));
     return;
@@ -282,7 +273,6 @@ const server = http.createServer(async (req, res) => {
       lines.push(`yaya_worker_total_errors{${label}} ${w.totalErrors}`);
       lines.push(`yaya_worker_avg_latency_ms{${label}} ${Math.round(w.avgLatencyMs)}`);
     }
-    lines.push(`yaya_router_sessions ${sessionMap.size}`);
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end(lines.join('\n') + '\n');
     return;
@@ -298,28 +288,11 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Read request body
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-  }
-  const body = Buffer.concat(chunks);
+  // Extract session key for stickiness ONLY from headers
+  const sessionKey = (req.headers['x-session-id'] as string) || (req.headers['authorization'] as string);
 
-  // Extract session key for stickiness (use a user/tenant ID if available)
-  let sessionKey: string | undefined;
-  try {
-    if (body.length > 0) {
-      const parsed = JSON.parse(body.toString());
-      // Use custom header or body field for session routing
-      sessionKey = req.headers['x-session-id'] as string
-        || parsed.user
-        || parsed.session_id
-        || undefined;
-    }
-  } catch { /* not JSON, that's fine */ }
-
-  // Select worker
-  const worker = selectWorker(sessionKey);
+  // Select worker (now async)
+  const worker = await selectWorker(sessionKey);
   if (!worker) {
     res.writeHead(503, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
@@ -329,8 +302,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Proxy the request
-  await proxyRequest(req, res, worker, body);
+  // Proxy the request (now streams req -> worker)
+  await proxyRequest(req, res, worker);
 });
 
 server.listen(PORT, '0.0.0.0', () => {

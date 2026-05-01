@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { execSync } from 'child_process';
+import { execFileSync } from 'node:child_process';
 import { logger } from '../../shared/logger.js';
 
 const router = Router();
@@ -18,7 +18,10 @@ router.post('/redeploy', async (req, res) => {
   }
   try {
     logger.info({ ip: req.ip }, 'Darwin redeploy triggered');
-    execSync('cd /home/yaya/YAYA && git pull', { timeout: 30000, stdio: 'pipe' });
+    execFileSync('git', ['-C', '/home/yaya/YAYA', 'pull', '--ff-only'], {
+      timeout: 30000,
+      stdio: 'pipe',
+    });
     res.json({ ok: true, message: 'Pulled latest. Restarting.' });
     setTimeout(() => process.exit(0), 1000);
   } catch (err) {

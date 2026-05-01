@@ -1,0 +1,22 @@
+{
+  "name": "business-mcp",
+  "version": "0.1.0",
+  "description": "MCP server exposing Tier 1 business tools (metrics, customers, payments, calendar, messaging) via direct PostgreSQL",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0"
+  }
+}

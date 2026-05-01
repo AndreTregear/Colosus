@@ -1,0 +1,189 @@
+# Foundation Layer: All database and cache services
+# These start first and everything else depends on them.
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # PostgreSQL 16 — used by: agente-ceo, Nextcloud, Superset,
+  # n8n, Zammad, Authentik
+  # ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-oficina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_DB: oficina
+    volumes:
+      - ${DATA_DIR}/postgres:/var/lib/postgresql/data
+      - ../config/postgres/init-databases.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-oficina}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    networks:
+      - oficina-net
+    profiles:
+      - foundation
+
+  # ─────────────────────────────────────────────────────────────
+  # MariaDB 11 — used by: ERPNext / Frappe (hard requirement)
+  # ─────────────────────────────────────────────────────────────
+  mariadb:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?MARIADB_ROOT_PASSWORD required}
+      MARIADB_CHARACTER_SET_SERVER: utf8mb4
+      MARIADB_COLLATION_SERVER: utf8mb4_unicode_ci
+      # Consumed by init-users.sh on first boot to create least-privilege
+      # accounts. Root is not used by any application container.
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?WORDPRESS_DB_PASSWORD required}
+      SUPERSET_READ_PASSWORD: ${SUPERSET_READ_PASSWORD:-}
+    volumes:
+      - ${DATA_DIR}/mariadb:/var/lib/mysql
+      - ../config/mariadb/init-users.sh:/docker-entrypoint-initdb.d/10-users.sh:ro
+    ports:
+      - "127.0.0.1:3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 256M
+    networks:
+      - oficina-net
+    profiles:
+      - foundation
+
+  # ─────────────────────────────────────────────────────────────
+  # Redis 7 — used by: ERPNext (queue/cache), n8n, Authentik,
+  # Rocket.Chat (optional), general caching
+  # ─────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD required} --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - ${DATA_DIR}/redis:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 128M
+    networks:
+      - oficina-net
+    profiles:
+      - foundation
+
+  # ─────────────────────────────────────────────────────────────
+  # MongoDB 7 — used by: Rocket.Chat (hard requirement)
+  # ─────────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-oficina}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?MONGO_PASSWORD required}
+    volumes:
+      - ${DATA_DIR}/mongodb:/data/db
+      - ${DATA_DIR}/mongodb/mongo-keyfile:/data/keyfile:ro
+    ports:
+      - "127.0.0.1:27017:27017"
+    command: mongod --replSet rs0 --bind_ip_all --keyFile /data/keyfile
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 256M
+    networks:
+      - oficina-net
+    profiles:
+      - foundation
+
+  # Initialize MongoDB replica set (required by Rocket.Chat)
+  mongodb-init:
+    image: mongo:7
+    restart: "no"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    entrypoint: >
+      mongosh --host mongodb -u ${MONGO_USER:-oficina} -p ${MONGO_PASSWORD}
+      --authenticationDatabase admin --eval
+      'try { rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongodb:27017" }] }) } catch(e) { if (e.codeName !== "AlreadyInitialized") throw e }'
+    networks:
+      - oficina-net
+    profiles:
+      - foundation
+
+  # ─────────────────────────────────────────────────────────────
+  # Elasticsearch 8 — used by: RAGFlow (vector search),
+  # Zammad (full-text search, optional)
+  # ─────────────────────────────────────────────────────────────
+  elasticsearch:
+    image: elasticsearch:8.15.0
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:?ELASTIC_PASSWORD required}
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - xpack.security.http.ssl.enabled=false
+      - xpack.license.self_generated.type=basic
+    volumes:
+      - ${DATA_DIR}/elasticsearch:/usr/share/elasticsearch/data
+    ports:
+      - "127.0.0.1:9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -u elastic:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    networks:
+      - oficina-net
+    profiles:
+      - foundation
+
+networks:
+  oficina-net:
+    name: oficina-net
+    driver: bridge

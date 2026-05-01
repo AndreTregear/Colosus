@@ -1,0 +1,29 @@
+# Portainer — Container Management
+# Docker management UI for administrators.
+# Monitor, start/stop, and manage all Oficina services.
+
+services:
+  portainer:
+    image: portainer/portainer-ce:2.21.4
+    restart: unless-stopped
+    # Admin password set on first web UI access
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DATA_DIR}/portainer:/data
+    ports:
+      - "127.0.0.1:9090:9000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/api/system/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 64M
+    networks:
+      - oficina-net
+    profiles:
+      - management

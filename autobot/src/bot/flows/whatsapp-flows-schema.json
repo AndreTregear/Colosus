@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "WhatsApp Flows JSON schema for pre-commit financial confirmation. Reference spec for Meta Cloud API migration — currently implemented via Baileys interactive messages with text fallback.",
+  "version": "3.1",
+  "screens": [
+    {
+      "id": "CONFIRMATION",
+      "title": "Confirmar Operacion",
+      "terminal": false,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Verifica los datos"
+          },
+          {
+            "type": "TextSubheading",
+            "text": "Extraido de mensaje de voz — revisa antes de guardar"
+          },
+          {
+            "type": "Form",
+            "name": "confirmation_form",
+            "init-values": {
+              "amount": "${data.amount}",
+              "category": "${data.category}",
+              "vendor": "${data.vendor}",
+              "date": "${data.date}"
+            },
+            "children": [
+              {
+                "type": "TextInput",
+                "name": "amount",
+                "label": "Monto (S/)",
+                "input-type": "number",
+                "required": true,
+                "helper-text": "Monto total de la operacion"
+              },
+              {
+                "type": "Dropdown",
+                "name": "category",
+                "label": "Categoria",
+                "required": true,
+                "data-source": [
+                  { "id": "insumos", "title": "Insumos" },
+                  { "id": "alquiler", "title": "Alquiler" },
+                  { "id": "personal", "title": "Personal" },
+                  { "id": "servicios", "title": "Servicios" },
+                  { "id": "transporte", "title": "Transporte" },
+                  { "id": "otros", "title": "Otros" }
+                ]
+              },
+              {
+                "type": "TextInput",
+                "name": "vendor",
+                "label": "Proveedor",
+                "required": true,
+                "helper-text": "Nombre del proveedor o comercio"
+              },
+              {
+                "type": "DatePicker",
+                "name": "date",
+                "label": "Fecha",
+                "required": true,
+                "min-date": "2024-01-01",
+                "max-date": "${data.today}",
+                "helper-text": "Fecha de la operacion"
+              },
+              {
+                "type": "TextArea",
+                "name": "notes",
+                "label": "Notas (opcional)",
+                "required": false,
+                "max-length": 500
+              },
+              {
+                "type": "Footer",
+                "label": "Confirmar",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "amount": "${form.amount}",
+                    "category": "${form.category}",
+                    "vendor": "${form.vendor}",
+                    "date": "${form.date}",
+                    "notes": "${form.notes}",
+                    "confirmation_id": "${data.confirmation_id}",
+                    "action": "${data.action}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "SUCCESS",
+      "title": "Registrado",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Operacion registrada"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.success_message}"
+          },
+          {
+            "type": "Footer",
+            "label": "Cerrar",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "data_api_version": "3.0",
+  "routing_model": {
+    "CONFIRMATION": ["SUCCESS"],
+    "SUCCESS": []
+  },
+  "_implementation_notes": {
+    "current": "Baileys interactive buttons + text fallback (works with reverse-engineered WhatsApp Web)",
+    "future": "Migrate to Meta Cloud API WhatsApp Flows when available",
+    "button_ids": {
+      "cf_confirm": "User taps Confirm — commits to database",
+      "cf_edit": "User taps Edit — shows field picker list",
+      "cf_cancel": "User taps Cancel — discards pending data"
+    },
+    "field_picker_list_ids": {
+      "cf_field_amount": "Edit the amount",
+      "cf_field_category": "Edit the category",
+      "cf_field_vendor": "Edit the vendor name",
+      "cf_field_date": "Edit the date",
+      "cf_field_items": "Edit line items (orders only)",
+      "cf_field_notes": "Edit notes"
+    },
+    "text_fallback": "When buttons/lists don't render, numbered options (1/2/3) and text keywords (OK/EDITAR/CANCELAR) are accepted"
+  }
+}

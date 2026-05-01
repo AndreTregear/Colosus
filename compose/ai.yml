@@ -1,0 +1,113 @@
+# AI Layer: LLM Inference + Speech
+# Local AI models — all inference stays on the appliance.
+# GPU-accelerated via NVIDIA Container Toolkit.
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # vLLM — High-throughput LLM inference server
+  # OpenAI-compatible API at :8000/v1
+  # ─────────────────────────────────────────────────────────────
+  vllm:
+    image: vllm/vllm-openai:v0.6.6
+    restart: unless-stopped
+    command:
+      - --model=${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct-AWQ}
+      - --quantization=${VLLM_QUANTIZATION:-awq}
+      - --max-model-len=${VLLM_MAX_MODEL_LEN:-8192}
+      - --gpu-memory-utilization=0.90
+      - --dtype=half
+      - --trust-remote-code
+      - --host=0.0.0.0
+      - --port=8000
+    environment:
+      HF_HOME: /models
+      # Default to air-gapped: fail fast if the model isn't pre-downloaded
+      # to data/vllm-models rather than silently phoning home to HF Hub.
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
+    volumes:
+      - ${DATA_DIR}/vllm-models:/models
+    ports:
+      - "127.0.0.1:8000:8000"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+        limits:
+          memory: 32G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s    # Models take time to load
+    networks:
+      - oficina-net
+    profiles:
+      - ai
+
+  # ─────────────────────────────────────────────────────────────
+  # Whisper — Speech-to-Text
+  # Faster Whisper server, OpenAI-compatible API
+  # ─────────────────────────────────────────────────────────────
+  whisper:
+    image: fedirz/faster-whisper-server:2.1.0-cuda
+    restart: unless-stopped
+    environment:
+      WHISPER__MODEL: large-v3-turbo
+      WHISPER__INFERENCE_DEVICE: cuda
+      WHISPER__COMPUTE_TYPE: float16
+    volumes:
+      - ${DATA_DIR}/whisper-models:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:9300:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - oficina-net
+    profiles:
+      - ai
+
+  # ─────────────────────────────────────────────────────────────
+  # Kokoro TTS — Text-to-Speech
+  # Fast multilingual synthesis with Spanish voice
+  # ─────────────────────────────────────────────────────────────
+  kokoro-tts:
+    image: ghcr.io/remsky/kokoro-fastapi:v0.2.4
+    restart: unless-stopped
+    environment:
+      DEFAULT_VOICE: ef_dora
+      DEFAULT_LANG: es
+    volumes:
+      - ${DATA_DIR}/kokoro-models:/app/models
+    ports:
+      - "127.0.0.1:9400:8880"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8880/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - oficina-net
+    profiles:
+      - ai

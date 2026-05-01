@@ -1,0 +1,41 @@
+# Stalwart Mail Server
+# All-in-one: IMAP, JMAP, SMTP, CalDAV, CardDAV, WebDAV.
+# Written in Rust — fast, low resource usage.
+
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:v0.10.7
+    restart: unless-stopped
+    environment:
+      - STALWART_ADMIN_USER=${STALWART_ADMIN_USER:-admin}
+      - STALWART_ADMIN_PASSWORD=${STALWART_ADMIN_PASSWORD:?STALWART_ADMIN_PASSWORD required}
+      - STALWART_HOSTNAME=mail.${DOMAIN:-oficina.local}
+      - STALWART_OIDC_ISSUER_URL=https://auth.${DOMAIN:-oficina.local}/application/o/stalwart/
+      - STALWART_OIDC_CLIENT_ID=${STALWART_OIDC_CLIENT_ID:-stalwart-client}
+      - STALWART_OIDC_SECRET=${STALWART_OIDC_SECRET:?STALWART_OIDC_SECRET required}
+    volumes:
+      - ${DATA_DIR}/stalwart:/opt/stalwart
+    ports:
+      # SMTP
+      - "25:25"
+      - "587:587"
+      # IMAP with implicit TLS. Plaintext 143 is intentionally not exposed.
+      - "993:993"
+      # HTTP (webmail + JMAP + admin) — Caddy reaches this via the Docker
+      # network; the host mapping is localhost-only for recovery/debug.
+      - "127.0.0.1:8082:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 128M
+    networks:
+      - oficina-net
+    profiles:
+      - mail

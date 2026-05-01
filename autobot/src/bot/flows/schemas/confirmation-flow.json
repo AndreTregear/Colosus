@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WhatsApp Flows — Financial Confirmation",
+  "description": "Pre-commit confirmation screen for STT-extracted financial data. Compatible with WhatsApp Flows v3.0 for future Cloud API migration. Currently rendered as interactive text messages via Baileys.",
+  "version": "3.0",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "CONFIRMATION": ["EDIT_FIELD", "CONFIRMED", "CANCELLED"],
+    "EDIT_FIELD": ["CONFIRMATION"]
+  },
+  "screens": [
+    {
+      "id": "CONFIRMATION",
+      "title": "Confirmar",
+      "data": {
+        "amount": { "type": "string", "description": "Formatted amount (e.g. S/ 150.00)" },
+        "category": { "type": "string" },
+        "vendor": { "type": "string" },
+        "date": { "type": "string", "description": "DD/MM/YYYY" },
+        "items_summary": { "type": "string", "description": "Formatted line items" },
+        "customer_name": { "type": "string" },
+        "notes": { "type": "string" },
+        "action_label": { "type": "string", "description": "Pedido | Gasto | Pago" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Confirmar ${data.action_label}"
+          },
+          {
+            "type": "TextBody",
+            "text": "Monto: ${data.amount}"
+          },
+          {
+            "type": "TextBody",
+            "text": "Categoría: ${data.category}"
+          },
+          {
+            "type": "TextBody",
+            "text": "Proveedor: ${data.vendor}"
+          },
+          {
+            "type": "TextBody",
+            "text": "Fecha: ${data.date}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.items_summary}",
+            "visible": "${data.items_summary}"
+          },
+          {
+            "type": "TextBody",
+            "text": "Cliente: ${data.customer_name}",
+            "visible": "${data.customer_name}"
+          },
+          {
+            "type": "TextBody",
+            "text": "Notas: ${data.notes}",
+            "visible": "${data.notes}"
+          },
+          {
+            "type": "Footer",
+            "label": "Confirmar",
+            "on-click-action": {
+              "name": "complete",
+              "next": { "type": "screen", "name": "CONFIRMED" },
+              "payload": { "confirmed": true }
+            }
+          },
+          {
+            "type": "Footer",
+            "label": "Editar",
+            "on-click-action": {
+              "name": "navigate",
+              "next": { "type": "screen", "name": "EDIT_FIELD" },
+              "payload": {}
+            }
+          },
+          {
+            "type": "Footer",
+            "label": "Cancelar",
+            "on-click-action": {
+              "name": "complete",
+              "next": { "type": "screen", "name": "CANCELLED" },
+              "payload": { "confirmed": false }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "EDIT_FIELD",
+      "title": "Editar Datos",
+      "data": {
+        "amount": { "type": "number" },
+        "category": { "type": "string" },
+        "vendor": { "type": "string" },
+        "date": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Editar Datos"
+          },
+          {
+            "type": "TextInput",
+            "label": "Monto",
+            "name": "amount",
+            "input-type": "number",
+            "required": true,
+            "helper-text": "Solo números. Ejemplo: 150.50"
+          },
+          {
+            "type": "Dropdown",
+            "label": "Categoría",
+            "name": "category",
+            "required": true,
+            "data-source": [
+              { "id": "Insumos", "title": "Insumos" },
+              { "id": "Alquiler", "title": "Alquiler" },
+              { "id": "Personal", "title": "Personal" },
+              { "id": "Servicios", "title": "Servicios" },
+              { "id": "Transporte", "title": "Transporte" },
+              { "id": "Otros", "title": "Otros" }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "label": "Proveedor",
+            "name": "vendor",
+            "input-type": "text",
+            "required": false
+          },
+          {
+            "type": "DatePicker",
+            "label": "Fecha",
+            "name": "date",
+            "required": true,
+            "helper-text": "DD/MM/AAAA"
+          },
+          {
+            "type": "TextArea",
+            "label": "Notas",
+            "name": "notes",
+            "required": false,
+            "max-length": 500
+          },
+          {
+            "type": "Footer",
+            "label": "Guardar",
+            "on-click-action": {
+              "name": "navigate",
+              "next": { "type": "screen", "name": "CONFIRMATION" },
+              "payload": {
+                "amount": "${form.amount}",
+                "category": "${form.category}",
+                "vendor": "${form.vendor}",
+                "date": "${form.date}",
+                "notes": "${form.notes}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "CONFIRMED",
+      "title": "Confirmado",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Registrado"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.action_label} confirmado por ${data.amount}."
+          }
+        ]
+      }
+    },
+    {
+      "id": "CANCELLED",
+      "title": "Descartado",
+      "terminal": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextBody",
+            "text": "Descartado. No se registró nada."
+          }
+        ]
+      }
+    }
+  ]
+}

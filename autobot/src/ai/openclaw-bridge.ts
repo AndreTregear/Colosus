@@ -18,6 +18,15 @@ import { ensureTenantDbRole } from '../integrations/tenant-provisioner.js';
 
 const execFileAsync = promisify(execFile);
 
+/** Mirrors TenantDbCredentials from tenant-provisioner (not exported). */
+interface DbCreds {
+  role: string;
+  password: string;
+  host: string;
+  port: number;
+  database: string;
+}
+
 export interface OpenClawBridgeResult {
   reply: string;
   imagesToSend: Array<{ imagePath: string; caption: string }>;
@@ -43,7 +52,7 @@ type CallErrorType = 'timeout' | 'empty' | 'parse_error' | 'agent_error';
 /**
  * Call the OpenClaw agent and return its reply.
  */
-async function callOpenClaw(message: string, sessionId?: string): Promise<{ reply: string; durationMs: number; error?: CallErrorType }> {
+async function callOpenClaw(message: string, sessionId?: string, dbCreds?: DbCreds): Promise<{ reply: string; durationMs: number; error?: CallErrorType }> {
   const startTime = Date.now();
 
   const args = [
@@ -60,10 +69,19 @@ async function callOpenClaw(message: string, sessionId?: string): Promise<{ repl
   try {
     logger.debug({ agent: OPENCLAW_AGENT, messageLength: message.length, sessionId }, 'Calling OpenClaw agent');
 
+    const env: Record<string, string> = { ...process.env } as Record<string, string>;
+    if (dbCreds) {
+      env.PGPASSWORD = dbCreds.password;
+      env.PGHOST = dbCreds.host;
+      env.PGPORT = String(dbCreds.port);
+      env.PGUSER = dbCreds.role;
+      env.PGDATABASE = dbCreds.database;
+    }
+
     const { stdout, stderr } = await execFileAsync(OPENCLAW_BIN, args, {
       timeout: OPENCLAW_TIMEOUT_MS,
       maxBuffer: 1024 * 1024, // 1MB
-      env: { ...process.env },
+      env,
     });
 
     if (stderr) {
@@ -139,7 +157,7 @@ function getFallbackMessage(error?: CallErrorType): string {
  * Build context string for the agent from tenant data.
  * Injects RLS-scoped DB credentials so the agent uses a tenant-specific PostgreSQL role.
  */
-async function buildTenantContext(tenantId: string, jid: string, contactName?: string): Promise<string> {
+async function buildTenantContext(tenantId: string, jid: string, contactName?: string): Promise<{ context: string; dbCreds: DbCreds }> {
   const [tenant, bizCtx, dbCreds] = await Promise.all([
     tenantsRepo.getTenantById(tenantId),
     businessContextRepo.getBusinessContext(tenantId),
@@ -153,12 +171,11 @@ async function buildTenantContext(tenantId: string, jid: string, contactName?: s
   if (bizCtx?.businessType) parts.push(`[Business type: ${bizCtx.businessType}]`);
   if (bizCtx?.businessDescription) parts.push(`[Description: ${bizCtx.businessDescription}]`);
 
-  // RLS-enforced DB access: the tenant role can ONLY see its own data
+  // RLS-enforced DB access — credentials passed via environment variables, NOT in prompt text
   parts.push(`\nDATABASE ACCESS: You have a dedicated database connection scoped to this tenant.`);
-  parts.push(`Use this for ALL database queries: PGPASSWORD='${dbCreds.password}' psql -h ${dbCreds.host} -p ${dbCreds.port} -U ${dbCreds.role} -d ${dbCreds.database} -c 'YOUR_SQL_HERE'`);
-  parts.push(`Your database role has Row-Level Security enforced — you can only see data for tenant ${tenantId}. You do NOT need to add WHERE tenant_id = '...' to your queries; it is enforced automatically.`);
+  parts.push(`Use the database tool for all queries. Row-Level Security is enforced — you can only see data for tenant ${tenantId}.`);
 
-  return parts.join(' ');
+  return { context: parts.join(' '), dbCreds };
 }
 
 /**
@@ -175,7 +192,7 @@ export async function processWithOpenClaw(
   imageMediaPath?: string,
 ): Promise<OpenClawBridgeResult> {
   try {
-    const context = await buildTenantContext(tenantId, jid);
+    const { context, dbCreds } = await buildTenantContext(tenantId, jid);
     const sessionId = `t-${tenantId.slice(0,8)}-${Date.now()}`;
 
     let fullMessage = text;
@@ -185,7 +202,7 @@ export async function processWithOpenClaw(
 
     const messageWithContext = `${context}\n\nCustomer message: ${fullMessage}`;
 
-    const { reply, error } = await callOpenClaw(messageWithContext, sessionId);
+    const { reply, error } = await callOpenClaw(messageWithContext, sessionId, dbCreds);
 
     if (!reply) {
       const fallback = getFallbackMessage(error);
@@ -223,12 +240,12 @@ export async function processOwnerWithOpenClaw(
 
     const parts: string[] = [];
     parts.push(`[Owner of ${tenant?.name || 'business'} (${tenantId})] [This is the business owner talking to you directly]`);
-    parts.push(`\nDATABASE ACCESS: PGPASSWORD='${dbCreds.password}' psql -h ${dbCreds.host} -p ${dbCreds.port} -U ${dbCreds.role} -d ${dbCreds.database} -c 'YOUR_SQL_HERE'`);
-    parts.push(`Row-Level Security is enforced — queries are automatically scoped to your tenant.`);
+    parts.push(`\nDATABASE ACCESS: You have a dedicated database connection scoped to this tenant.`);
+    parts.push(`Use the database tool for all queries. Row-Level Security is enforced — you can only see data for tenant ${tenantId}.`);
 
     const messageWithContext = `${parts.join(' ')}\n\nOwner message: ${text}`;
 
-    const { reply, error } = await callOpenClaw(messageWithContext, sessionId);
+    const { reply, error } = await callOpenClaw(messageWithContext, sessionId, dbCreds);
 
     return { reply: reply || getFallbackMessage(error) };
   } catch (err) {

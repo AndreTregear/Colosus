@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agente.ceo — El sistema operativo de tu negocio</title>
+  <meta name="description" content="Gestión completa vía WhatsApp. Ventas, facturas, citas, pagos y reportes — todo hablando con tu asistente de IA.">
+  <meta name="theme-color" content="#0a0a0b">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav id="nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <span class="logo-gradient">agente.ceo</span>
+      </a>
+      <div id="navLinks" class="nav-links">
+        <a href="#producto">Producto</a>
+        <a href="#habilidades">38 AI Skills</a>
+        <a href="#stack">Stack</a>
+        <a href="#precios">Precios</a>
+        <a href="https://github.com/AndreTregear/yaya_platform">Docs</a>
+      </div>
+      <a href="https://wa.me/19044005702?text=Hola%2C%20quiero%20probar%20agente.ceo" class="nav-cta" target="_blank" rel="noopener">
+        <span>Probar Gratis</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+      </a>
+      <button id="navToggle" class="nav-toggle" aria-label="Menú">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge fade-in" data-delay="100">
+        <span class="badge-icon">✨</span>
+        Open Source • AI-Powered • Privacy-First
+      </div>
+      <h1 class="hero-title fade-in" data-delay="200">
+        El <span class="text-gradient animated-gradient">sistema operativo</span><br>de tu negocio
+      </h1>
+      <p class="hero-sub fade-in" data-delay="300">
+        Gestión completa vía WhatsApp. Ventas, facturas, citas, pagos y reportes — 
+        <strong>todo hablando con tu asistente de IA.</strong>
+      </p>
+      <div class="hero-ctas fade-in" data-delay="400">
+        <a href="https://wa.me/19044005702?text=Hola%2C%20quiero%20probar%20agente.ceo" class="btn btn-primary btn-glow" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.75.75 0 0 0 .917.918l4.458-1.495A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.487 0-4.807-.734-6.756-1.995l-.471-.304-2.645.887.887-2.645-.304-.471A9.963 9.963 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+          <span>Habla con tu Agente</span>
+        </a>
+        <a href="/dashboard" class="btn btn-glass">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>
+          </svg>
+          Panel de Control
+        </a>
+      </div>
+      <div class="terminal fade-in" data-delay="500">
+        <div class="terminal-bar">
+          <div class="terminal-dots">
+            <span class="terminal-dot dot-red"></span>
+            <span class="terminal-dot dot-yellow"></span>
+            <span class="terminal-dot dot-green"></span>
+          </div>
+          <div class="terminal-title">WhatsApp — Agente</div>
+          <div class="terminal-actions">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </div>
+        </div>
+        <div class="terminal-body">
+          <div class="t-line t-user"><span class="t-label">Tú</span> <span class="t-text">Cuánto vendimos hoy?</span></div>
+          <div class="t-line t-bot"><span class="t-label">Agente</span> <span class="t-text">Hoy vendiste <span class="highlight-green">S/1,847</span> en <span class="highlight-purple">23 pedidos</span>. 15% más que ayer.</span></div>
+          <div class="t-line t-bot-continued"><span class="t-label"></span> <span class="t-text">Producto estrella: <strong>Pollo a la Brasa</strong> (8 pedidos).</span></div>
+          <div class="t-line t-user"><span class="t-label">Tú</span> <span class="t-text">Manda factura al último cliente</span></div>
+          <div class="t-line t-bot"><span class="t-label">Agente</span> <span class="t-text">Factura <span class="highlight-cyan">F001-00847</span> enviada a María García por WhatsApp.</span></div>
+          <div class="t-line t-bot-continued"><span class="t-label"></span> <span class="t-text">Total: <span class="highlight-green">S/85.00</span> (IGV incluido)</span></div>
+          <div class="t-line t-user"><span class="t-label">Tú</span> <span class="t-text"><span class="voice-note">🎤 "Recuérdame cobrar a Luis mañana"</span></span></div>
+          <div class="t-line t-bot"><span class="t-label">Agente</span> <span class="t-text">Listo. Te recuerdo mañana a las <span class="highlight-purple">9am</span>. Deuda de Luis: <span class="highlight-red">S/160.00</span></span></div>
+          <div class="t-cursor">_</div>
+        </div>
+      </div>
+      
+      <!-- Trust indicators -->
+      <div class="trust-bar fade-in" data-delay="600">
+        <div class="trust-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9.937 4.519a3.5 3.5 0 0 0-6.874 0C1.899 6.81 1.228 9.307 2.26 11.174 2.26 11.174 8 21.5 12 13.5c4-8 9.74-2.326 9.74-2.326 1.032-1.867.361-4.364-1.803-6.655a3.5 3.5 0 0 0-6.874 0c-1.299.98-2.76.98-4.059 0Z"/>
+          </svg>
+          <span>IA 100% local</span>
+        </div>
+        <div class="trust-sep"></div>
+        <div class="trust-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+          </svg>
+          <span>Código abierto</span>
+        </div>
+        <div class="trust-sep"></div>
+        <div class="trust-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          <span>Hecho para LATAM</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Producto -->
+  <section id="producto" class="section">
+    <div class="container">
+      <h2 class="section-title fade-in">
+        Todo en una <span class="text-gradient">conversación</span>
+      </h2>
+      <div class="features-grid">
+        <div class="feature-card glass-card fade-in" data-delay="100">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"/>
+              <path d="M18.7 8L12 13.3 7.7 9 3 13.3"/>
+            </svg>
+          </div>
+          <h3>Ventas y pedidos</h3>
+          <p>Registra, rastrea, confirma automáticamente. Tu IA aprende tus productos y precios.</p>
+        </div>
+        <div class="feature-card glass-card fade-in" data-delay="200">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="14" height="17" x="8" y="3" rx="2" ry="2"/>
+              <path d="M16 2v2"/>
+              <path d="M12 11h4"/>
+              <path d="M12 16h4"/>
+              <path d="m6 13 2 2 4-4"/>
+            </svg>
+          </div>
+          <h3>Facturas electrónicas</h3>
+          <p>SUNAT, DIAN, SAT compliant. Genera y envía facturas válidas por WhatsApp.</p>
+        </div>
+        <div class="feature-card glass-card fade-in" data-delay="300">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+              <path d="M16 2v4M8 2v4M3 10h18"/>
+            </svg>
+          </div>
+          <h3>Agenda y citas</h3>
+          <p>Reservas inteligentes, recordatorios automáticos, gestión de disponibilidad.</p>
+        </div>
+        <div class="feature-card glass-card fade-in" data-delay="400">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="20" height="14" x="2" y="5" rx="2"/>
+              <path d="M2 10h20"/>
+            </svg>
+          </div>
+          <h3>Cobros inteligentes</h3>
+          <p>Yape, Plin, transferencias. Validación automática y seguimiento de pagos.</p>
+        </div>
+        <div class="feature-card glass-card fade-in" data-delay="500">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-5-2.5L9 21Z"/>
+            </svg>
+          </div>
+          <h3>Inventario en tiempo real</h3>
+          <p>Stock automático, alertas de reposición, proyecciones de demanda.</p>
+        </div>
+        <div class="feature-card glass-card fade-in" data-delay="600">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20V10"/>
+              <path d="M18 20V4"/>
+              <path d="M6 20v-4"/>
+            </svg>
+          </div>
+          <h3>Reportes y analíticas</h3>
+          <p>Resúmenes diarios, tendencias, pronósticos. Insights accionables.</p>
+        </div>
+        <div class="feature-card glass-card fade-in" data-delay="700">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+          <h3>CRM inteligente</h3>
+          <p>Historial de clientes, seguimiento automático, programas de fidelización.</p>
+        </div>
+        <div class="feature-card glass-card fade-in" data-delay="800">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" x2="12" y1="19" y2="22"/>
+              <line x1="8" x2="16" y1="22" y2="22"/>
+            </svg>
+          </div>
+          <h3>Comunicación por voz</h3>
+          <p>Envía notas de voz, recibe respuestas habladas. Natural como hablar con una persona.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 38 AI Skills Section -->
+  <section id="habilidades" class="section section-alt">
+    <div class="container">
+      <div class="skills-header fade-in">
+        <h2 class="section-title">
+          <span class="text-gradient">38 AI Skills</span> integradas
+        </h2>
+        <p class="section-sub">
+          Tu asistente domina cada aspecto de tu negocio con habilidades especializadas de IA
+        </p>
+      </div>
+      
+      <div class="skills-grid">
+        <!-- Sales & Orders -->
+        <div class="skill-category fade-in" data-delay="100">
+          <div class="skill-category-header">
+            <div class="skill-category-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 3v18h18"/>
+                <path d="M18.7 8L12 13.3 7.7 9 3 13.3"/>
+              </svg>
+            </div>
+            <h3>Ventas</h3>
+          </div>
+          <div class="skills-list">
+            <span class="skill-tag">Crear pedidos</span>
+            <span class="skill-tag">Consultar productos</span>
+            <span class="skill-tag">Calcular precios</span>
+            <span class="skill-tag">Aplicar descuentos</span>
+            <span class="skill-tag">Generar cotizaciones</span>
+          </div>
+        </div>
+
+        <!-- Invoicing -->
+        <div class="skill-category fade-in" data-delay="150">
+          <div class="skill-category-header">
+            <div class="skill-category-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect width="14" height="17" x="8" y="3" rx="2" ry="2"/>
+                <path d="M16 2v2"/>
+                <path d="M12 11h4"/>
+                <path d="M12 16h4"/>
+                <path d="m6 13 2 2 4-4"/>
+              </svg>
+            </div>
+            <h3>Facturación</h3>
+          </div>
+          <div class="skills-list">
+            <span class="skill-tag">Emitir facturas</span>
+            <span class="skill-tag">Boletas SUNAT</span>
+            <span class="skill-tag">Comprobantes DIAN</span>
+            <span class="skill-tag">CFDIs SAT</span>
+            <span class="skill-tag">Anular documentos</span>
+          </div>
+        </div>
+
+        <!-- Scheduling -->
+        <div class="skill-category fade-in" data-delay="200">
+          <div class="skill-category-header">
+            <div class="skill-category-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+                <path d="M16 2v4M8 2v4M3 10h18"/>
+              </svg>
+            </div>
+            <h3>Agenda</h3>
+          </div>
+          <div class="skills-list">
+            <span class="skill-tag">Agendar citas</span>
+            <span class="skill-tag">Consultar disponibilidad</span>
+            <span class="skill-tag">Enviar recordatorios</span>
+            <span class="skill-tag">Reprogramar</span>
+            <span class="skill-tag">Cancelar citas</span>
+          </div>
+        </div>
+
+        <!-- Payments -->
+        <div class="skill-category fade-in" data-delay="250">
+          <div class="skill-category-header">
+            <div class="skill-category-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect width="20" height="14" x="2" y="5" rx="2"/>
+                <path d="M2 10h20"/>
+              </svg>
+            </div>
+            <h3>Pagos</h3>
+          </div>
+          <div class="skills-list">
+            <span class="skill-tag">Links Yape</span>
+            <span class="skill-tag">QR Plin</span>
+            <span class="skill-tag">Validar transferencias</span>
+            <span class="skill-tag">Registrar pagos</span>
+            <span class="skill-tag">Seguimiento cobranza</span>
+          </div>
+        </div>
+
+        <!-- Inventory -->
+        <div class="skill-category fade-in" data-delay="300">
+          <div class="skill-category-header">
+            <div class="skill-category-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-5-2.5L9 21Z"/>
+              </svg>
+            </div>
+            <h3>Inventario</h3>
+          </div>
+          <div class="skills-list">
+            <span class="skill-tag">Consultar stock</span>
+            <span class="skill-tag">Actualizar inventario</span>
+            <span class="skill-tag">Alertas de reposición</span>
+            <span class="skill-tag">Proyecciones demanda</span>
+            <span class="skill-tag">Control lotes</span>
+          </div>
+        </div>
+
+        <!-- Analytics -->
+        <div class="skill-category fade-in" data-delay="350">
+          <div class="skill-category-header">
+            <div class="skill-category-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20V10"/>
+                <path d="M18 20V4"/>
+                <path d="M6 20v-4"/>
+              </svg>
+            </div>
+            <h3>Analytics</h3>
+          </div>
+          <div class="skills-list">
+            <span class="skill-tag">Reportes ventas</span>
+            <span class="skill-tag">Análisis tendencias</span>
+            <span class="skill-tag">Métricas KPI</span>
+            <span class="skill-tag">Pronósticos IA</span>
+            <span class="skill-tag">Insights automáticos</span>
+          </div>
+        </div>
+
+        <!-- CRM -->
+        <div class="skill-category fade-in" data-delay="400">
+          <div class="skill-category-header">
+            <div class="skill-category-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <h3>CRM</h3>
+          </div>
+          <div class="skills-list">
+            <span class="skill-tag">Perfil clientes</span>
+            <span class="skill-tag">Historial compras</span>
+            <span class="skill-tag">Segmentación</span>
+            <span class="skill-tag">Fidelización</span>
+            <span class="skill-tag">Follow-up automático</span>
+          </div>
+        </div>
+
+        <!-- Voice -->
+        <div class="skill-category fade-in" data-delay="450">
+          <div class="skill-category-header">
+            <div class="skill-category-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" x2="12" y1="19" y2="22"/>
+                <line x1="8" x2="16" y1="22" y2="22"/>
+              </svg>
+            </div>
+            <h3>Voz</h3>
+          </div>
+          <div class="skills-list">
+            <span class="skill-tag">Transcripción voz</span>
+            <span class="skill-tag">Respuestas habladas</span>
+            <span class="skill-tag">Comandos por audio</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="skills-footer fade-in" data-delay="500">
+        <p>Cada skill se entrena específicamente para negocios LATAM y se actualiza continuamente</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Cómo funciona -->
+  <section class="section">
+    <div class="container">
+      <h2 class="section-title fade-in">
+        Empieza en <span class="text-gradient">3 pasos</span>
+      </h2>
+      <div class="steps">
+        <div class="step glass-card fade-in" data-delay="100">
+          <div class="step-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5Z"/>
+              <path d="M12 5L8 21l4-7 4 7-4-16"/>
+            </svg>
+          </div>
+          <div class="step-num">01</div>
+          <h3>Regístrate</h3>
+          <p>30 segundos, completamente gratis</p>
+        </div>
+        <div class="step-line fade-in" data-delay="200"></div>
+        <div class="step glass-card fade-in" data-delay="300">
+          <div class="step-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+          </div>
+          <div class="step-num">02</div>
+          <h3>Conecta WhatsApp</h3>
+          <p>Escanea QR en segundos</p>
+        </div>
+        <div class="step-line fade-in" data-delay="400"></div>
+        <div class="step glass-card fade-in" data-delay="500">
+          <div class="step-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8Z"/>
+            </svg>
+          </div>
+          <div class="step-num">03</div>
+          <h3>Empieza a vender</h3>
+          <p>Tu IA ya está trabajando</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stack -->
+  <section id="stack" class="section section-alt">
+    <div class="container">
+      <h2 class="section-title fade-in">
+        Construido sobre <span class="text-gradient">gigantes</span>
+      </h2>
+      <p class="section-sub fade-in">Agente integra las mejores herramientas open-source del mundo en una sola conversación.</p>
+      <div class="stack-grid">
+        <div class="stack-item glass-card fade-in" data-delay="100">
+          <span class="stack-name">PostgreSQL</span>
+          <span class="stack-desc">Base de datos relacional</span>
+          <span class="stack-license">PostgreSQL License</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="150">
+          <span class="stack-name">Redis</span>
+          <span class="stack-desc">Colas y caché</span>
+          <span class="stack-license">BSD-3</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="200">
+          <span class="stack-name">Lago</span>
+          <span class="stack-desc">Facturación y suscripciones</span>
+          <span class="stack-license">AGPL-3.0</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="250">
+          <span class="stack-name">Cal.com</span>
+          <span class="stack-desc">Agenda y citas</span>
+          <span class="stack-license">AGPL-3.0</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="300">
+          <span class="stack-name">Metabase</span>
+          <span class="stack-desc">Analíticas y dashboards</span>
+          <span class="stack-license">AGPL-3.0</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="350">
+          <span class="stack-name">InvoiceShelf</span>
+          <span class="stack-desc">Facturas electrónicas</span>
+          <span class="stack-license">AGPL-3.0</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="400">
+          <span class="stack-name">vLLM</span>
+          <span class="stack-desc">Inferencia LLM local</span>
+          <span class="stack-license">Apache-2.0</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="450">
+          <span class="stack-name">Whisper</span>
+          <span class="stack-desc">Voz a texto</span>
+          <span class="stack-license">MIT</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="500">
+          <span class="stack-name">Kokoro</span>
+          <span class="stack-desc">Texto a voz</span>
+          <span class="stack-license">Apache-2.0</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="550">
+          <span class="stack-name">MinIO</span>
+          <span class="stack-desc">Almacenamiento S3</span>
+          <span class="stack-license">AGPL-3.0</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="600">
+          <span class="stack-name">Baileys</span>
+          <span class="stack-desc">Gateway WhatsApp</span>
+          <span class="stack-license">MIT</span>
+        </div>
+        <div class="stack-item glass-card fade-in" data-delay="650">
+          <span class="stack-name">OpenClaw</span>
+          <span class="stack-desc">Agente IA</span>
+          <span class="stack-license">MIT</span>
+        </div>
+      </div>
+      <p class="stack-footer fade-in">Código abierto. Sin vendor lock-in. Tus datos, tu servidor.</p>
+    </div>
+  </section>
+
+  <!-- Precios -->
+  <section id="precios" class="section">
+    <div class="container">
+      <h2 class="section-title fade-in">
+        Precios <span class="text-gradient">transparentes</span>
+      </h2>
+      <div class="pricing-grid">
+        <div class="pricing-card glass-card fade-in" data-delay="100">
+          <div class="pricing-tier">Gratis</div>
+          <div class="pricing-price"><span class="pricing-currency">S/</span>0<span class="pricing-period">/mes</span></div>
+          <ul class="pricing-features">
+            <li><span class="feature-check">✓</span>50 documentos/mes</li>
+            <li><span class="feature-check">✓</span>50 productos</li>
+            <li><span class="feature-check">✓</span>Reportes básicos</li>
+            <li><span class="feature-check">✓</span>WhatsApp integrado</li>
+          </ul>
+          <a href="/dashboard" class="btn btn-outline">
+            <span>Empezar</span>
+          </a>
+        </div>
+        <div class="pricing-card pricing-featured glass-card fade-in" data-delay="200">
+          <div class="pricing-badge">Más popular</div>
+          <div class="pricing-tier">Emprendedor</div>
+          <div class="pricing-price"><span class="pricing-currency">S/</span>19<span class="pricing-period">/mes</span></div>
+          <ul class="pricing-features">
+            <li><span class="feature-check">✓</span>300 documentos/mes</li>
+            <li><span class="feature-check">✓</span>Inventario completo</li>
+            <li><span class="feature-check">✓</span>Analíticas avanzadas</li>
+            <li><span class="feature-check">✓</span>Notas de voz</li>
+            <li><span class="feature-check">✓</span>Exportar datos</li>
+          </ul>
+          <a href="/dashboard" class="btn btn-primary btn-glow">
+            <span>Empezar</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14m-7-7l7 7-7 7"/>
+            </svg>
+          </a>
+        </div>
+        <div class="pricing-card glass-card fade-in" data-delay="300">
+          <div class="pricing-tier">Empresa</div>
+          <div class="pricing-price"><span class="pricing-currency">S/</span>49<span class="pricing-period">/mes</span></div>
+          <ul class="pricing-features">
+            <li><span class="feature-check">✓</span>Documentos ilimitados</li>
+            <li><span class="feature-check">✓</span>Múltiples ubicaciones</li>
+            <li><span class="feature-check">✓</span>API personalizada</li>
+            <li><span class="feature-check">✓</span>Soporte prioritario</li>
+            <li><span class="feature-check">✓</span>Integraciones custom</li>
+          </ul>
+          <a href="/dashboard" class="btn btn-outline">
+            <span>Empezar</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Seguridad -->
+  <section id="seguridad" class="section section-alt">
+    <div class="container">
+      <h2 class="section-title fade-in">
+        Tu <span class="text-gradient">privacidad</span> primero
+      </h2>
+      <div class="security-grid">
+        <div class="security-item glass-card fade-in" data-delay="100">
+          <div class="security-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/>
+              <path d="M9 12l2 2 4-4"/>
+            </svg>
+          </div>
+          <h3>IA Local</h3>
+          <p>Todo se procesa en tu servidor. Tus datos nunca salen de tu infraestructura.</p>
+        </div>
+        <div class="security-item glass-card fade-in" data-delay="200">
+          <div class="security-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 12l2 2 4-4"/>
+              <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/>
+              <path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"/>
+              <path d="M12 3v18"/>
+            </svg>
+          </div>
+          <h3>Open Source</h3>
+          <p>Código 100% auditable. Sin back-doors, sin telemetría, sin sorpresas.</p>
+        </div>
+        <div class="security-item glass-card fade-in" data-delay="300">
+          <div class="security-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <h3>Cifrado E2E</h3>
+          <p>Todos los mensajes cifrados de extremo a extremo con WhatsApp estándar.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Final -->
+  <section class="section cta-final">
+    <div class="container">
+      <div class="cta-content fade-in">
+        <h2>¿Listo para automatizar tu negocio?</h2>
+        <p>Únete a cientos de emprendedores que ya usan Agente para crecer</p>
+        <div class="cta-buttons">
+          <a href="/dashboard" class="btn btn-primary btn-glow btn-lg">
+            <span>Crear Cuenta Gratis</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14m-7-7l7 7-7 7"/>
+            </svg>
+          </a>
+          <a href="https://github.com/AndreTregear/yaya_platform" class="btn btn-glass btn-lg">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+            </svg>
+            <span>Ver Código</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <span class="logo-gradient">agente.ceo</span>
+          <span class="footer-tagline">El futuro del comercio está aquí</span>
+        </div>
+        <div class="footer-sections">
+          <div class="footer-section">
+            <h4>Producto</h4>
+            <a href="#producto">Características</a>
+            <a href="#precios">Precios</a>
+            <a href="#stack">Tecnología</a>
+            <a href="#seguridad">Seguridad</a>
+          </div>
+          <div class="footer-section">
+            <h4>Desarrolladores</h4>
+            <a href="https://github.com/AndreTregear/yaya_platform">GitHub</a>
+            <a href="https://github.com/AndreTregear/yaya_platform">Documentación</a>
+            <a href="https://github.com/AndreTregear/yaya_platform">API</a>
+            <a href="https://github.com/AndreTregear/yaya_platform">Contribuir</a>
+          </div>
+          <div class="footer-section">
+            <h4>Empresa</h4>
+            <a href="/privacy">Privacidad</a>
+            <a href="/terms">Términos</a>
+            <a href="https://twitter.com/agenteceo">Twitter</a>
+            <a href="mailto:hola@agente.ceo">Contacto</a>
+          </div>
+        </div>
+        <div class="footer-social">
+          <a href="https://twitter.com/agenteceo" aria-label="Twitter">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>
+            </svg>
+          </a>
+          <a href="https://github.com/AndreTregear/yaya_platform" aria-label="GitHub">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+            </svg>
+          </a>
+          <a href="mailto:hola@agente.ceo" aria-label="Email">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2024 Agente.ceo. Open source bajo licencia MIT.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>

@@ -47,16 +47,28 @@ export async function notifyOutOfStock(tenantId: string, _productId: number, pro
 
 export function registerEventListeners(): void {
   appBus.on('yape-payment-matched', async (tenantId, _paymentId, orderId, customerJid) => {
-    await notifyPaymentConfirmed(tenantId, orderId, customerJid);
+    try {
+      await notifyPaymentConfirmed(tenantId, orderId, customerJid);
+    } catch (err) {
+      logger.error({ err, tenantId, orderId }, 'yape-payment-matched handler failed');
+    }
   });
   logger.info('Yape matcher listener registered');
 
   appBus.on('low-stock-alert', async (tenantId, productId, productName, currentStock) => {
-    await notifyLowStock(tenantId, productId, productName, currentStock);
+    try {
+      await notifyLowStock(tenantId, productId, productName, currentStock);
+    } catch (err) {
+      logger.error({ err, tenantId, productId, productName }, 'low-stock-alert handler failed');
+    }
   });
 
   appBus.on('out-of-stock', async (tenantId, productId, productName) => {
-    await notifyOutOfStock(tenantId, productId, productName);
+    try {
+      await notifyOutOfStock(tenantId, productId, productName);
+    } catch (err) {
+      logger.error({ err, tenantId, productId, productName }, 'out-of-stock handler failed');
+    }
   });
   logger.info('Inventory alert listeners registered');
 }

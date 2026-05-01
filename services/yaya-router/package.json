@@ -7,8 +7,11 @@
     "start": "tsx router.ts",
     "dev": "tsx --watch router.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "ioredis": "^5.10.1"
+  },
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }

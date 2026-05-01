@@ -1,0 +1,39 @@
+# Rocket.Chat — Team Communication
+# Self-hosted Slack/Teams replacement with video conferencing.
+# Requires MongoDB (replica set).
+
+services:
+  rocketchat:
+    image: rocket.chat:7
+    restart: unless-stopped
+    environment:
+      MONGO_URL: "mongodb://${MONGO_USER:-oficina}:${MONGO_PASSWORD}@mongodb:27017/rocketchat?authSource=admin&replicaSet=rs0"
+      MONGO_OPLOG_URL: "mongodb://${MONGO_USER:-oficina}:${MONGO_PASSWORD}@mongodb:27017/local?authSource=admin&replicaSet=rs0"
+      ROOT_URL: "https://chat.${DOMAIN:-oficina.local}"
+      PORT: "3000"
+      DEPLOY_METHOD: docker
+      # Authentik OIDC SSO (configured via admin panel, these are defaults)
+      Accounts_OAuth_Custom_Authentik: "true"
+      # Disable cloud registration for air-gapped
+      OVERWRITE_SETTING_Cloud_Workspace_Registration_Client_Params: ""
+    ports:
+      - "127.0.0.1:3100:3000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    networks:
+      - oficina-net
+    profiles:
+      - chat

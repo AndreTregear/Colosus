@@ -1,0 +1,34 @@
+# Proxy Layer: Caddy reverse proxy
+# Single ingress point — routes *.oficina.local subdomains to services.
+# Handles TLS (self-signed for air-gapped, Let's Encrypt if internet-connected).
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ../config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DATA_DIR}/caddy/data:/data
+      - ${DATA_DIR}/caddy/config:/config
+    environment:
+      DOMAIN: ${DOMAIN:-oficina.local}
+      AUTHENTIK_HOST: http://authentik-server:9000
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    networks:
+      - oficina-net
+    profiles:
+      - proxy

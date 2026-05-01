@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import {
   insertPayment,
   getPendingPayments,
@@ -17,8 +18,19 @@ import { matchByAmount, matchByAmountAndName } from "./matcher.js";
 const app = express();
 const PORT = parseInt(process.env.PORT || "3001", 10);
 
-app.use(cors());
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://biz.yaya.sh,https://app.yaya.sh').split(',').map(s => s.trim());
+app.use(cors({
+  origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin || allowedOrigins.includes(origin)) cb(null, true);
+    else cb(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json());
+
+// ── Rate limiting ──────────────────────────────────────────
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false });
+app.use("/api/", apiLimiter);
 
 // ── Auth middleware ──────────────────────────────────────────
 

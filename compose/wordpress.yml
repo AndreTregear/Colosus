@@ -1,0 +1,82 @@
+# WordPress + WooCommerce — CMS + E-Commerce
+# Single instance serves both www.oficina.local and shop.oficina.local.
+# Uses MariaDB (shared with ERPNext via separate database).
+
+services:
+  wordpress:
+    image: wordpress:6-apache
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: mariadb
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?WORDPRESS_DB_PASSWORD required}
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_TABLE_PREFIX: wp_
+      # WP config
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', 'https://www.${DOMAIN:-oficina.local}');
+        define('WP_SITEURL', 'https://www.${DOMAIN:-oficina.local}');
+        define('FORCE_SSL_ADMIN', true);
+        define('WP_MEMORY_LIMIT', '512M');
+        // Trust Caddy reverse proxy
+        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+            $$_SERVER['HTTPS'] = 'on';
+        }
+    volumes:
+      - ${DATA_DIR}/wordpress/html:/var/www/html
+      - ${DATA_DIR}/wordpress/plugins:/var/www/html/wp-content/plugins
+      - ${DATA_DIR}/wordpress/themes:/var/www/html/wp-content/themes
+      - ${DATA_DIR}/wordpress/uploads:/var/www/html/wp-content/uploads
+    ports:
+      - "127.0.0.1:8083:80"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/wp-login.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+    networks:
+      - oficina-net
+    profiles:
+      - wordpress
+
+  # WP-CLI for setup automation (one-shot)
+  wordpress-cli:
+    image: wordpress:cli
+    restart: "no"
+    environment:
+      WORDPRESS_DB_HOST: mariadb
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:?WORDPRESS_DB_PASSWORD required}
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - ${DATA_DIR}/wordpress/html:/var/www/html
+    depends_on:
+      - wordpress
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        sleep 30
+        wp core install --url="https://www.${DOMAIN:-oficina.local}" \
+          --title="${COMPANY_NAME:-Mi Empresa}" \
+          --admin_user="${WP_ADMIN_USER:-admin}" \
+          --admin_password="${WP_ADMIN_PASSWORD}" \
+          --admin_email="${ADMIN_EMAIL:-admin@oficina.local}" \
+          --skip-email || true
+        wp plugin install woocommerce --activate || true
+        wp plugin install openid-connect-generic --activate || true
+        wp language core install es_PE || true
+        wp site switch-language es_PE || true
+    networks:
+      - oficina-net
+    profiles:
+      - wordpress

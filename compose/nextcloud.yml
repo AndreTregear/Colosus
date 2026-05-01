@@ -1,0 +1,106 @@
+# Nextcloud + Collabora Online
+# File sync, calendar, contacts, and browser-based office suite.
+# Google Workspace replacement.
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # Nextcloud — Files / Calendar / Contacts / Talk
+  # ─────────────────────────────────────────────────────────────
+  nextcloud:
+    image: nextcloud:29-apache
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: ${POSTGRES_USER:-oficina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:-admin}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:?NEXTCLOUD_ADMIN_PASSWORD required}
+      NEXTCLOUD_TRUSTED_DOMAINS: "files.${DOMAIN:-oficina.local}"
+      REDIS_HOST: redis
+      REDIS_HOST_PASSWORD: ${REDIS_PASSWORD}
+      # Reverse proxy headers
+      OVERWRITEPROTOCOL: https
+      OVERWRITEHOST: "files.${DOMAIN:-oficina.local}"
+      TRUSTED_PROXIES: caddy
+      # PHP tuning. Default quota of 2G matches the request_body cap in
+      # Caddy; operators can raise via PHP_UPLOAD_LIMIT + Caddyfile.
+      PHP_MEMORY_LIMIT: 1G
+      PHP_UPLOAD_LIMIT: ${NEXTCLOUD_UPLOAD_LIMIT:-2G}
+    volumes:
+      - ${DATA_DIR}/nextcloud/html:/var/www/html
+      - ${DATA_DIR}/nextcloud/data:/var/www/html/data
+    ports:
+      - "127.0.0.1:8081:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/status.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    networks:
+      - oficina-net
+    profiles:
+      - nextcloud
+
+  # Nextcloud cron (background jobs)
+  nextcloud-cron:
+    image: nextcloud:29-apache
+    restart: unless-stopped
+    entrypoint: /cron.sh
+    volumes:
+      - ${DATA_DIR}/nextcloud/html:/var/www/html
+      - ${DATA_DIR}/nextcloud/data:/var/www/html/data
+    depends_on:
+      - nextcloud
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - oficina-net
+    profiles:
+      - nextcloud
+
+  # ─────────────────────────────────────────────────────────────
+  # Collabora Online — LibreOffice in the browser
+  # ─────────────────────────────────────────────────────────────
+  collabora:
+    image: collabora/code:24.04.12.1.1
+    restart: unless-stopped
+    environment:
+      - "aliasgroup1=https://files.${DOMAIN:-oficina.local}"
+      - username=${COLLABORA_ADMIN_USER:-admin}
+      - password=${COLLABORA_ADMIN_PASSWORD:?COLLABORA_ADMIN_PASSWORD required}
+      - "extra_params=--o:ssl.enable=false --o:ssl.termination=true"
+      - dictionaries=en_US,es_PE,es_ES,pt_BR
+    ports:
+      - "127.0.0.1:9980:9980"
+    cap_add:
+      - MKNOD
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9980/hosting/discovery"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 256M
+    networks:
+      - oficina-net
+    profiles:
+      - nextcloud

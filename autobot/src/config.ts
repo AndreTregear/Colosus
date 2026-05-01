@@ -70,6 +70,12 @@ export const WHISPER_BASE_URL = process.env.WHISPER_BASE_URL || 'https://api.ope
 export const WHISPER_API_KEY = process.env.WHISPER_API_KEY || AI_API_KEY;
 export const WHISPER_MODEL = process.env.WHISPER_MODEL || 'whisper-1';
 
+// ── TTS ──
+export const TTS_BASE_URL = process.env.TTS_BASE_URL || 'http://localhost:8002';
+export const TTS_MODEL = process.env.TTS_MODEL || 'kokoro';
+export const TTS_VOICE = process.env.TTS_VOICE || 'ef_dora';
+export const TTS_LANG_CODE = process.env.TTS_LANG_CODE || 'e';
+
 // ── Queue ──
 
 export const QUEUE_CONCURRENCY = Number(process.env.QUEUE_CONCURRENCY) || 10;

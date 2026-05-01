@@ -1,0 +1,77 @@
+# ERPNext Lean — Backend + Worker + Scheduler only
+# Caddy proxies directly to gunicorn. No separate nginx.
+
+services:
+  erpnext:
+    image: frappe/erpnext:v15
+    restart: unless-stopped
+    command: >
+      /home/frappe/frappe-bench/env/bin/gunicorn
+        --bind 0.0.0.0:8000
+        --workers 2
+        --timeout 120
+        --graceful-timeout 30
+        --chdir /home/frappe/frappe-bench/sites
+        frappe.app:application
+    environment:
+      FRAPPE_SITE_NAME_HEADER: erp.${DOMAIN:-oficina.local}
+    volumes:
+      - ${DATA_DIR}/erpnext/sites:/home/frappe/frappe-bench/sites
+      - ${DATA_DIR}/erpnext/logs:/home/frappe/frappe-bench/logs
+    ports:
+      - "127.0.0.1:8080:8000"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/method/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - oficina-net
+    profiles:
+      - erp
+
+  erpnext-worker:
+    image: frappe/erpnext:v15
+    restart: unless-stopped
+    command: bench worker --queue default,short,long
+    volumes:
+      - ${DATA_DIR}/erpnext/sites:/home/frappe/frappe-bench/sites
+      - ${DATA_DIR}/erpnext/logs:/home/frappe/frappe-bench/logs
+    depends_on:
+      - erpnext
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - oficina-net
+    profiles:
+      - erp
+
+  erpnext-scheduler:
+    image: frappe/erpnext:v15
+    restart: unless-stopped
+    command: bench schedule
+    volumes:
+      - ${DATA_DIR}/erpnext/sites:/home/frappe/frappe-bench/sites
+      - ${DATA_DIR}/erpnext/logs:/home/frappe/frappe-bench/logs
+    depends_on:
+      - erpnext
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - oficina-net
+    profiles:
+      - erp

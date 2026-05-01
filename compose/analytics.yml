@@ -1,0 +1,76 @@
+# Apache Superset — Business Intelligence / Analytics
+# Connect to any database, build dashboards, SQL IDE.
+# Petabyte-scale visualization with 40+ chart types.
+
+services:
+  superset:
+    image: apache/superset:4.0.0
+    restart: unless-stopped
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?SUPERSET_SECRET_KEY required}
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_DB: superset
+      DATABASE_USER: ${POSTGRES_USER:-oficina}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Initial admin
+      ADMIN_USERNAME: ${SUPERSET_ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:?SUPERSET_ADMIN_PASSWORD required}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@oficina.local}
+      ADMIN_FIRST_NAME: Admin
+      ADMIN_LAST_NAME: User
+    volumes:
+      - ../config/superset/superset_config.py:/app/superset_home/superset_config.py:ro
+    ports:
+      - "127.0.0.1:8088:8088"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    networks:
+      - oficina-net
+    profiles:
+      - analytics
+
+  # Superset worker (async queries, alerts)
+  superset-worker:
+    image: apache/superset:4.0.0
+    restart: unless-stopped
+    command: celery --app=superset.tasks.celery_app:app worker --pool=prefork -O fair -c 4
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      DATABASE_HOST: postgres
+      DATABASE_DB: superset
+      DATABASE_USER: ${POSTGRES_USER:-oficina}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - ../config/superset/superset_config.py:/app/superset_home/superset_config.py:ro
+    depends_on:
+      - superset
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - oficina-net
+    profiles:
+      - analytics

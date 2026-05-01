@@ -1,0 +1,75 @@
+# agente-ceo — AI Agent Portal / Command Center
+# The brain of Oficina Digital.
+# Next.js 16 + Mastra AI framework with supervisor/worker agents.
+
+services:
+  agente-ceo:
+    build:
+      context: ${AGENTE_CEO_SRC:-../agente-ceo}
+      dockerfile: Dockerfile
+    # Locally built from AGENTE_CEO_SRC. Override AGENTE_CEO_VERSION to
+    # tag/pin a specific build instead of the mutable dev tag.
+    image: oficina/agente-ceo:${AGENTE_CEO_VERSION:-dev}
+    restart: unless-stopped
+    environment:
+      # Server
+      PORT: 3005
+      NODE_ENV: production
+      # Database
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-oficina}:${POSTGRES_PASSWORD}@postgres:5432/agente_ceo"
+      # AI / LLM
+      VLLM_BASE_URL: http://vllm:8000/v1
+      VLLM_MODEL: ${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct-AWQ}
+      WHISPER_URL: http://whisper:8000/v1
+      TTS_URL: http://kokoro-tts:8880
+      # RAGFlow
+      RAGFLOW_URL: http://ragflow:8080
+      RAGFLOW_API_KEY: ${RAGFLOW_API_KEY:-}
+      # Authentik OIDC
+      OIDC_ISSUER: "https://auth.${DOMAIN:-oficina.local}/application/o/agente-ceo/"
+      OIDC_CLIENT_ID: ${AGENTE_CEO_OIDC_CLIENT_ID:?AGENTE_CEO_OIDC_CLIENT_ID required}
+      OIDC_CLIENT_SECRET: ${AGENTE_CEO_OIDC_CLIENT_SECRET:?AGENTE_CEO_OIDC_CLIENT_SECRET required}
+      # Service URLs (internal Docker network)
+      ERPNEXT_URL: http://erpnext-backend:8000
+      ERPNEXT_API_KEY: ${ERPNEXT_API_KEY:-}
+      ERPNEXT_API_SECRET: ${ERPNEXT_API_SECRET:-}
+      NEXTCLOUD_URL: http://nextcloud
+      NEXTCLOUD_USER: ${NEXTCLOUD_ADMIN_USER:-admin}
+      NEXTCLOUD_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:?NEXTCLOUD_ADMIN_PASSWORD required}
+      ROCKETCHAT_URL: http://rocketchat:3000
+      ROCKETCHAT_AUTH_TOKEN: ${ROCKETCHAT_AUTH_TOKEN:-}
+      ROCKETCHAT_USER_ID: ${ROCKETCHAT_USER_ID:-}
+      STALWART_JMAP_URL: http://stalwart:8080/jmap
+      WOOCOMMERCE_URL: http://wordpress
+      WOOCOMMERCE_KEY: ${WOOCOMMERCE_KEY:-}
+      WOOCOMMERCE_SECRET: ${WOOCOMMERCE_SECRET:-}
+      ZAMMAD_URL: http://zammad:8080
+      ZAMMAD_TOKEN: ${ZAMMAD_TOKEN:-}
+      SUPERSET_URL: http://superset:8088
+      SUPERSET_USER: ${SUPERSET_ADMIN_USER:-admin}
+      SUPERSET_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:?SUPERSET_ADMIN_PASSWORD required}
+      N8N_URL: http://n8n:5678
+      N8N_API_KEY: ${N8N_API_KEY:-}
+      # Domain
+      DOMAIN: ${DOMAIN:-oficina.local}
+    ports:
+      - "127.0.0.1:3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 256M
+    networks:
+      - oficina-net
+    profiles:
+      - agent

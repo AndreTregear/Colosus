@@ -1,9 +1,45 @@
 node_modules/
 dist/
 .env
+.env.*
+!.env.example
 *.log
 .DS_Store
 __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Secrets / credentials
+**/credentials.json
+**/sso-credentials.json
+**/service-account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+.aws/
+.ssh/
+
+# DB dumps / backups
+backups/
+*.dump
+*.sql.gz
+
+# Build artifacts
+*.tar.gz
+*.zip
+
+# Large vendor runtime blobs (use CDN / download at build)
+**/vad/*.wasm
+**/vad/*.onnx
+**/vad/ort*.mjs
+
+# Local backups
+*.bak
+*.backup
+*.27b-backup
+*.bak.*
+
+# Nested standalone git repo — surface separately if you want to absorb it
+agent-workspace/

@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,9 +14,20 @@ const API_KEY = process.env.API_KEY || 'yaya-dev-key';
 const JWT_SECRET = process.env.JWT_SECRET || 'yaya-jwt-secret-change-me';
 const YAPE_LISTENER_URL = process.env.YAPE_LISTENER_URL || 'http://localhost:3001';
 
-app.use(cors());
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://biz.yaya.sh,https://app.yaya.sh').split(',').map(s => s.trim());
+app.use(cors({
+  origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin || allowedOrigins.includes(origin)) cb(null, true);
+    else cb(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.static('public'));
+
+// ── Rate limiting ─────────────────────────────────────────────
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false });
+app.use('/api/', apiLimiter);
 
 // ── Auth middleware ────────────────────────────────────────────
 

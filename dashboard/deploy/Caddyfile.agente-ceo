@@ -1,0 +1,65 @@
+# agente.ceo — Caddy reverse proxy
+#
+# Install on workstation:
+#   sudo cp deploy/Caddyfile.agente-ceo /etc/caddy/Caddyfile.d/agente-ceo.caddy
+#   # or append to /etc/caddy/Caddyfile if you don't use a drop-in dir
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Cloudflare: set agente.ceo and app.agente.ceo to "DNS only" (grey cloud)
+# so Caddy can complete Let's Encrypt's HTTP-01 challenge. Flip back to
+# proxied once the cert is issued if you want the Cloudflare CDN/WAF.
+
+# Marketing / apex — served by the same Next.js app under the (marketing) route group.
+agente.ceo, www.agente.ceo {
+	reverse_proxy localhost:3005
+	encode gzip zstd
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(self), geolocation=()"
+	}
+
+	log {
+		output file /var/log/caddy/agente-ceo-www-access.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+	}
+}
+
+# Authenticated dashboard — the actual product.
+app.agente.ceo {
+	reverse_proxy localhost:3005 {
+		# Next.js SSE streams (chat, voice/stream, voice/events) must not
+		# be buffered or coalesced by Caddy.
+		flush_interval -1
+	}
+	encode gzip zstd
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(self), geolocation=()"
+	}
+
+	# Healthcheck is plain JSON — no buffering, short timeout.
+	@health path /api/health /api/billing/me /api/webhooks/*
+	reverse_proxy @health localhost:3005 {
+		flush_interval -1
+	}
+
+	log {
+		output file /var/log/caddy/agente-ceo-app-access.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+	}
+}
