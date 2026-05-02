@@ -3,6 +3,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { timingSafeEqual } from 'node:crypto';
 import { v4 as uuidv4 } from 'uuid';
 import * as db from './db.js';
 import { chat, chatStream } from './ai.js';
@@ -10,9 +11,30 @@ import { waManager, sseBus, broadcast } from './whatsapp.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
-const API_KEY = process.env.API_KEY || 'yaya-dev-key';
-const JWT_SECRET = process.env.JWT_SECRET || 'yaya-jwt-secret-change-me';
+const API_KEY = process.env.API_KEY || '';
+const JWT_SECRET = process.env.JWT_SECRET || '';
+// API_KEY auth maps to a single configured user. The previous behavior
+// (accept x-user-id header alongside the master key) let any holder of the
+// master key impersonate any user — removed.
+const API_KEY_USER_ID = process.env.API_KEY_USER_ID || '';
+if (process.env.NODE_ENV === 'production') {
+  if (!JWT_SECRET) {
+    console.error('JWT_SECRET env var is required in production');
+    process.exit(1);
+  }
+  if (API_KEY && !API_KEY_USER_ID) {
+    console.error('API_KEY is set but API_KEY_USER_ID is not — refusing to start');
+    process.exit(1);
+  }
+}
 const YAPE_LISTENER_URL = process.env.YAPE_LISTENER_URL || 'http://localhost:3001';
+
+function constantTimeKeyEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://biz.yaya.sh,https://app.yaya.sh').split(',').map(s => s.trim());
 app.use(cors({
@@ -36,11 +58,12 @@ interface AuthRequest extends express.Request<Record<string, string>> {
 }
 
 function authMiddleware(req: AuthRequest, res: express.Response, next: express.NextFunction) {
-  // Accept API key
+  // Accept API key — only when explicitly configured. Maps to a single
+  // fixed user (API_KEY_USER_ID); the X-User-Id impersonation header is
+  // ignored. Constant-time compare to defeat timing oracles.
   const apiKey = req.headers['x-api-key'] as string;
-  if (apiKey && apiKey === API_KEY) {
-    // API key auth — use demo user or header-specified user
-    req.userId = (req.headers['x-user-id'] as string) || 'usr_demo_001';
+  if (apiKey && API_KEY && API_KEY_USER_ID && constantTimeKeyEqual(apiKey, API_KEY)) {
+    req.userId = API_KEY_USER_ID;
     return next();
   }
 
@@ -610,8 +633,11 @@ app.get('/api/v1/events', (req: AuthRequest, res, next) => {
 // Initialize DB on startup
 db.getDb();
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Yaya API running on http://0.0.0.0:${PORT}`);
+// Listen on the configured BIND_HOST (default 127.0.0.1 — production should
+// front this with Caddy/nginx, never expose directly).
+const BIND_HOST = process.env.BIND_HOST || '127.0.0.1';
+app.listen(PORT, BIND_HOST, () => {
+  console.log(`Yaya API running on http://${BIND_HOST}:${PORT}`);
   console.log(`Health: http://localhost:${PORT}/api/v1/health`);
   
   // Auto-reconnect WhatsApp if we have saved auth state

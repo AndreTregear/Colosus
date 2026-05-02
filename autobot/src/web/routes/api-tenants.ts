@@ -1,7 +1,9 @@
 /**
  * Tenant management + session lifecycle API.
- * These endpoints are unprotected (admin-level) for now.
- * Real admin auth comes in Phase 4.
+ * Mounted under `requireSession + requireTenantOwner` in server.ts.
+ * Routes that operate on /:id are scoped to the caller's own tenant by
+ * the middleware. Routes without /:id (list-all, create) are restricted
+ * to admin role here.
  */
 import { Router } from 'express';
 import * as tenantsRepo from '../../db/tenants-repo.js';
@@ -9,12 +11,13 @@ import * as sessionsRepo from '../../db/sessions-repo.js';
 import { tenantManager } from '../../bot/tenant-manager.js';
 import { validateBody, handleAction } from '../../shared/validate.js';
 import { createTenantSchema, updateTenantSchema } from '../../shared/validation.js';
+import { requireAdmin } from '../middleware/session-auth.js';
 
 const router = Router();
 
 // --- Tenant CRUD ---
 
-router.post('/', validateBody(createTenantSchema), async (req, res) => {
+router.post('/', requireAdmin, validateBody(createTenantSchema), async (req, res) => {
   const { name, slug, settings } = req.body;
 
   // Check uniqueness
@@ -28,7 +31,7 @@ router.post('/', validateBody(createTenantSchema), async (req, res) => {
   res.status(201).json(tenant);
 });
 
-router.get('/', async (_req, res) => {
+router.get('/', requireAdmin, async (_req, res) => {
   const tenants = await tenantsRepo.getAllTenants();
   res.json(tenants);
 });

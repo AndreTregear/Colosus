@@ -4,7 +4,7 @@
  * All validation is deterministic and never touches a network.
  */
 
-import type { SunatDocumentType, SunatInvoice, CurrencyCode } from './types.js';
+import type { SunatDocumentType, SunatInvoice } from './types.js';
 
 // ── RUC Validation ──
 

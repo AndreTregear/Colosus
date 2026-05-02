@@ -1,14 +1,18 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { requireSecret } from './shared/secrets.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// ── Helper: require env var in production, allow fallback in dev ──
+// ── Helpers ──
+// `requireEnv` is for non-secret config (URLs, ports). Throws if unset.
+// `requireSecret` (imported) is for secrets — same throw-if-unset, plus a
+// placeholder-default check (rejects "changeme", "welcometothepresent", ...).
+// `requireSigningSecret` adds a >=32-char length check on top.
 
-function requireEnv(key: string, fallback?: string): string {
+function requireEnv(key: string): string {
   const value = process.env[key];
   if (value) return value;
-  if (fallback !== undefined) return fallback;
   throw new Error(`Missing required environment variable: ${key}`);
 }
 
@@ -33,27 +37,40 @@ export const REDIS_URL = requireEnv('REDIS_URL');
 
 // ── Auth ──
 
-export const BETTER_AUTH_SECRET = (() => {
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret) {
-    throw new Error('BETTER_AUTH_SECRET is required. Set it in .env. Generate one with: openssl rand -base64 32');
-  }
+function requireSigningSecret(name: string, fallback?: string): string {
+  // If the env is unset and a fallback (typically BETTER_AUTH_SECRET) is
+  // provided, use it. Otherwise delegate to requireSecret which throws +
+  // rejects placeholder values like "changeme".
+  const fromEnv = process.env[name];
+  const secret = fromEnv ? requireSecret(name) : (fallback ?? requireSecret(name));
   if (secret.length < 32) {
-    throw new Error('BETTER_AUTH_SECRET must be at least 32 characters');
+    throw new Error(`${name} must be at least 32 characters`);
   }
   return secret;
-})();
+}
+
+// Better Auth (browser session cookies). Never reuse for anything else.
+export const BETTER_AUTH_SECRET = requireSigningSecret('BETTER_AUTH_SECRET');
+
+// Mobile JWT signing key. Falls back to BETTER_AUTH_SECRET only when
+// MOBILE_JWT_SECRET is unset, to avoid breaking existing deployments — but
+// new deployments MUST set this independently. A leak of one no longer
+// implies compromise of the other.
+export const MOBILE_JWT_SECRET = requireSigningSecret('MOBILE_JWT_SECRET', BETTER_AUTH_SECRET);
+
+// HMAC key for one-off device tokens (yape device pairing, etc).
+export const DEVICE_TOKEN_HMAC_SECRET = requireSigningSecret('DEVICE_TOKEN_HMAC_SECRET', BETTER_AUTH_SECRET);
 
 export const BETTER_AUTH_URL = process.env.BETTER_AUTH_URL || `http://localhost:${WEB_PORT}`;
 
-// ── OpenClaw ──
+// ── Hermes ──
 
-export const OPENCLAW_API_URL = process.env.OPENCLAW_API_URL || 'http://localhost:3100/api/v1';
-export const OPENCLAW_API_KEY = process.env.OPENCLAW_API_KEY || '';
+export const HERMES_API_URL = process.env.HERMES_API_URL || 'http://localhost:3100/api/v1';
+export const HERMES_API_KEY = process.env.HERMES_API_KEY || '';
 
 // ── AI ──
 
-export const AI_API_KEY = requireEnv('AI_API_KEY');
+export const AI_API_KEY = requireSecret('AI_API_KEY');
 export const AI_BASE_URL = process.env.AI_BASE_URL || 'https://api.deepseek.com/v1';
 export const AI_MODEL = process.env.AI_MODEL || 'deepseek-chat';
 export const AI_MAX_TOKENS = Number(process.env.AI_MAX_TOKENS) || 1024;
@@ -66,15 +83,23 @@ export const AI_REQUEST_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS) |
 export const VISION_BASE_URL = process.env.VISION_BASE_URL || AI_BASE_URL;
 export const VISION_API_KEY = process.env.VISION_API_KEY || AI_API_KEY;
 export const VISION_MODEL = process.env.VISION_MODEL || AI_MODEL;
-export const WHISPER_BASE_URL = process.env.WHISPER_BASE_URL || 'https://api.openai.com/v1';
-export const WHISPER_API_KEY = process.env.WHISPER_API_KEY || AI_API_KEY;
-export const WHISPER_MODEL = process.env.WHISPER_MODEL || 'whisper-1';
 
-// ── TTS ──
-export const TTS_BASE_URL = process.env.TTS_BASE_URL || 'http://localhost:8002';
-export const TTS_MODEL = process.env.TTS_MODEL || 'kokoro';
-export const TTS_VOICE = process.env.TTS_VOICE || 'ef_dora';
+// Speaches (Whisper REST). The bearer is REQUIRED per-env via YAYA_ASR_KEY.
+// No default — ship keys only via env so reading the bundle reveals nothing.
+export const WHISPER_BASE_URL = process.env.YAYA_ASR_URL || process.env.WHISPER_BASE_URL || 'http://localhost:8001';
+export const WHISPER_API_KEY = process.env.YAYA_ASR_KEY || process.env.WHISPER_API_KEY || '';
+export const WHISPER_MODEL = process.env.YAYA_ASR_MODEL || process.env.WHISPER_MODEL || 'deepdml/faster-whisper-large-v3-turbo-ct2';
+
+// ── TTS (Kokoro) — bearer required per-env via YAYA_TTS_KEY ──
+export const TTS_BASE_URL = process.env.YAYA_TTS_URL || process.env.TTS_BASE_URL || 'http://localhost:8002';
+export const TTS_API_KEY = process.env.YAYA_TTS_KEY || process.env.TTS_API_KEY || '';
+export const TTS_MODEL = process.env.YAYA_TTS_MODEL || process.env.TTS_MODEL || 'kokoro';
+export const TTS_VOICE = process.env.YAYA_TTS_VOICE || process.env.TTS_VOICE || 'ef_dora';
 export const TTS_LANG_CODE = process.env.TTS_LANG_CODE || 'e';
+
+// ── Streaming-ASR (live calls, INFRA.md `ws://:8003`) ──
+export const STREAMING_ASR_URL = process.env.YAYA_ASR_WS_URL || process.env.STREAMING_ASR_URL || 'ws://localhost:8003';
+export const STREAMING_ASR_KEY = process.env.YAYA_ASR_WS_KEY || process.env.STREAMING_ASR_KEY || WHISPER_API_KEY;
 
 // ── Queue ──
 
@@ -98,8 +123,8 @@ export const MEDIA_MAX_VIDEO_SIZE_MB = Number(process.env.MEDIA_MAX_VIDEO_SIZE_M
 
 export const S3_ENDPOINT = process.env.S3_ENDPOINT || 'localhost';
 export const S3_PORT = Number(process.env.S3_PORT) || 9000;
-export const S3_ACCESS_KEY = requireEnv('S3_ACCESS_KEY');
-export const S3_SECRET_KEY = requireEnv('S3_SECRET_KEY');
+export const S3_ACCESS_KEY = requireSecret('S3_ACCESS_KEY');
+export const S3_SECRET_KEY = requireSecret('S3_SECRET_KEY');
 export const S3_USE_SSL = process.env.S3_USE_SSL === 'true';
 export const S3_BUCKET_RAW = process.env.S3_BUCKET_RAW || 'media-raw';
 export const S3_BUCKET_PROCESSED = process.env.S3_BUCKET_PROCESSED || 'media-processed';
@@ -198,3 +223,19 @@ export const INVOICESHELF_API_KEY = process.env.INVOICESHELF_API_KEY || '';
 export const LANGFUSE_SECRET_KEY = process.env.LANGFUSE_SECRET_KEY || '';
 export const LANGFUSE_PUBLIC_KEY = process.env.LANGFUSE_PUBLIC_KEY || '';
 export const LANGFUSE_HOST = process.env.LANGFUSE_HOST || 'http://localhost:3001';
+
+// ── yaya_pay (Android-phone-as-payment-gateway) ─────────────────────────
+// Stripe-shaped payment intents + HMAC-signed webhooks. The receiving
+// phone runs an embedded HTTP server; reach it via adb forward, the relay
+// tunnel, or LAN. See https://github.com/AndreTregear/yaya_pay
+export const YAYAPAY_BASE_URL = process.env.YAYAPAY_BASE_URL || '';
+export const YAYAPAY_API_KEY = process.env.YAYAPAY_API_KEY || '';
+export const YAYAPAY_WEBHOOK_SECRET = process.env.YAYAPAY_WEBHOOK_SECRET || '';
+// Default wallet for created intents (YAPE | PLIN | NEQUI | PIX_NUBANK | ...)
+export const YAYAPAY_DEFAULT_WALLET = process.env.YAYAPAY_DEFAULT_WALLET || 'YAPE';
+// Phone / handle the customer pays into (embedded in deep link + QR)
+export const YAYAPAY_RECIPIENT_ID = process.env.YAYAPAY_RECIPIENT_ID || YAPE_NUMBER;
+// Onboarding charge in the smallest unit (centimos for PEN/COP/MXN/BRL).
+// 2900 = S/ 29.00 — matches the worked example in yaya_pay's API docs.
+export const YAYAPAY_ONBOARDING_AMOUNT = Number(process.env.YAYAPAY_ONBOARDING_AMOUNT) || 2900;
+export const YAYAPAY_INTENT_TTL_MIN = Number(process.env.YAYAPAY_INTENT_TTL_MIN) || 30;

@@ -15,7 +15,6 @@ import { getTenantId } from '../../shared/validate.js';
 import { query, queryOne } from '../../db/pool.js';
 import * as sessionsRepo from '../../db/sessions-repo.js';
 import * as productsRepo from '../../db/products-repo.js';
-import * as ordersRepo from '../../db/orders-repo.js';
 import { logger } from '../../shared/logger.js';
 
 const router = Router();

@@ -3,7 +3,6 @@ import * as customersRepo from '../db/customers-repo.js';
 import * as settingsRepo from '../db/settings-repo.js';
 import { query } from '../db/pool.js';
 import { appBus } from '../shared/events.js';
-import type { Product } from '../shared/types.js';
 
 // ── Stock Alerts (moved from products-repo.ts) ──
 

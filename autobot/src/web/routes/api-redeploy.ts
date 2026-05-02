@@ -1,17 +1,24 @@
 import { Router } from 'express';
 import { execFileSync } from 'node:child_process';
 import { logger } from '../../shared/logger.js';
+import { requireSecret, timingSafeStringEqual } from '../../shared/secrets.js';
 
 const router = Router();
-
-const DEPLOY_SECRET = process.env.DEPLOY_SECRET || 'darwin-deploy-2026';
 
 // POST /api/v1/admin/redeploy
 // Body: { secret: string }
 // Pulls latest code and triggers graceful restart
 router.post('/redeploy', async (req, res) => {
   const { secret } = req.body as { secret?: string };
-  if (!secret || secret !== DEPLOY_SECRET) {
+  let expected: string;
+  try {
+    expected = requireSecret('DEPLOY_SECRET');
+  } catch (err) {
+    logger.error({ err }, 'DEPLOY_SECRET not configured — refusing redeploy');
+    res.status(503).json({ error: 'redeploy disabled' });
+    return;
+  }
+  if (!secret || !timingSafeStringEqual(secret, expected)) {
     logger.warn({ ip: req.ip }, 'Unauthorized redeploy attempt');
     res.status(401).json({ error: 'unauthorized' });
     return;

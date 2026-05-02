@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from '../auth/auth.js';
 import { requireSession, requireAdmin, requireTenantOwner } from './middleware/session-auth.js';
+import { requireSessionOrMobile } from './middleware/mobile-auth.js';
 import { logger } from '../shared/logger.js';
 import { BETTER_AUTH_URL, UPLOADS_DIR } from '../config.js';
 import { securityHeaders } from './middleware/security-headers.js';
@@ -45,7 +46,7 @@ import { ssoRouter } from './routes/api-sso.js';
 import { redeployRouter } from './routes/api-redeploy.js';
 import { shareRouter } from './routes/api-share.js';
 
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason) => {
   console.error('[FATAL] Unhandled Rejection:', reason);
 });
 
@@ -118,7 +119,7 @@ export function createWebServer(port: number = 3000): void {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many requests, please try again later' },
-    skip: (req) => isTestEnv || req.path === '/v1/health' || req.path.startsWith('/internal/'),
+    skip: (req) => isTestEnv || req.path === '/v1/health',
   });
   app.use('/api/', globalLimiter);
 
@@ -129,8 +130,19 @@ export function createWebServer(port: number = 3000): void {
     skip: () => isTestEnv,
   });
   app.use('/api/auth/', authLimiter);
-  app.use('/api/register', authLimiter);
   app.use('/api/v1/mobile/auth', authLimiter);
+
+  // Registration is more sensitive than auth — it creates persistent rows
+  // (account + tenant + slug consumption). Tighter than authLimiter.
+  const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many registration attempts. Try again in an hour.' },
+    skip: () => isTestEnv,
+  });
+  app.use('/api/register', registerLimiter);
 
   const leadsLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
@@ -188,11 +200,13 @@ export function createWebServer(port: number = 3000): void {
       checks.vllm = { status: 'error', error: e.message };
     }
 
-    // Whisper
+    // Whisper / Speaches — bearer-protected per INFRA.md
     try {
       const start = Date.now();
-      const whisperBase = (process.env.WHISPER_BASE_URL || 'http://localhost:9300/v1').replace(/\/v1\/?$/, '');
+      const whisperBase = (process.env.YAYA_ASR_URL || process.env.WHISPER_BASE_URL || 'http://localhost:8001').replace(/\/v1\/?$/, '');
+      const whisperKey = process.env.YAYA_ASR_KEY || process.env.WHISPER_API_KEY || '';
       const resp = await fetch(`${whisperBase}/health`, {
+        headers: { Authorization: `Bearer ${whisperKey}` },
         signal: AbortSignal.timeout(3000),
       });
       checks.whisper = resp.ok
@@ -213,8 +227,10 @@ export function createWebServer(port: number = 3000): void {
     });
   });
 
-  // ── Internal dev routes (no auth — admin use only, port 3000 should not be public-facing) ──
-  app.use('/api/internal', queueRouter);
+  // ── Internal queue routes (admin only — port 3000 IS public via Caddy) ──
+  // Historically mounted unauth; that was a hole — these inject AI jobs and
+  // expose DLQ contents (including customer message text + tenantIds).
+  app.use('/api/internal', requireSession, requireAdmin, queueRouter);
 
   // ── Public routes (no auth required) ──
   app.use('/api/register', registerRouter);
@@ -250,9 +266,9 @@ export function createWebServer(port: number = 3000): void {
   app.use('/api/leads', requireSession, leadsRouter);
   app.use('/api/sso', requireSession, ssoRouter);
 
-  // ── Media Server routes ──
-  app.use('/api/v1/media', mediaRouter);
-  app.use('/api/v1/stream', streamRouter);
+  // ── Media Server routes (session OR mobile/device auth; tenant scoped) ──
+  app.use('/api/v1/media', requireSessionOrMobile, mediaRouter);
+  app.use('/api/v1/stream', requireSessionOrMobile, streamRouter);
 
   // ── Encryption routes ──
   app.use('/api/v1/encryption', requireSession, encryptionRouter);

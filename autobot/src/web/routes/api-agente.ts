@@ -9,7 +9,8 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { directAgent, setTenantId } from '../../ai/agents.js';
+import { directAgent } from '../../ai/agents.js';
+import { runWithTenant } from '../../ai/tenant-context.js';
 import {
   getAllTasks,
   getTask,
@@ -68,9 +69,15 @@ const TTS_URL = process.env.TTS_BASE_URL
   ? `${process.env.TTS_BASE_URL}/v1/audio/speech`
   : 'http://localhost:9400/v1/audio/speech';
 
-const VLLM_API_BASE = process.env.VLLM_API_BASE || 'http://localhost:8000/v1';
-const VLLM_API_KEY = process.env.VLLM_API_KEY || 'omnimoney';
+const VLLM_API_BASE = process.env.VLLM_API_BASE || process.env.AI_BASE_URL || 'http://localhost:8000/v1';
+const VLLM_API_KEY = process.env.VLLM_API_KEY || process.env.AI_API_KEY || '';
 const VLLM_MODEL = process.env.VLLM_MODEL || 'qwen3.5-35b-a3b';
+if (!VLLM_API_KEY) {
+  // Don't crash module load — but log once and reject requests at runtime
+  // via the chat handler if the key is still empty.
+  // (This is the public-facing /api/v1/agente/chat endpoint.)
+  console.warn('[api-agente] VLLM_API_KEY/AI_API_KEY not set — chat will return 503');
+}
 
 // ── POST /chat — Streaming chat via Mastra directAgent ──
 
@@ -86,9 +93,12 @@ router.post('/chat', async (req: Request, res: Response) => {
       return;
     }
 
-    // Ensure tenant context is set
+    // Tenant context is required — agent tools read it via AsyncLocalStorage.
     const tenantId = (req as any).tenantId || process.env.DEFAULT_TENANT_ID || '';
-    if (tenantId) setTenantId(tenantId);
+    if (!tenantId) {
+      res.status(401).json({ error: 'Tenant context required' });
+      return;
+    }
 
     // Extract last user message
     const lastUserMsg = [...messages].reverse().find((m: { role: string }) => m.role === 'user');
@@ -107,11 +117,11 @@ router.post('/chat', async (req: Request, res: Response) => {
         content: m.content.slice(0, 500),
       }));
 
-    // Stream from directAgent
-    const result = await directAgent.stream(lastUserMsg.content, {
+    // Stream from directAgent under the tenant's async context
+    const result = await runWithTenant(tenantId, () => directAgent.stream(lastUserMsg.content, {
       maxSteps: 4,
       context,
-    });
+    }));
 
     // Write SSE to Express response
     res.writeHead(200, {
@@ -203,9 +213,12 @@ router.post('/voice', async (req: Request, res: Response) => {
       return;
     }
 
-    // Set tenant context
+    // Tenant context required for AI tools (AsyncLocalStorage).
     const tenantId = (req as any).tenantId || process.env.DEFAULT_TENANT_ID || '';
-    if (tenantId) setTenantId(tenantId);
+    if (!tenantId) {
+      res.status(401).json({ error: 'Tenant context required' });
+      return;
+    }
 
     // Parse history + set voice context for tasks
     let history: Array<{ role: string; content: string | null; tool_calls?: any[]; tool_call_id?: string }> = [];
@@ -250,15 +263,16 @@ router.post('/voice', async (req: Request, res: Response) => {
 
     const systemPrompt = `Asistente de voz del CEO. Respuestas cortas en espanol, 1-2 oraciones. Usa herramientas para datos de negocio. No inventes numeros. Sin markdown. /no_think${taskContext}`;
 
-    // Use Mastra directAgent for tool-calling LLM (handles tool loop automatically)
-    const result = await directAgent.generate(transcription, {
+    // Use Mastra directAgent for tool-calling LLM. Wrapped in runWithTenant
+    // so tools (yape, yayapay, crm) read the correct tenantId from AsyncLocalStorage.
+    const result = await runWithTenant(tenantId, () => directAgent.generate(transcription, {
       maxSteps: 3,
       instructions: systemPrompt,
       context: history
         .filter((m) => m.role === 'user' || m.role === 'assistant')
         .slice(-8)
         .map((m) => ({ role: m.role as 'user' | 'assistant', content: (m.content ?? '').slice(0, 500) })),
-    });
+    }));
 
     let response = result.text || 'Entendido, estoy procesando tu solicitud.';
     const llmMs = Date.now() - llmStart;
@@ -353,10 +367,6 @@ router.get('/tasks', (req: Request, res: Response) => {
 
 router.post('/tasks', (req: Request, res: Response) => {
   const { action } = req.body;
-
-  // Ensure tenant context
-  const tenantId = (req as any).tenantId || process.env.DEFAULT_TENANT_ID || '';
-  if (tenantId) setTenantId(tenantId);
 
   switch (action) {
     case 'create': {

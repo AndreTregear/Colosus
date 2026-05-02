@@ -38,9 +38,12 @@ export interface ModelBackend {
   circuitOpenedAt: number;
 }
 
-const LOCAL_BASE = process.env.VLLM_API_BASE || 'http://localhost:8000/v1';
-const LOCAL_KEY = process.env.VLLM_API_KEY || 'omnimoney';
-const LOCAL_MODEL = process.env.VLLM_MODEL || 'qwen3.5-35b-a3b';
+// Local LLM (vLLM `:8000`, Qwen3.6-35B-A3B AWQ). Bearer is supplied per-env
+// via YAYA_LLM_KEY (or legacy VLLM_API_KEY / AI_API_KEY); no default literal
+// so no key ships in the bundle.
+const LOCAL_BASE = process.env.YAYA_LLM_URL || process.env.VLLM_API_BASE || 'http://localhost:8000/v1';
+const LOCAL_KEY = process.env.YAYA_LLM_KEY || process.env.VLLM_API_KEY || process.env.AI_API_KEY || '';
+const LOCAL_MODEL = process.env.YAYA_LLM_MODEL || process.env.VLLM_MODEL || 'cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit';
 
 const HPC_BASE = process.env.HPC_API_BASE || 'http://localhost:18080/v1';
 const HPC_KEY = process.env.HPC_API_KEY || LOCAL_KEY;

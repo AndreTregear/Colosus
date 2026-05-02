@@ -6,8 +6,42 @@ import { rotateKEK } from '../../crypto/key-rotation.js';
 import { createRecoveryBackup, recoverFromBackup } from '../../crypto/backup.js';
 import { getTenantId } from '../../shared/validate.js';
 import { logger } from '../../shared/logger.js';
+import { getRedisConnection } from '../../queue/redis.js';
 
 export const encryptionRouter = Router();
+
+// Per-tenant unlock attempt counter. After UNLOCK_MAX_ATTEMPTS failed
+// attempts within UNLOCK_WINDOW_SEC, all unlock attempts for that tenant
+// (and rotate/recover, which also accept a password) return 429 until the
+// window slides. Defends against brute force of the tenant's KEK password,
+// which would otherwise be online-crackable using only the global limiter.
+const UNLOCK_MAX_ATTEMPTS = 5;
+const UNLOCK_WINDOW_SEC = 15 * 60;
+
+async function checkUnlockLockout(tenantId: string): Promise<{ locked: boolean; remainingSec?: number }> {
+  const redis = getRedisConnection();
+  const key = `unlock:fail:${tenantId}`;
+  const count = parseInt((await redis.get(key)) ?? '0', 10);
+  if (count >= UNLOCK_MAX_ATTEMPTS) {
+    const ttl = await redis.ttl(key);
+    return { locked: true, remainingSec: ttl > 0 ? ttl : UNLOCK_WINDOW_SEC };
+  }
+  return { locked: false };
+}
+
+async function recordUnlockFailure(tenantId: string): Promise<void> {
+  const redis = getRedisConnection();
+  const key = `unlock:fail:${tenantId}`;
+  const next = await redis.incr(key);
+  if (next === 1) {
+    await redis.expire(key, UNLOCK_WINDOW_SEC);
+  }
+  logger.warn({ tenantId, failureCount: next }, 'Encryption unlock failure');
+}
+
+async function clearUnlockFailures(tenantId: string): Promise<void> {
+  await getRedisConnection().del(`unlock:fail:${tenantId}`);
+}
 
 /**
  * POST /api/v1/encryption/unlock
@@ -22,12 +56,21 @@ encryptionRouter.post('/unlock', async (req: Request, res: Response) => {
       return;
     }
 
+    const lockout = await checkUnlockLockout(tenantId);
+    if (lockout.locked) {
+      res.status(429).set('Retry-After', String(lockout.remainingSec ?? UNLOCK_WINDOW_SEC))
+        .json({ error: 'Too many failed unlock attempts. Try again later.', retryAfterSec: lockout.remainingSec });
+      return;
+    }
+
     const ok = await unlockTenantKeys(tenantId, password);
     if (!ok) {
+      await recordUnlockFailure(tenantId);
       res.status(401).json({ error: 'Failed to unlock encryption keys' });
       return;
     }
 
+    await clearUnlockFailures(tenantId);
     res.json({ ok: true, message: 'Encryption keys unlocked' });
   } catch (err) {
     logger.error({ err }, 'Unlock encryption keys failed');
@@ -162,12 +205,21 @@ encryptionRouter.post('/rotate', async (req: Request, res: Response) => {
       return;
     }
 
+    const lockout = await checkUnlockLockout(tenantId);
+    if (lockout.locked) {
+      res.status(429).set('Retry-After', String(lockout.remainingSec ?? UNLOCK_WINDOW_SEC))
+        .json({ error: 'Too many failed unlock attempts. Try again later.', retryAfterSec: lockout.remainingSec });
+      return;
+    }
+
     const ok = await rotateKEK(tenantId, oldPassword, newPassword);
     if (!ok) {
+      await recordUnlockFailure(tenantId);
       res.status(401).json({ error: 'Key rotation failed (wrong old password?)' });
       return;
     }
 
+    await clearUnlockFailures(tenantId);
     res.json({ ok: true, message: 'Encryption key rotated successfully' });
   } catch (err) {
     logger.error({ err }, 'Key rotation failed');

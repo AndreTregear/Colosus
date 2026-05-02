@@ -13,11 +13,9 @@ const aiModel = provider.chatModel(AI_MODEL);
 import * as productsRepo from '../db/products-repo.js';
 import * as ordersRepo from '../db/orders-repo.js';
 import * as customersRepo from '../db/customers-repo.js';
-import * as pgMessagesRepo from '../db/pg-messages-repo.js';
 import { query, queryOne } from '../db/pool.js';
 import { logger } from '../shared/logger.js';
 import * as metabase from '../integrations/metabase-client.js';
-import type { Product } from '../shared/types.js';
 
 export interface BusinessInsights {
   // AI Usage

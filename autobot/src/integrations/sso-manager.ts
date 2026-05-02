@@ -177,7 +177,7 @@ export async function getCalcomLoginUrl(tenantId: string, tenantName: string, em
 
 // ── Metabase SSO ──
 
-async function ensureMetabaseUser(tenantId: string, tenantName: string, email: string): Promise<string | null> {
+async function ensureMetabaseUser(tenantId: string, _tenantName: string, email: string): Promise<string | null> {
   const existing = await getServiceAccount(tenantId, 'metabase');
   if (existing) return existing.externalId;
 
@@ -194,26 +194,28 @@ export async function getMetabaseSsoUrl(tenantId: string, tenantName: string, em
 
   if (!METABASE_API_KEY) return null;
 
-  // For self-hosted Metabase, use the embedding approach:
-  // Generate a signed embed URL for the tenant's dashboard.
-  // If METABASE_EMBED_SECRET is configured, use JWT signing.
-  // Otherwise, redirect to Metabase with the API key session.
+  // Look up a dashboard whose name explicitly includes the tenant slug or
+  // tenantId. We REFUSE to fall back to dashboards[0] — that "first
+  // dashboard" is typically a global/admin dashboard and would leak
+  // cross-tenant analytics.
   try {
-    // Get or create a session token for the Metabase API
     const res = await fetch(`${METABASE_API_URL}/api/dashboard`, {
       headers: { 'X-API-KEY': METABASE_API_KEY },
       signal: AbortSignal.timeout(8_000),
     });
     if (!res.ok) return null;
     const dashboards = await res.json() as Array<{ id: number; name: string }>;
-    // Find a tenant-specific dashboard or use the first available
-    const tenantDash = dashboards.find(d => d.name.toLowerCase().includes('tenant'));
-    const dashId = tenantDash?.id || dashboards[0]?.id;
-    if (!dashId) return `${METABASE_API_URL}`;
-    return `${METABASE_API_URL}/dashboard/${dashId}`;
+    const needle = (tenantName || tenantId).toLowerCase();
+    const tenantDash = dashboards.find(d => d.name.toLowerCase().includes(needle))
+      ?? dashboards.find(d => d.name.toLowerCase().includes(tenantId.toLowerCase()));
+    if (!tenantDash) {
+      logger.warn({ tenantId, tenantName }, 'Metabase: no tenant-specific dashboard found — refusing to fall back to a shared one');
+      return null;
+    }
+    return `${METABASE_API_URL}/dashboard/${tenantDash.id}`;
   } catch (err) {
     logger.error({ err, tenantId }, 'Failed to get Metabase SSO URL');
-    return `${METABASE_API_URL}`;
+    return null;
   }
 }
 

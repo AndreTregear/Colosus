@@ -26,11 +26,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-yaya}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: ${POSTGRES_DB:-yaya}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB required}
+    # Bind to localhost only — never expose Postgres on a public interface.
+    # Other services connect via the docker network.
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./infra/docker/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
@@ -49,7 +51,7 @@ services:
     image: redis:7-alpine
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -67,11 +69,11 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-yaya_s3}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD required}
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - miniodata:/data
     healthcheck:
@@ -99,34 +101,46 @@ services:
       PORT: "3000"
       NODE_ENV: production
       # Database
-      DATABASE_URL: postgresql://${POSTGRES_USER:-yaya}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-yaya}
-      POSTGRES_USER: ${POSTGRES_USER:-yaya}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: ${POSTGRES_DB:-yaya}
+      DATABASE_URL: postgresql://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:?required}
+      POSTGRES_USER: ${POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB: ${POSTGRES_DB:?required}
       # Redis
       REDIS_URL: redis://redis:6379
-      # AI — points to external GPU host running vLLM
-      AI_API_KEY: ${AI_API_KEY:-megustalaia}
+      # AI — points to external GPU host running vLLM (required, no default)
+      AI_API_KEY: ${AI_API_KEY:?AI_API_KEY required}
       AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:8000/v1}
       AI_MODEL: ${AI_MODEL:-qwen3.5-27b}
       AI_MAX_TOKENS: ${AI_MAX_TOKENS:-1024}
       # Voice — external GPU services
       WHISPER_URL: ${WHISPER_URL:-http://host.docker.internal:9100}
       TTS_URL: ${TTS_URL:-http://host.docker.internal:9200}
-      TTS_API_KEY: ${TTS_API_KEY:-megustalaia}
-      # Auth
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-changeme}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      TTS_API_KEY: ${TTS_API_KEY:?TTS_API_KEY required}
+      WHISPER_API_KEY: ${WHISPER_API_KEY:?WHISPER_API_KEY required}
+      # Auth — must be 32+ char random string (openssl rand -base64 32)
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET required (>=32 chars)}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL required}
+      # Mobile JWT + device-token HMAC — distinct secrets so a leak of one
+      # does not compromise sessions OR mobile JWTs OR device tokens.
+      MOBILE_JWT_SECRET: ${MOBILE_JWT_SECRET:?MOBILE_JWT_SECRET required (>=32 chars)}
+      DEVICE_TOKEN_HMAC_SECRET: ${DEVICE_TOKEN_HMAC_SECRET:?DEVICE_TOKEN_HMAC_SECRET required (>=32 chars)}
+      # Redeploy webhook (rotate frequently; no default)
+      DEPLOY_SECRET: ${DEPLOY_SECRET:?DEPLOY_SECRET required}
+      # Master AES-256-GCM key for envelope-encrypting per-tenant DB
+      # passwords + other service-managed secrets at rest. 32 bytes,
+      # encoded as hex (64 chars) or base64.
+      # Generate: openssl rand -hex 32
+      SERVICE_SECRET_KEY: ${SERVICE_SECRET_KEY:?SERVICE_SECRET_KEY required (32 bytes hex/base64)}
       # Object Storage
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-yaya_s3}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme}
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-yaya_s3}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-changeme}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?required}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       S3_ENDPOINT: http://minio:9000
-      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000}
-      # Admin
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@yaya.sh}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:?S3_PUBLIC_URL required}
+      # Admin (initial seed only — change immediately after first login)
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL required}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD required (>=12 chars)}
       ADMIN_NAME: ${ADMIN_NAME:-Admin}
       # Queue
       QUEUE_CONCURRENCY: ${QUEUE_CONCURRENCY:-10}
@@ -198,27 +212,27 @@ services:
     image: getlago/api:${LAGO_VERSION:-v1.44.0}
     environment:
       LAGO_API_URL: http://lago-api:3000
-      DATABASE_URL: postgresql://${LAGO_DB_USER:-lago}:${LAGO_DB_PASSWORD:-lago_s3cur3}@postgres:5432/${LAGO_DB_NAME:-lago_db}
+      DATABASE_URL: postgresql://${LAGO_DB_USER:?required}:${LAGO_DB_PASSWORD:?required}@postgres:5432/${LAGO_DB_NAME:?required}
       REDIS_URL: redis://redis:6379/1
       REDIS_PASSWORD: ""
-      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:-changeme_generate_with_openssl}
+      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:?LAGO_SECRET_KEY_BASE required (openssl rand -hex 64)}
       RAILS_ENV: production
-      LAGO_RSA_PRIVATE_KEY: ${LAGO_RSA_PRIVATE_KEY:-}
+      LAGO_RSA_PRIVATE_KEY: ${LAGO_RSA_PRIVATE_KEY:?LAGO_RSA_PRIVATE_KEY required (openssl genrsa -out tmp.pem 2048; base64 tmp.pem)}
       LAGO_FRONT_URL: http://${HOST_IP:-localhost}:${LAGO_FRONT_PORT:-8080}
       LAGO_API_KEY: ${LAGO_API_KEY:-}
-      LAGO_DISABLE_SIGNUP: "false"
-      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:-changeme}
-      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:-changeme}
-      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:-changeme}
+      LAGO_DISABLE_SIGNUP: "true"
+      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:?required}
+      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:?required}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:?required}
       # S3 storage via MinIO
-      LAGO_AWS_S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-yaya_s3}
-      LAGO_AWS_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-changeme}
+      LAGO_AWS_S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      LAGO_AWS_S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
       LAGO_AWS_S3_REGION: us-east-1
       LAGO_AWS_S3_BUCKET: lago
       LAGO_AWS_S3_ENDPOINT: http://minio:9000
       LAGO_USE_AWS_S3: "true"
     ports:
-      - "${LAGO_API_PORT:-3001}:3000"
+      - "127.0.0.1:${LAGO_API_PORT:-3001}:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -239,14 +253,14 @@ services:
     command: ["./scripts/start.worker.sh"]
     environment:
       LAGO_API_URL: http://lago-api:3000
-      DATABASE_URL: postgresql://${LAGO_DB_USER:-lago}:${LAGO_DB_PASSWORD:-lago_s3cur3}@postgres:5432/${LAGO_DB_NAME:-lago_db}
+      DATABASE_URL: postgresql://${LAGO_DB_USER:?required}:${LAGO_DB_PASSWORD:?required}@postgres:5432/${LAGO_DB_NAME:?required}
       REDIS_URL: redis://redis:6379/1
       REDIS_PASSWORD: ""
-      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:-changeme_generate_with_openssl}
+      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:?required}
       RAILS_ENV: production
-      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:-changeme}
-      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:-changeme}
-      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:-changeme}
+      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:?required}
+      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:?required}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:?required}
     depends_on:
       lago-api:
         condition: service_healthy
@@ -258,14 +272,14 @@ services:
     image: getlago/api:${LAGO_VERSION:-v1.44.0}
     command: ["./scripts/start.clock.sh"]
     environment:
-      DATABASE_URL: postgresql://${LAGO_DB_USER:-lago}:${LAGO_DB_PASSWORD:-lago_s3cur3}@postgres:5432/${LAGO_DB_NAME:-lago_db}
+      DATABASE_URL: postgresql://${LAGO_DB_USER:?required}:${LAGO_DB_PASSWORD:?required}@postgres:5432/${LAGO_DB_NAME:?required}
       REDIS_URL: redis://redis:6379/1
       REDIS_PASSWORD: ""
-      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:-changeme_generate_with_openssl}
+      SECRET_KEY_BASE: ${LAGO_SECRET_KEY_BASE:?required}
       RAILS_ENV: production
-      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:-changeme}
-      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:-changeme}
-      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:-changeme}
+      ENCRYPTION_PRIMARY_KEY: ${LAGO_ENCRYPTION_PRIMARY_KEY:?required}
+      ENCRYPTION_DETERMINISTIC_KEY: ${LAGO_ENCRYPTION_DETERMINISTIC_KEY:?required}
+      ENCRYPTION_KEY_DERIVATION_SALT: ${LAGO_ENCRYPTION_KEY_DERIVATION_SALT:?required}
     depends_on:
       lago-api:
         condition: service_healthy
@@ -280,7 +294,7 @@ services:
       APP_ENV: production
       LAGO_DISABLE_SIGNUP: "false"
     ports:
-      - "${LAGO_FRONT_PORT:-8080}:80"
+      - "127.0.0.1:${LAGO_FRONT_PORT:-8080}:80"
     depends_on:
       lago-api:
         condition: service_healthy
@@ -305,17 +319,17 @@ services:
   invoiceshelf:
     image: invoiceshelf/invoiceshelf:latest
     ports:
-      - "${INVOICESHELF_PORT:-8090}:80"
+      - "127.0.0.1:${INVOICESHELF_PORT:-8090}:80"
     environment:
       APP_ENV: production
-      APP_KEY: ${INVOICESHELF_APP_KEY:-base64:changeme}
+      APP_KEY: ${INVOICESHELF_APP_KEY:?INVOICESHELF_APP_KEY required (php artisan key:generate or base64-32)}
       APP_URL: ${INVOICESHELF_URL:-http://localhost:8090}
       DB_CONNECTION: pgsql
       DB_HOST: postgres
       DB_PORT: "5432"
-      DB_DATABASE: ${POSTGRES_DB:-yaya}
-      DB_USERNAME: ${POSTGRES_USER:-yaya}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      DB_DATABASE: ${POSTGRES_DB:?required}
+      DB_USERNAME: ${POSTGRES_USER:?required}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?required}
     volumes:
       - invoiceshelf-storage:/var/www/html/storage
     depends_on:
@@ -337,11 +351,11 @@ services:
   calcom:
     image: calcom.docker.scarf.sh/calcom/cal.com:latest
     ports:
-      - "${CALCOM_PORT:-3002}:3000"
+      - "127.0.0.1:${CALCOM_PORT:-3002}:3000"
     environment:
-      DATABASE_URL: postgresql://${CALCOM_DB_USER:-calcom}:${CALCOM_DB_PASSWORD:-calcom_s3cur3}@postgres:5432/${CALCOM_DB_NAME:-calcom_db}
-      NEXTAUTH_SECRET: ${CALCOM_NEXTAUTH_SECRET:-changeme}
-      CALENDSO_ENCRYPTION_KEY: ${CALCOM_ENCRYPTION_KEY:-changeme}
+      DATABASE_URL: postgresql://${CALCOM_DB_USER:?required}:${CALCOM_DB_PASSWORD:?required}@postgres:5432/${CALCOM_DB_NAME:?required}
+      NEXTAUTH_SECRET: ${CALCOM_NEXTAUTH_SECRET:?required}
+      CALENDSO_ENCRYPTION_KEY: ${CALCOM_ENCRYPTION_KEY:?required}
       NEXT_PUBLIC_WEBAPP_URL: ${CALCOM_PUBLIC_URL:-http://localhost:3002}
       NEXT_PUBLIC_API_V2_URL: ${CALCOM_PUBLIC_URL:-http://localhost:3002}/api/v2
       CALCOM_LICENSE_KEY: ${CALCOM_LICENSE_KEY:-}
@@ -367,14 +381,14 @@ services:
   metabase:
     image: metabase/metabase:latest
     ports:
-      - "${METABASE_PORT:-3003}:3000"
+      - "127.0.0.1:${METABASE_PORT:-3003}:3000"
     environment:
       MB_DB_TYPE: postgres
       MB_DB_HOST: postgres
       MB_DB_PORT: "5432"
-      MB_DB_DBNAME: ${METABASE_DB_NAME:-metabase_db}
-      MB_DB_USER: ${METABASE_DB_USER:-metabase}
-      MB_DB_PASS: ${METABASE_DB_PASSWORD:-metabase_s3cur3}
+      MB_DB_DBNAME: ${METABASE_DB_NAME:?required}
+      MB_DB_USER: ${METABASE_DB_USER:?required}
+      MB_DB_PASS: ${METABASE_DB_PASSWORD:?required}
       MB_EMAIL_SMTP_HOST: ${MB_EMAIL_SMTP_HOST:-}
       MB_EMAIL_SMTP_PORT: ${MB_EMAIL_SMTP_PORT:-}
       JAVA_TIMEZONE: ${METABASE_TIMEZONE:-America/Lima}
@@ -400,7 +414,7 @@ services:
   postgres-mcp:
     image: crystaldba/postgres-mcp
     environment:
-      DATABASE_URI: postgresql://${POSTGRES_USER:-yaya}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-yaya}
+      DATABASE_URI: postgresql://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:?required}
     depends_on:
       postgres:
         condition: service_healthy

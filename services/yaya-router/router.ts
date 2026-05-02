@@ -25,7 +25,11 @@ import Redis from 'ioredis';
 const PORT = parseInt(process.env.ROUTER_PORT || '8091');
 const WORKERS_RAW = process.env.WORKERS || 'http://localhost:8080,http://localhost:8081,http://localhost:8082,http://localhost:8083';
 const HEALTH_INTERVAL_MS = parseInt(process.env.HEALTH_INTERVAL_MS || '10000');
-const WORKER_API_KEY = process.env.WORKER_API_KEY || 'omnimoney';
+const WORKER_API_KEY = process.env.WORKER_API_KEY || '';
+if (!WORKER_API_KEY) {
+  console.error('[yaya-router] WORKER_API_KEY env var is required');
+  process.exit(1);
+}
 const ROUTER_API_KEY = process.env.ROUTER_API_KEY || ''; // Optional auth for clients
 const MAX_QUEUE_PER_WORKER = parseInt(process.env.MAX_QUEUE_PER_WORKER || '50');
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '60000');

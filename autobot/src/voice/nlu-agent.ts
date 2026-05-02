@@ -26,11 +26,11 @@ import {
 // ── LLM extraction via raw chat completion (fast path, no constrained decoding) ──
 // Uses HPC 122B when available (better at colloquial Spanish), falls back to local 35B.
 
-import { backends, ensureHealthy } from '../ai/model-router.js';
+import { ensureHealthy } from '../ai/model-router.js';
 
-const LOCAL_URL = process.env.VLLM_API_BASE || 'http://localhost:8000/v1';
-const LOCAL_KEY = process.env.VLLM_API_KEY || 'omnimoney';
-const LOCAL_MODEL = process.env.VLLM_MODEL || 'qwen3.5-35b-a3b';
+const LOCAL_URL = process.env.YAYA_LLM_URL || process.env.VLLM_API_BASE || 'http://localhost:8000/v1';
+const LOCAL_KEY = process.env.YAYA_LLM_KEY || process.env.VLLM_API_KEY || process.env.AI_API_KEY || '';
+const LOCAL_MODEL = process.env.YAYA_LLM_MODEL || process.env.VLLM_MODEL || 'cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit';
 
 const HPC_URL = process.env.HPC_API_BASE || 'http://localhost:18080/v1';
 const HPC_KEY = process.env.HPC_API_KEY || LOCAL_KEY;
@@ -146,11 +146,6 @@ export async function extractTransactionWithAgent(
 
 // ── Category normalization (BUG-005 fix) ──
 // Ensures consistent categories regardless of which model (35B vs 122B) produced them.
-
-const CANONICAL_CATEGORIES = new Set([
-  'food', 'utilities', 'transport', 'rent', 'salary', 'supplies',
-  'services', 'taxes', 'marketing', 'health', 'insurance', 'office', 'finance',
-]);
 
 /** Synonym map: non-canonical → canonical */
 const CATEGORY_SYNONYMS: Record<string, string> = {

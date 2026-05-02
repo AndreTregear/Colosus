@@ -57,6 +57,12 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   next();
 }
 
+// Param keys that, in any router we mount under requireTenantOwner, are
+// expected to carry a tenant UUID. We check ALL of them — historically only
+// `tenantId` was checked, but most tenant routers use `:id`, which made the
+// ownership check silently pass.
+const TENANT_PARAM_KEYS = ['tenantId', 'id'] as const;
+
 export function requireTenantOwner(req: Request, res: Response, next: NextFunction): void {
   if (!req.sessionUser) {
     res.status(401).json({ error: 'Not authenticated' });
@@ -66,12 +72,12 @@ export function requireTenantOwner(req: Request, res: Response, next: NextFuncti
     res.status(403).json({ error: 'No tenant associated with this account' });
     return;
   }
-  // If a tenantId is specified in the route (e.g. /api/tenants/:tenantId),
-  // verify the user owns that tenant. Otherwise, just require a tenant.
-  const paramTenantId = req.params.tenantId;
-  if (paramTenantId && paramTenantId !== req.sessionUser.tenantId) {
-    res.status(403).json({ error: 'Access denied: you can only access your own tenant' });
-    return;
+  for (const key of TENANT_PARAM_KEYS) {
+    const v = req.params[key];
+    if (typeof v === 'string' && v.length > 0 && v !== req.sessionUser.tenantId) {
+      res.status(403).json({ error: 'Access denied: you can only access your own tenant' });
+      return;
+    }
   }
   next();
 }
@@ -79,6 +85,14 @@ export function requireTenantOwner(req: Request, res: Response, next: NextFuncti
 export function requireCustomer(req: Request, res: Response, next: NextFunction): void {
   if (!req.sessionUser?.tenantId) {
     res.status(403).json({ error: 'Tenant access required' });
+    return;
+  }
+  next();
+}
+
+export function requireContador(req: Request, res: Response, next: NextFunction): void {
+  if (req.sessionUser?.role !== 'contador') {
+    res.status(403).json({ error: 'Contador access required' });
     return;
   }
   next();

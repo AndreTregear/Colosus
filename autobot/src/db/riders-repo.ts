@@ -1,5 +1,5 @@
 import { BaseRepository } from './base-repository.js';
-import { query, queryOne } from './pool.js';
+import { queryOne } from './pool.js';
 import type { Rider } from '../shared/types.js';
 import type { Spec } from './row-mapper.js';
 

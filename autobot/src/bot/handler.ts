@@ -3,7 +3,6 @@ import { getEnabledRulesSorted } from '../db/pg-rules-repo.js';
 import { logMessagePg } from '../db/pg-messages-repo.js';
 import { matchRule } from './rules-engine.js';
 import { incrementMessagesHandled } from './connection.js';
-import { appBus } from '../shared/events.js';
 import { logger } from '../shared/logger.js';
 
 // Single-tenant mode uses a default tenant ID

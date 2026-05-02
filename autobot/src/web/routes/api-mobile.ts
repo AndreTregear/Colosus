@@ -29,7 +29,7 @@ import { productExtractionRouter } from './api-product-extraction.js';
 import { calendarMobileRouter } from './api-calendar.js';
 import { logger } from '../../shared/logger.js';
 import { setNotificationSettings } from '../../queue/daily-summary-scheduler.js';
-import { setTenantFlows, toggleFlow } from '../../queue/followup-scheduler.js';
+import { toggleFlow } from '../../queue/followup-scheduler.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),

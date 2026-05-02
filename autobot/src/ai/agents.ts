@@ -3,11 +3,14 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { crmTools } from './tools/crm-tools.js';
 import { yapeTools } from './tools/yape-tools.js';
 import { qwenNoThinkFetch } from './qwen-fetch.js';
+import { AI_API_KEY, AI_BASE_URL } from '../config.js';
 
-// We point Mastra to the local vLLM OpenAI-compatible endpoint
+// Mastra → local vLLM (OpenAI-compatible). AI_API_KEY is validated at config
+// load time (no placeholder fallback); reading from config keeps a single
+// validation point.
 const openai = createOpenAI({
-  baseURL: 'http://localhost:8000/v1',
-  apiKey: 'welcometothepresent',
+  baseURL: AI_BASE_URL,
+  apiKey: AI_API_KEY,
   fetch: qwenNoThinkFetch,
 });
 
@@ -16,7 +19,7 @@ const localModel = openai('cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit');
 // Add all tools we want the agent to use
 const allTools = {
   ...crmTools,
-  ...yapeTools
+  ...yapeTools,
 };
 
 export const whatsappAgent = new Agent({
@@ -39,8 +42,7 @@ export const directAgent = new Agent({
 
 export const directAgentHpc = directAgent;
 
-// Simple tenant ID context holder
-let currentTenantId = '';
-export function setTenantId(id: string) {
-  currentTenantId = id;
-}
+// Tenant context lives in tenant-context.ts (AsyncLocalStorage). Tools call
+// `getCurrentTenant()`; callers wrap agent invocations in `runWithTenant`.
+// Re-exported here for backwards compatibility with imports.
+export { runWithTenant, getCurrentTenant } from './tenant-context.js';

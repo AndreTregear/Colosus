@@ -1,5 +1,5 @@
 import { BaseRepository } from './base-repository.js';
-import { query, queryOne, transaction } from './pool.js';
+import { query, queryOne } from './pool.js';
 import type { Appointment } from '../shared/types.js';
 import type { Spec } from './row-mapper.js';
 import { encryptRecord, decryptRecord, decryptRecords } from '../crypto/middleware.js';

@@ -1,11 +1,10 @@
 import { Queue, Worker, type Job } from 'bullmq';
-import { getRedisConnection, parseRedisUrl } from './redis.js';
+import { parseRedisUrl } from './redis.js';
 import { REDIS_URL } from '../config.js';
 import { logger } from '../shared/logger.js';
 import * as ordersRepo from '../db/orders-repo.js';
 import * as productsRepo from '../db/products-repo.js';
 import * as customersRepo from '../db/customers-repo.js';
-import * as appointmentsRepo from '../db/appointments-repo.js';
 import { getAIClient, getModelId } from '../ai/client.js';
 import { getTenantById } from '../db/tenants-repo.js';
 import { appBus } from '../shared/events.js';

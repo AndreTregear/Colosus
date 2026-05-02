@@ -12,10 +12,6 @@ export async function usePostgresAuthState(tenantId: string) {
     return JSON.stringify(data, BufferJSON.replacer);
   };
 
-  const readData = async (data: string): Promise<unknown> => {
-    return JSON.parse(data, BufferJSON.reviver);
-  };
-
   // Load or initialize creds
   const credsRow = await queryOne<any>(
     'SELECT creds FROM tenant_auth_creds WHERE tenant_id = $1',

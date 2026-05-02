@@ -4,7 +4,7 @@
  */
 import { parentPort, workerData } from 'node:worker_threads';
 import { BaileysProvider } from './providers/baileys.js';
-import { usePostgresAuthState, clearAuthState } from './providers/pg-auth-state.js';
+import { usePostgresAuthState } from './providers/pg-auth-state.js';
 import type { WorkerCommand, WorkerEvent } from '../shared/types.js';
 
 if (!parentPort) {

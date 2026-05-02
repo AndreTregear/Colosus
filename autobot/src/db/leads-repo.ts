@@ -67,9 +67,9 @@ export async function updateLead(tenantId: string, id: number, input: UpdateLead
 }
 
 export async function getLeadsByStatus(tenantId: string, status: string, limit = 100, offset = 0): Promise<Lead[]> {
-  return decAll(tenantId, await repo.findManyByColumns({ status }, tenantId, { orderBy: 'updated_at', orderDir: 'DESC', limit }));
+  return decAll(tenantId, await repo.findManyByColumns({ status }, tenantId, { orderBy: 'updated_at', orderDir: 'DESC', limit, offset }));
 }
 
 export async function getLeadsBySource(tenantId: string, source: string, limit = 100, offset = 0): Promise<Lead[]> {
-  return decAll(tenantId, await repo.findManyByColumns({ source }, tenantId, { orderBy: 'updated_at', orderDir: 'DESC', limit }));
+  return decAll(tenantId, await repo.findManyByColumns({ source }, tenantId, { orderBy: 'updated_at', orderDir: 'DESC', limit, offset }));
 }

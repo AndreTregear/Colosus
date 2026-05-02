@@ -17,7 +17,7 @@ import { provisionTenantKeys, unlockTenantKeys } from '../../crypto/tenant-keys.
 import { logger } from '../../shared/logger.js';
 import { validateBody } from '../../shared/validate.js';
 import { mobileRegisterSchema, mobileLoginSchema } from '../../shared/validation.js';
-import { BETTER_AUTH_SECRET } from '../../config.js';
+import { MOBILE_JWT_SECRET } from '../../config.js';
 
 const router = Router();
 
@@ -27,11 +27,11 @@ const BCRYPT_ROUNDS = 12;
 const REQUEST_TIMEOUT_MS = 15_000;
 
 function signAccessToken(userId: number, tenantId: string, phone: string): string {
-  return jwt.sign({ userId, tenantId, phone, type: 'access' }, BETTER_AUTH_SECRET, { algorithm: 'HS256', expiresIn: ACCESS_TOKEN_EXPIRES_IN });
+  return jwt.sign({ userId, tenantId, phone, type: 'access' }, MOBILE_JWT_SECRET, { algorithm: 'HS256', expiresIn: ACCESS_TOKEN_EXPIRES_IN });
 }
 
 function signRefreshToken(userId: number, tenantId: string): string {
-  return jwt.sign({ userId, tenantId, type: 'refresh' }, BETTER_AUTH_SECRET, { algorithm: 'HS256', expiresIn: REFRESH_TOKEN_EXPIRES_IN });
+  return jwt.sign({ userId, tenantId, type: 'refresh' }, MOBILE_JWT_SECRET, { algorithm: 'HS256', expiresIn: REFRESH_TOKEN_EXPIRES_IN });
 }
 
 /**
@@ -189,7 +189,7 @@ router.post('/refresh', withTimeout(async (req, res) => {
 
   let payload: { userId: number; tenantId: string; type: string };
   try {
-    payload = jwt.verify(refreshToken, BETTER_AUTH_SECRET, { algorithms: ['HS256'] }) as typeof payload;
+    payload = jwt.verify(refreshToken, MOBILE_JWT_SECRET, { algorithms: ['HS256'] }) as typeof payload;
   } catch {
     res.status(401).json({ error: 'Invalid or expired refresh token.' });
     return;

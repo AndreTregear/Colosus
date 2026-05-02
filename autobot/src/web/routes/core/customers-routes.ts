@@ -2,7 +2,6 @@ import type { Router } from 'express';
 import * as customersRepo from '../../../db/customers-repo.js';
 import { getTenantId, validateBody } from '../../../shared/validate.js';
 import { createCustomerSchema } from '../../../shared/validation.js';
-import { handleEntityResponse } from '../../shared/route-helpers.js';
 import { encryptRecord, decryptRecord, decryptRecords } from '../../../crypto/middleware.js';
 
 export function mountCustomerRoutes(router: Router, prefix: string): void {

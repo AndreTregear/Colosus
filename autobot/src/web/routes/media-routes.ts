@@ -109,7 +109,8 @@ mediaRouter.get('/', async (req: Request, res: Response) => {
  */
 mediaRouter.get('/:id', async (req: Request, res: Response) => {
   try {
-    const asset = await mediaAssetsRepo.getAssetById(param(req, 'id'));
+    const tenantId = getTenantId(req);
+    const asset = await mediaAssetsRepo.getAssetByIdForTenant(param(req, 'id'), tenantId);
     if (!asset) {
       res.status(404).json({ error: 'Asset not found' });
       return;
@@ -126,7 +127,8 @@ mediaRouter.get('/:id', async (req: Request, res: Response) => {
  */
 mediaRouter.get('/:id/url', async (req: Request, res: Response) => {
   try {
-    const asset = await mediaAssetsRepo.getAssetById(param(req, 'id'));
+    const tenantId = getTenantId(req);
+    const asset = await mediaAssetsRepo.getAssetByIdForTenant(param(req, 'id'), tenantId);
     if (!asset) {
       res.status(404).json({ error: 'Asset not found' });
       return;
@@ -148,7 +150,8 @@ mediaRouter.get('/:id/url', async (req: Request, res: Response) => {
  */
 mediaRouter.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const asset = await mediaAssetsRepo.deleteAsset(param(req, 'id'));
+    const tenantId = getTenantId(req);
+    const asset = await mediaAssetsRepo.deleteAssetForTenant(param(req, 'id'), tenantId);
     if (!asset) {
       res.status(404).json({ error: 'Asset not found' });
       return;

@@ -11,6 +11,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { query, queryOne } from '../../db/pool.js';
 import { logger } from '../../shared/logger.js';
+import { getCurrentTenant } from '../tenant-context.js';
 
 /**
  * Check for recent Yape payments that match a customer's pending order.
@@ -24,8 +25,8 @@ export const checkYapePayment = createTool({
     amount: z.number().optional().describe('Expected payment amount'),
     order_id: z.number().optional().describe('Order ID to check payment for'),
   }),
-  execute: async ({ customer_name, amount, order_id }) => {
-    const tenantId = getCurrentTenantId();
+  execute: async ({ customer_name: _customer_name, amount, order_id }) => {
+    const tenantId = getCurrentTenant();
 
     // Check Yape notifications received in the last 24h
     const notifications = await query<any>(
@@ -112,7 +113,7 @@ export const confirmYapePayment = createTool({
     order_id: z.number().describe('Order ID to mark as paid'),
   }),
   execute: async ({ notification_id, order_id }) => {
-    const tenantId = getCurrentTenantId();
+    const tenantId = getCurrentTenant();
 
     try {
       // Get the notification
@@ -128,6 +129,32 @@ export const confirmYapePayment = createTool({
         [tenantId, order_id],
       );
       if (!order) return { confirmed: false, error: 'Pedido no encontrado.' };
+
+      // Block re-confirming an order that's already paid — the AI may
+      // (incorrectly) try to "confirm" the same order twice.
+      if (order.status === 'paid') {
+        return { confirmed: false, error: `Pedido #${order_id} ya está pagado.` };
+      }
+
+      // Refuse to mark a notification that's already matched somewhere else.
+      if (notif.status === 'MATCHED') {
+        return { confirmed: false, error: 'Esa notificación ya fue usada para confirmar otro pedido.' };
+      }
+
+      // CRITICAL: amount must match. Without this, a prompt-injected agent
+      // can confirm a S/. 1000 order with a S/. 1 notification.
+      const notifAmt = Number(notif.amount);
+      const orderAmt = Number(order.total);
+      if (!Number.isFinite(notifAmt) || !Number.isFinite(orderAmt) || Math.abs(notifAmt - orderAmt) > 0.01) {
+        logger.warn(
+          { tenantId, notification_id, order_id, notifAmt, orderAmt },
+          'Yape confirm rejected: amount mismatch',
+        );
+        return {
+          confirmed: false,
+          error: `El monto del pago Yape (S/${notifAmt}) no coincide con el total del pedido (S/${orderAmt}).`,
+        };
+      }
 
       // Create or update payment record
       const existingPayment = await queryOne<any>(
@@ -179,10 +206,5 @@ export const confirmYapePayment = createTool({
     }
   },
 });
-
-// Tenant context — set per-request
-let _currentTenantId = '';
-export function setCurrentTenantId(id: string) { _currentTenantId = id; }
-function getCurrentTenantId() { return _currentTenantId; }
 
 export const yapeTools = { checkYapePayment, confirmYapePayment };

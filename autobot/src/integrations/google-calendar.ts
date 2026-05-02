@@ -1,8 +1,7 @@
 import { google } from 'googleapis';
-import { 
-  GOOGLE_CLIENT_ID, 
-  GOOGLE_CLIENT_SECRET, 
-  GOOGLE_REDIRECT_URI,
+import {
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
   BETTER_AUTH_URL,
 } from '../config.js';
 import { logger } from '../shared/logger.js';
@@ -22,7 +21,6 @@ interface CalendarTokens {
 const ENCRYPTION_KEY = process.env.CALENDAR_ENCRYPTION_KEY || '';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
 
 function encrypt(text: string): string {
   if (!ENCRYPTION_KEY) {

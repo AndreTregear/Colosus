@@ -2,12 +2,11 @@ import { Router } from 'express';
 import { requireTenantAuth } from '../middleware/tenant-auth.js';
 import { requireMobileOrDeviceAuth } from '../middleware/mobile-auth.js';
 import { getTenantId } from '../../shared/validate.js';
-import { 
-  getAuthUrl, 
+import {
+  getAuthUrl,
   exchangeCode,
   getCalendarClient,
   disconnectCalendar,
-  CalendarClient,
 } from '../../integrations/google-calendar.js';
 import { GOOGLE_CLIENT_ID } from '../../config.js';
 import { logger } from '../../shared/logger.js';

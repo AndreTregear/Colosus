@@ -109,15 +109,15 @@ router.post('/tenants', async (req, res) => {
     
     // Create admin user for tenant
     try {
-      const authResult = await auth.api.signUpEmail({
-        body: { 
-          email: adminEmail, 
-          password: adminPassword, 
+      await auth.api.signUpEmail({
+        body: {
+          email: adminEmail,
+          password: adminPassword,
           name: name,
-          tenantId: tenant.id 
+          tenantId: tenant.id
         },
       });
-      
+
       // Update user with tenantId
       await query(
         'UPDATE "user" SET "tenantId" = $1 WHERE email = $2',

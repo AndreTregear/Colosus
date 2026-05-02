@@ -35,6 +35,18 @@ const authOptions = {
     expiresIn: 60 * 60 * 24 * 7,   // 7 days
     updateAge: 60 * 60 * 24,        // refresh after 1 day
   },
+  // Force HttpOnly + Secure + SameSite=Lax on session cookies. SameSite=Lax
+  // blocks cross-site form-POST CSRF on dashboard mutations; HttpOnly blocks
+  // JS exfil; Secure ensures the cookie only crosses HTTPS in prod.
+  // (BETTER_AUTH_URL must use https:// in production for `secure` to apply.)
+  advanced: {
+    useSecureCookies: BETTER_AUTH_URL.startsWith('https://'),
+    defaultCookieAttributes: {
+      httpOnly: true,
+      sameSite: 'lax' as const,
+      secure: BETTER_AUTH_URL.startsWith('https://'),
+    },
+  },
   plugins: [
     admin({
       defaultRole: 'user',

@@ -4,7 +4,6 @@ import * as ordersRepo from '../db/orders-repo.js';
 import * as customersRepo from '../db/customers-repo.js';
 import { tenantManager } from '../bot/tenant-manager.js';
 import { appBus } from '../shared/events.js';
-import { logger } from '../shared/logger.js';
 import { NotFoundError } from './errors.js';
 import type { DeliveryAssignment, Rider } from '../shared/types.js';
 

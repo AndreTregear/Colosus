@@ -50,7 +50,7 @@ export class BaseRepository<T> {
     this.tenantColumn = options.tenantColumn ?? null;
     this.softDeleteColumn = options.softDeleteColumn ?? null;
     this.toEntity = createRowMapper<T>(options.spec);
-    this.columns = Object.entries(options.spec as Record<string, FieldSpec>).map(([key, spec]) =>
+    this.columns = Object.values(options.spec as Record<string, FieldSpec>).map((spec) =>
       typeof spec === 'string' ? spec : (spec as { col: string }).col
     );
   }

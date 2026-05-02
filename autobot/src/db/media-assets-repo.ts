@@ -49,10 +49,11 @@ export async function createAsset(asset: {
   return rowToAsset(row!);
 }
 
-export async function getAssetById(id: string): Promise<MediaAsset | null> {
+/** Tenant-scoped lookup. Returns null if asset doesn't exist OR belongs to another tenant. */
+export async function getAssetByIdForTenant(id: string, tenantId: string): Promise<MediaAsset | null> {
   const row = await queryOne<Record<string, unknown>>(
-    'SELECT * FROM media_assets WHERE id = $1',
-    [id],
+    'SELECT * FROM media_assets WHERE id = $1 AND tenant_id = $2',
+    [id, tenantId],
   );
   return row ? rowToAsset(row) : null;
 }
@@ -129,10 +130,11 @@ export async function updateProcessingStatus(
   await query(`UPDATE media_assets SET ${sets.join(', ')} WHERE id = $1`, params);
 }
 
-export async function deleteAsset(id: string): Promise<MediaAsset | null> {
+/** Tenant-scoped delete. Returns null if asset doesn't exist OR belongs to another tenant. */
+export async function deleteAssetForTenant(id: string, tenantId: string): Promise<MediaAsset | null> {
   const row = await queryOne<Record<string, unknown>>(
-    'DELETE FROM media_assets WHERE id = $1 RETURNING *',
-    [id],
+    'DELETE FROM media_assets WHERE id = $1 AND tenant_id = $2 RETURNING *',
+    [id, tenantId],
   );
   return row ? rowToAsset(row) : null;
 }

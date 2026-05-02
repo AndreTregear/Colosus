@@ -179,22 +179,29 @@ app.get("/api/v1/payments/stats", (_req, res) => {
 });
 
 // ── POST /api/v1/devices/register ───────────────────────────
-
-app.post("/api/v1/devices/register", (req, res) => {
-  const { deviceId, apiKey } = req.body;
-  if (!deviceId || !apiKey) {
-    res.status(400).json({ error: "deviceId and apiKey required" });
+// Requires the master API key. Server mints a per-device key (hex 256-bit)
+// and returns it once — caller must store it and use it as bearer for
+// subsequent calls. The previous behavior accepted any client-supplied key
+// (no master required) and stored it plaintext, allowing trivial creation
+// of forever-valid bearer tokens by any network attacker.
+app.post("/api/v1/devices/register", authMiddleware, (req, res) => {
+  const { deviceId } = req.body;
+  if (!deviceId || typeof deviceId !== "string" || deviceId.length > 200) {
+    res.status(400).json({ error: "deviceId required" });
     return;
   }
-
-  const device = registerDevice(deviceId, apiKey);
-  res.status(201).json({ device });
+  const { device, apiKey } = registerDevice(deviceId);
+  res.status(201).json({
+    device: { id: device.id, device_id: device.device_id, created_at: device.created_at },
+    apiKey, // shown once — caller must persist
+  });
 });
 
 // ── Start ───────────────────────────────────────────────────
 
-app.listen(PORT, () => {
+const BIND_HOST = process.env.BIND_HOST || "127.0.0.1";
+app.listen(PORT, BIND_HOST, () => {
   // Ensure DB is initialized on startup
   getDb();
-  console.log(`yape-listener running on port ${PORT}`);
+  console.log(`yape-listener running on http://${BIND_HOST}:${PORT}`);
 });

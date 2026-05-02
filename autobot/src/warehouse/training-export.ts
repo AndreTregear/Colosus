@@ -34,7 +34,7 @@ function anonymize(value: string): string {
  * Returns a presigned URL to download the export file.
  */
 export async function exportTrainingData(opts: ExportOpts): Promise<{ url: string; rowCount: number; key: string }> {
-  const { tenantId, format, dateFrom, dateTo, interactionTypes, anonymize: shouldAnonymize = true } = opts;
+  const { tenantId, format, dateFrom, dateTo, interactionTypes: _interactionTypes, anonymize: shouldAnonymize = true } = opts;
 
   // Query message pairs (incoming → outgoing) from message_log
   let whereClause = 'WHERE ml_in.tenant_id = $1 AND ml_in.direction = \'incoming\'';

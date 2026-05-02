@@ -1,4 +1,4 @@
-import { query, queryOne } from './pool.js';
+import { queryOne } from './pool.js';
 import { createRowMapper } from './row-mapper.js';
 import type { MobileUserRow } from './row-types.js';
 

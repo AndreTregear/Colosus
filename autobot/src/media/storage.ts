@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { S3_BUCKET_RAW, S3_PRESIGN_TTL } from '../config.js';
 import { putObject, getObject as s3GetObject, deleteObject, getPresignedUrl, generateKey } from './s3-client.js';
 

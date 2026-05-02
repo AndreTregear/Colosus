@@ -138,7 +138,7 @@ export const toggleFlow = (tenantId: string, flowType: FollowupType, enabled: bo
   if (flow) flow.enabled = enabled;
 };
 
-export async function triggerPostPurchaseFollowup(tenantId: string, orderId: number, customerJid: string): Promise<void> {
+export async function triggerPostPurchaseFollowup(tenantId: string, orderId: number, _customerJid: string): Promise<void> {
   const flow = getTenantFlows(tenantId).find(f => f.type === 'post_purchase');
   if (!flow?.enabled) return;
   const scheduledAt = new Date();

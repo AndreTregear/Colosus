@@ -1,6 +1,5 @@
 import { query, queryOne } from './pool.js';
 import * as tenantsRepo from './tenants-repo.js';
-import type { SettingsRow, TenantRow } from './row-types.js';
 
 export async function getSetting(tenantId: string, key: string): Promise<string | undefined> {
   const row = await queryOne<{ value: string }>('SELECT value FROM settings WHERE tenant_id = $1 AND key = $2', [tenantId, key]);

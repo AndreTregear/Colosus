@@ -1,7 +1,5 @@
 import crypto from 'node:crypto';
 import { query, queryOne } from '../db/pool.js';
-import { deriveKEK, generateSalt, encryptDEK } from './envelope.js';
-import { cacheDEK } from './key-cache.js';
 import { logger } from '../shared/logger.js';
 
 interface TenantKeyRecord {
@@ -91,7 +89,7 @@ export async function recoverFromBackup(
   tenantId: string,
   backup: Buffer,
   recoveryPrivateKey: string,
-  newPassword: string,
+  _newPassword: string,
 ): Promise<boolean> {
   try {
     // Parse backup envelope

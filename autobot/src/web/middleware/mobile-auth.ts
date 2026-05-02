@@ -1,7 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { BETTER_AUTH_SECRET } from '../../config.js';
+import { MOBILE_JWT_SECRET } from '../../config.js';
 import { extractBearerToken } from './auth-utils.js';
+import { auth } from '../../auth/auth.js';
+import { fromNodeHeaders } from 'better-auth/node';
 
 declare global {
   namespace Express {
@@ -19,7 +21,7 @@ interface MobileJwtPayload {
 
 function verifyMobileJwt(token: string): MobileJwtPayload | null {
   try {
-    const payload = jwt.verify(token, BETTER_AUTH_SECRET, { algorithms: ['HS256'] }) as MobileJwtPayload & { type?: string };
+    const payload = jwt.verify(token, MOBILE_JWT_SECRET, { algorithms: ['HS256'] }) as MobileJwtPayload & { type?: string };
     // Reject refresh tokens used as access tokens
     if (payload.type === 'refresh') return null;
     return payload;
@@ -75,4 +77,35 @@ export async function requireMobileOrDeviceAuth(req: Request, res: Response, nex
   req.deviceId = device.id;
   updateLastSeen(device.id).catch(() => {});
   next();
+}
+
+/**
+ * Accepts EITHER a Better Auth cookie session (web dashboard) OR a mobile JWT
+ * OR a device token. Sets req.tenantId. Used by routes that serve both web
+ * and mobile clients — most notably media + streaming.
+ */
+export async function requireSessionOrMobile(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // Try cookie session first
+  try {
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+    if (session?.user) {
+      const user = session.user as { id: string; email: string; name: string; role?: string; tenantId?: string };
+      if (user.tenantId) {
+        req.sessionUser = {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role || 'user',
+          tenantId: user.tenantId,
+        };
+        req.tenantId = user.tenantId;
+        return next();
+      }
+    }
+  } catch {
+    // fall through to bearer token
+  }
+
+  // Fall back to mobile JWT / device token
+  return requireMobileOrDeviceAuth(req, res, next);
 }

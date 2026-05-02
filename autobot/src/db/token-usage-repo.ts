@@ -1,5 +1,4 @@
 import { query } from './pool.js';
-import type { TokenUsageRow } from './row-types.js';
 
 export interface TokenUsageRecord {
   id: number;

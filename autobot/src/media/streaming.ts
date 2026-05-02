@@ -3,6 +3,7 @@ import { S3_BUCKET_PROCESSED, S3_BUCKET_RAW } from '../config.js';
 import { getObjectStream, headObject, getPresignedUrl } from './s3-client.js';
 import * as mediaAssetsRepo from '../db/media-assets-repo.js';
 import { logger } from '../shared/logger.js';
+import { getTenantId } from '../shared/validate.js';
 
 export const streamRouter = Router();
 
@@ -19,7 +20,8 @@ function param(req: Request, name: string): string {
 streamRouter.get('/:assetId', async (req: Request, res: Response) => {
   const assetId = param(req, 'assetId');
   try {
-    const asset = await mediaAssetsRepo.getAssetById(assetId);
+    const tenantId = getTenantId(req);
+    const asset = await mediaAssetsRepo.getAssetByIdForTenant(assetId, tenantId);
     if (!asset) {
       res.status(404).json({ error: 'Asset not found' });
       return;
@@ -63,7 +65,7 @@ streamRouter.get('/:assetId', async (req: Request, res: Response) => {
         'Accept-Ranges': 'bytes',
         'Content-Length': String(chunkSize),
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': 'private, max-age=300',
       });
 
       for await (const chunk of stream.body) {
@@ -77,7 +79,7 @@ streamRouter.get('/:assetId', async (req: Request, res: Response) => {
         'Content-Length': String(totalSize),
         'Content-Type': contentType,
         'Accept-Ranges': 'bytes',
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': 'private, max-age=300',
       });
 
       for await (const chunk of stream.body) {
@@ -101,7 +103,8 @@ streamRouter.get('/:assetId/hls/:file', async (req: Request, res: Response) => {
   const assetId = param(req, 'assetId');
   const filename = param(req, 'file');
   try {
-    const asset = await mediaAssetsRepo.getAssetById(assetId);
+    const tenantId = getTenantId(req);
+    const asset = await mediaAssetsRepo.getAssetByIdForTenant(assetId, tenantId);
     if (!asset) {
       res.status(404).json({ error: 'Asset not found' });
       return;
@@ -145,7 +148,8 @@ streamRouter.get('/:assetId/hls/:file', async (req: Request, res: Response) => {
 streamRouter.get('/:assetId/thumbnail', async (req: Request, res: Response) => {
   const assetId = param(req, 'assetId');
   try {
-    const asset = await mediaAssetsRepo.getAssetById(assetId);
+    const tenantId = getTenantId(req);
+    const asset = await mediaAssetsRepo.getAssetByIdForTenant(assetId, tenantId);
     if (!asset || !asset.thumbnailKey) {
       res.status(404).json({ error: 'Thumbnail not found' });
       return;

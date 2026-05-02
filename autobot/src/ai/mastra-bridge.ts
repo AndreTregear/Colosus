@@ -9,7 +9,8 @@
  * Uses shared agents from ./agents.ts (same agents used by the Express API).
  */
 
-import { whatsappAgent, whatsappAgentHpc, directAgent, directAgentHpc, setTenantId } from './agents.js';
+import { whatsappAgent, whatsappAgentHpc, directAgent, directAgentHpc } from './agents.js';
+import { runWithTenant } from './tenant-context.js';
 import { classifyRoute, ensureHealthy, recordLatency, type RouteTarget } from './model-router.js';
 import { logger } from '../shared/logger.js';
 
@@ -19,7 +20,7 @@ import { getConversationHistory } from '../db/pg-messages-repo.js';
 
 // ── Bridge Interface (same as openclaw-bridge.ts) ──
 
-export interface OpenClawBridgeResult {
+export interface HermesBridgeResult {
   reply: string;
   imagesToSend: Array<{ imagePath: string; caption: string }>;
   routedTo?: RouteTarget;
@@ -29,20 +30,18 @@ export interface OpenClawBridgeResult {
  * Process a customer message through Mastra agent.
  * Automatically routes to local (35B) or HPC (122B) based on complexity.
  */
-export async function processWithOpenClaw(
+export async function processWithHermes(
   tenantId: string,
-  channel: string,
+  _channel: string,
   jid: string,
   text: string,
   onChunk: (chunk: string) => Promise<void>,
   imageMediaPath?: string,
-): Promise<OpenClawBridgeResult> {
+): Promise<HermesBridgeResult> {
   const startTime = Date.now();
 
+  return runWithTenant(tenantId, async () => {
   try {
-    // Set tenant context for tools
-    setTenantId(tenantId);
-
     // Build context
     const bizCtx = await businessContextRepo.getBusinessContext(tenantId).catch(() => null);
     const tenant = await tenantsRepo.getTenantById(tenantId).catch(() => null);
@@ -127,22 +126,22 @@ export async function processWithOpenClaw(
     try { await onChunk(fallback); } catch { /* best effort */ }
     return { reply: fallback, imagesToSend: [] };
   }
+  });
 }
 
 /**
  * Process an owner/admin message through the HPC-backed directAgent.
  * CEO always gets the big model (122B, 262K ctx).
  */
-export async function processOwnerWithOpenClaw(
+export async function processOwnerWithHermes(
   tenantId: string,
   jid: string,
   text: string,
 ): Promise<{ reply: string; routedTo?: RouteTarget }> {
   const startTime = Date.now();
 
+  return runWithTenant(tenantId, async () => {
   try {
-    setTenantId(tenantId);
-
     const tenant = await tenantsRepo.getTenantById(tenantId).catch(() => null);
 
     // Load recent owner conversation for context continuity (last 4 messages)
@@ -194,6 +193,7 @@ export async function processOwnerWithOpenClaw(
     logger.error({ err, tenantId, jid, durationMs: Date.now() - startTime }, 'Mastra owner agent failed');
     return { reply: 'Lo siento, tuve un problema. ¿Podrías repetirme?' };
   }
+  });
 }
 
 /**

@@ -4,7 +4,7 @@ import * as tenantsRepo from '../../db/tenants-repo.js';
 import * as devicesRepo from '../../db/devices-repo.js';
 import * as paymentService from '../../services/payment-service.js';
 import { requireDeviceAuth } from '../middleware/device-auth.js';
-import { BETTER_AUTH_SECRET } from '../../config.js';
+import { DEVICE_TOKEN_HMAC_SECRET } from '../../config.js';
 import { logger } from '../../shared/logger.js';
 import { validateBody, getTenantId, getDeviceId } from '../../shared/validate.js';
 import { deviceRegisterSchema, paymentSyncSchema, batchPaymentSyncSchema } from '../../shared/validation.js';
@@ -30,7 +30,7 @@ router.post('/devices/register', validateBody(deviceRegisterSchema), async (req,
   }
 
   const token = crypto
-    .createHmac('sha256', BETTER_AUTH_SECRET)
+    .createHmac('sha256', DEVICE_TOKEN_HMAC_SECRET)
     .update(`${deviceId}:${tenant.id}:${Date.now()}`)
     .digest('hex');
 

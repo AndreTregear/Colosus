@@ -2,7 +2,6 @@ import { getRedisConnection } from '../queue/redis.js';
 import * as productsRepo from '../db/products-repo.js';
 import * as customersRepo from '../db/customers-repo.js';
 import { ServiceError } from './errors.js';
-import type { Product } from '../shared/types.js';
 
 const CART_TTL = 86400; // 24 hours
 

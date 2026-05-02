@@ -192,6 +192,33 @@ export class WorkerBridge {
     });
   }
 
+  async sendAudio(jid: string, audioBuffer: Buffer, mimetype: string, ptt: boolean = false): Promise<void> {
+    const requestId = crypto.randomUUID();
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(requestId);
+        reject(new Error(`sendAudio timed out after ${WorkerBridge.SEND_TIMEOUT_MS}ms for ${jid}`));
+      }, WorkerBridge.SEND_TIMEOUT_MS);
+
+      this.pendingRequests.set(requestId, { resolve, reject, timer });
+
+      try {
+        this.send({ type: 'send-audio', jid, audioBuffer, mimetype, ptt, requestId });
+      } catch (err) {
+        clearTimeout(timer);
+        this.pendingRequests.delete(requestId);
+        reject(err);
+      }
+    });
+  }
+
+  rejectCall(callId: string, from: string): void {
+    if (!this.worker) return; // best-effort
+    try {
+      this.send({ type: 'reject-call', callId, from });
+    } catch { /* best-effort, don't throw */ }
+  }
+
   sendPresenceUpdate(jid: string, type: 'composing' | 'paused'): void {
     if (!this.worker) return; // best-effort
     try {
@@ -211,7 +238,7 @@ export class WorkerBridge {
   }
 
   private rejectAllPending(reason: string): void {
-    for (const [id, { reject, timer }] of this.pendingRequests) {
+    for (const [, { reject, timer }] of this.pendingRequests) {
       clearTimeout(timer);
       reject(new Error(reason));
     }

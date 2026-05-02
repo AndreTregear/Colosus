@@ -3,7 +3,6 @@ import * as appointmentsRepo from '../db/appointments-repo.js';
 import * as settingsRepo from '../db/settings-repo.js';
 import { tenantManager } from '../bot/tenant-manager.js';
 import { getMessage } from '../shared/message-templates.js';
-import type { Appointment } from '../shared/types.js';
 
 const QUEUE_NAME = 'appointment-reminders';
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;

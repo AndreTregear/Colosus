@@ -2,13 +2,21 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { logger } from '../../shared/logger.js';
 import { createERPNextConnector } from '../../agant-connectors/erpnext/index.js';
+import { requireSecret } from '../../shared/secrets.js';
 
-// Initialize the ERPNext connector pointing to our local compose stack
-const erpnext = createERPNextConnector({
-  baseUrl: process.env.ERPNEXT_URL || 'http://erpnext:8000',
-  apiKey: process.env.ERPNEXT_API_KEY || 'admin',
-  apiSecret: process.env.ERPNEXT_API_SECRET || 'admin',
-});
+// Lazy ERPNext connector — only constructed (and only requires secrets) when
+// the agent first calls a CRM tool. Avoids breaking dev/test boots that have
+// no ERPNext deployed.
+let _erpnext: ReturnType<typeof createERPNextConnector> | null = null;
+function erpnextClient(): ReturnType<typeof createERPNextConnector> {
+  if (_erpnext) return _erpnext;
+  _erpnext = createERPNextConnector({
+    baseUrl: process.env.ERPNEXT_URL || 'http://erpnext:8000',
+    apiKey: requireSecret('ERPNEXT_API_KEY'),
+    apiSecret: requireSecret('ERPNEXT_API_SECRET'),
+  });
+  return _erpnext;
+}
 
 /**
  * Record a sale in the Agant CRM (ERPNext).
@@ -34,11 +42,11 @@ export const recordSaleInCRM = createTool({
       // 1. Ensure customer exists
       let customer;
       try {
-        const existing = await erpnext.actions.listCustomers(customer_name, 1);
+        const existing = await erpnextClient().actions.listCustomers(customer_name, 1);
         if (existing && existing.length > 0) {
           customer = existing[0];
         } else {
-          customer = await erpnext.actions.createCustomer({
+          customer = await erpnextClient().actions.createCustomer({
             customer_name,
             phone: phone || '',
           });
@@ -49,7 +57,7 @@ export const recordSaleInCRM = createTool({
       }
 
       // 2. Create the Sales Invoice
-      const invoice = await erpnext.actions.createSalesInvoice({
+      const invoice = await erpnextClient().actions.createSalesInvoice({
         customer: customer?.name || customer_name,
         items: items,
       });

@@ -4,7 +4,6 @@ import * as settingsRepo from '../db/settings-repo.js';
 import { tenantManager } from '../bot/tenant-manager.js';
 import { getMessage } from '../shared/message-templates.js';
 import { BUSINESS_CURRENCY } from '../config.js';
-import type { Order } from '../shared/types.js';
 
 const QUEUE_NAME = 'payment-followups';
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;

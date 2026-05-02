@@ -1,4 +1,4 @@
-import { query, queryOne } from './pool.js';
+import { query } from './pool.js';
 
 export interface CustomerMemory {
   id: number;

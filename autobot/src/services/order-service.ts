@@ -3,10 +3,9 @@ import * as paymentsRepo from '../db/payments-repo.js';
 import * as refundsRepo from '../db/refunds-repo.js';
 import * as customersRepo from '../db/customers-repo.js';
 import * as settingsRepo from '../db/settings-repo.js';
-import * as catalogService from './catalog-service.js';
 import { BUSINESS_CURRENCY } from '../config.js';
 import { appBus } from '../shared/events.js';
-import { NotFoundError, InvalidTransitionError, OwnershipError, InsufficientStockError } from './errors.js';
+import { NotFoundError, InvalidTransitionError, OwnershipError } from './errors.js';
 import type { Order, OrderWithItems, OrderStatus, OrderItemInput } from '../shared/types.js';
 
 // ── State Machine ──
@@ -80,7 +79,7 @@ export async function confirmOrder(tenantId: string, orderId: number): Promise<O
 export async function cancelOrder(
   tenantId: string,
   orderId: number,
-  cancelledBy: { customerId?: number; adminId?: string },
+  _cancelledBy: { customerId?: number; adminId?: string },
   reason?: string,
 ): Promise<Order> {
   const order = await getOrderOrThrow(tenantId, orderId);

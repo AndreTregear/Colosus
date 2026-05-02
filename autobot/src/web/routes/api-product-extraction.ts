@@ -6,6 +6,7 @@ import * as productsRepo from '../../db/products-repo.js';
 import { extractProductsFromVoice, extractProductsFromText, type ExtractedProduct } from '../../ai/product-extraction.js';
 import { MAX_UPLOAD_SIZE_MB } from '../../config.js';
 import { logger } from '../../shared/logger.js';
+import { getRedisConnection } from '../../queue/redis.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -14,14 +15,6 @@ const upload = multer({
 
 const router = Router();
 router.use(requireMobileOrDeviceAuth);
-
-interface ProductFromVoiceRequest {
-  audio?: Buffer;
-  text?: string;
-  sessionId?: string;
-  previousContext?: string;
-  confirmedProducts?: ExtractedProduct[];
-}
 
 interface ProductFromVoiceResponse {
   status: 'complete' | 'needs_clarification' | 'error';
@@ -33,14 +26,32 @@ interface ProductFromVoiceResponse {
   createdCount?: number;
 }
 
-// Store ongoing sessions (in production, use Redis)
-const sessions = new Map<string, {
+// Multi-turn extraction sessions live in Redis with a 10-minute TTL.
+// Key: `prodext:<sessionId>`. The previous in-memory Map grew unbounded
+// (DoS vector) and didn't survive restarts or share across processes.
+interface ExtractionSession {
   tenantId: string;
   transcription: string;
   extractedProducts: ExtractedProduct[];
   context: string;
-  createdAt: Date;
-}>();
+  createdAt: number;
+}
+
+const SESSION_TTL_SEC = 10 * 60;
+
+async function getSession(sessionId: string): Promise<ExtractionSession | null> {
+  const raw = await getRedisConnection().get(`prodext:${sessionId}`);
+  if (!raw) return null;
+  try { return JSON.parse(raw) as ExtractionSession; } catch { return null; }
+}
+
+async function setSession(sessionId: string, session: ExtractionSession): Promise<void> {
+  await getRedisConnection().set(`prodext:${sessionId}`, JSON.stringify(session), 'EX', SESSION_TTL_SEC);
+}
+
+async function deleteSession(sessionId: string): Promise<void> {
+  await getRedisConnection().del(`prodext:${sessionId}`);
+}
 
 /**
  * POST /api/v1/mobile/products/from-voice
@@ -81,13 +92,38 @@ router.post('/from-voice', upload.single('audio'), async (req, res) => {
   try {
     // Handle confirmed products save
     if (confirmedProducts && Array.isArray(confirmedProducts)) {
+      // Cap batch size — defends against DoS via huge payload.
+      if (confirmedProducts.length > 50) {
+        res.status(400).json({ error: 'Too many products in one request (max 50)' });
+        return;
+      }
       const createdProducts = [];
       for (const product of confirmedProducts) {
+        // Validate every field — never spread user-supplied data into the
+        // create call. Prevents mass-assignment of internal fields and
+        // ensures price/strings are well-formed.
+        if (!product || typeof product !== 'object') {
+          res.status(400).json({ error: 'Each product must be an object' });
+          return;
+        }
+        const name = typeof product.name === 'string' ? product.name.trim().slice(0, 200) : '';
+        if (!name) {
+          res.status(400).json({ error: 'Product name is required' });
+          return;
+        }
+        const price = Number(product.price);
+        if (!Number.isFinite(price) || price <= 0 || price > 1_000_000) {
+          res.status(400).json({ error: `Invalid price for "${name}"` });
+          return;
+        }
+        const description = typeof product.description === 'string' ? product.description.slice(0, 2000) : '';
+        const category = typeof product.category === 'string' ? product.category.trim().slice(0, 100) : 'General';
+
         const created = await productsRepo.createProduct(tenantId, {
-          name: product.name,
-          description: product.description || '',
-          price: product.price,
-          category: product.category || 'General',
+          name,
+          description,
+          price,
+          category: category || 'General',
           productType: 'physical',
           stock: null,
           imageUrl: null,
@@ -98,7 +134,7 @@ router.post('/from-voice', upload.single('audio'), async (req, res) => {
 
       // Clear session
       if (existingSessionId) {
-        sessions.delete(existingSessionId);
+        await deleteSession(existingSessionId);
       }
 
       const response: ProductFromVoiceResponse = {
@@ -114,9 +150,9 @@ router.post('/from-voice', upload.single('audio'), async (req, res) => {
 
     // Get previous context if session exists
     let previousContext = '';
-    if (existingSessionId && sessions.has(existingSessionId)) {
-      const session = sessions.get(existingSessionId)!;
-      if (session.tenantId === tenantId) {
+    if (existingSessionId) {
+      const session = await getSession(existingSessionId);
+      if (session && session.tenantId === tenantId) {
         previousContext = session.context;
       }
     }
@@ -137,18 +173,15 @@ router.post('/from-voice', upload.single('audio'), async (req, res) => {
 
     // Store session for multi-turn
     if (extractionResult.status === 'needs_clarification' || extractionResult.products) {
-      sessions.set(newSessionId, {
+      await setSession(newSessionId, {
         tenantId,
         transcription: extractionResult.rawTranscription,
         extractedProducts: extractionResult.products || [],
-        context: previousContext 
+        context: previousContext
           ? `${previousContext}\n${extractionResult.rawTranscription}`
           : extractionResult.rawTranscription,
-        createdAt: new Date(),
+        createdAt: Date.now(),
       });
-
-      // Clean up old sessions (older than 10 minutes)
-      cleanupOldSessions();
     }
 
     const response: ProductFromVoiceResponse = {
@@ -229,15 +262,6 @@ router.post('/from-photo', upload.single('image'), async (req, res) => {
 
 function generateSessionId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-}
-
-function cleanupOldSessions(): void {
-  const cutoff = Date.now() - 10 * 60 * 1000; // 10 minutes
-  for (const [id, session] of sessions.entries()) {
-    if (session.createdAt.getTime() < cutoff) {
-      sessions.delete(id);
-    }
-  }
 }
 
 async function extractProductFromImage(

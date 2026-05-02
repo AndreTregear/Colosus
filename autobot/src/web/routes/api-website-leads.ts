@@ -30,11 +30,20 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
-    // Basic input sanitization — limit field lengths
-    const safeName = String(name).slice(0, 200);
+    // Strip HTML-control characters (<, >, &) from text fields to prevent
+    // stored-XSS in the admin dashboard if any render path forgets to
+    // escape. Also strip ASCII control characters and trim whitespace.
+    const stripHtml = (s: string) =>
+      s.replace(/[<>&]/g, '').replace(/[\x00-\x1f\x7f]/g, '').trim();
+
+    const safeName = stripHtml(String(name)).slice(0, 200);
     const safePhone = phoneStr.slice(0, 50);
-    const safeBusiness = business ? String(business).slice(0, 200) : null;
-    const safeMessage = message ? String(message).slice(0, 2000) : null;
+    const safeBusiness = business ? stripHtml(String(business)).slice(0, 200) : null;
+    const safeMessage = message ? stripHtml(String(message)).slice(0, 2000) : null;
+
+    if (!safeName) {
+      return res.status(400).json({ error: 'Name must not be empty' });
+    }
 
     const result = await query(
       `INSERT INTO website_leads (name, phone, business, message, source)

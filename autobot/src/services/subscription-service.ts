@@ -54,16 +54,6 @@ export function calculatePeriodEnd(billingCycle: string, start: Date = new Date(
 
 // ── Lago helpers ──
 
-/** Map our billing cycle names to Lago plan interval codes */
-function billingCycleToLagoInterval(cycle: string): string {
-  switch (cycle) {
-    case 'weekly': return 'weekly';
-    case 'quarterly': return 'quarterly';
-    case 'yearly': return 'yearly';
-    default: return 'monthly';
-  }
-}
-
 /** Ensure the tenant exists as a Lago customer (idempotent) */
 async function ensureLagoCustomer(tenantId: string): Promise<boolean> {
   const existing = await lago.getCustomer(tenantId);
