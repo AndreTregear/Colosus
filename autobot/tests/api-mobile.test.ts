@@ -310,10 +310,10 @@ describe('Section 6: Mobile API Routes', () => {
     expect([200, 404]).toContain(res.status); // may 404 if no settings yet
   });
 
-  it('Test 6.23: GET /api/v1/mobile/events/followup-flows returns 200', async () => {
+  it('Test 6.23: GET /api/v1/mobile/followup-flows returns 200', async () => {
     if (!mobileToken) return;
     const res = await request({
-      path: '/api/v1/mobile/events/followup-flows',
+      path: '/api/v1/mobile/followup-flows',
       headers: bearerAuth(),
     });
     expect(res.status).toBe(200);

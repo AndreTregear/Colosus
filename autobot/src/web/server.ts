@@ -45,6 +45,7 @@ import { websiteLeadsRouter } from './routes/api-website-leads.js';
 import { ssoRouter } from './routes/api-sso.js';
 // simulate route removed — was Mastra-only demo
 import { shareRouter } from './routes/api-share.js';
+import { agenteRouter } from './routes/api-agente.js';
 
 process.on('unhandledRejection', (reason) => {
   console.error('[FATAL] Unhandled Rejection:', reason);
@@ -264,6 +265,8 @@ export function createWebServer(port: number = 3000): void {
   app.use('/api/creator/plans', creatorPlansRouter);
   app.use('/api/calendar', calendarRouter);
   app.use('/api/merchant-ai', merchantAIRouter);
+  // agente.ceo voice/chat/tasks (web dashboard) — tenant-scoped session auth.
+  app.use('/api/agente', requireSession, requireTenantOwner, agenteRouter);
   app.use('/api/leads', requireSession, leadsRouter);
   app.use('/api/sso', requireSession, ssoRouter);
 
@@ -298,10 +301,20 @@ export function createWebServer(port: number = 3000): void {
     res.sendFile(path.resolve(__dirname, 'public/customer/index.html'));
   });
 
-  // Root fallback (exclude /media paths so missing files return 404)
+  // Root fallback (exclude /media + /api paths so missing files/routes
+  // return 404 instead of the SPA HTML — avoids masking client bugs).
   app.get('/{*splat}', (req, res, next) => {
     if (req.path.startsWith('/media/')) return next();
+    if (req.path.startsWith('/api/')) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
     res.sendFile(path.resolve(__dirname, 'public/index.html'));
+  });
+
+  // Catch-all 404 for non-GET on unknown /api/* paths.
+  app.all('/api/{*splat}', (_req, res) => {
+    res.status(404).json({ error: 'Not found' });
   });
 
   // Global error handler — must be LAST (after all routes including SPA fallbacks)

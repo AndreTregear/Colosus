@@ -404,23 +404,6 @@ services:
       - yaya-net
 
   # ===========================================================================
-  # MCP SERVERS — Bridge between AI Agent and Backend Services
-  # ===========================================================================
-
-  # ── Postgres MCP — Direct SQL access with guardrails ───────────────────────
-  # Used by 33+ skills. Safe query builder, index tuning, health checks.
-  postgres-mcp:
-    image: crystaldba/postgres-mcp
-    environment:
-      DATABASE_URI: postgresql://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:?required}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - yaya-net
-
-  # ===========================================================================
   # OPTIONAL / PHASE 2 — Uncomment when ready
   # ===========================================================================
 

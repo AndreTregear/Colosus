@@ -94,10 +94,3 @@ export function requireCustomer(req: Request, res: Response, next: NextFunction)
   next();
 }
 
-export function requireContador(req: Request, res: Response, next: NextFunction): void {
-  if (req.sessionUser?.role !== 'contador') {
-    res.status(403).json({ error: 'Contador access required' });
-    return;
-  }
-  next();
-}

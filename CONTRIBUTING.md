@@ -47,17 +47,6 @@ yaya_platform/
 │   └── package.json
 ├── skills/                  # 38 AI skill definitions (markdown files)
 │   └── yaya-*/SKILL.md      # Each skill configures the AI agent's behavior
-├── mcp-servers/             # 10 MCP servers — bridge AI to backend services
-│   ├── postgres-mcp/        # Direct SQL with guardrails
-│   ├── payments-mcp/        # Payment validation + processing
-│   ├── invoicing-mcp/       # Electronic invoicing (SUNAT, DIAN)
-│   ├── appointments-mcp/    # Cal.com booking bridge
-│   ├── lago-mcp/            # Subscription billing bridge
-│   ├── crm-mcp/             # Customer relationship management
-│   ├── whatsapp-mcp/        # WhatsApp message sending
-│   ├── voice-mcp/           # Whisper STT + Kokoro TTS
-│   ├── forex-mcp/           # Exchange rates (SBS/BCR)
-│   └── erpnext-mcp/         # ERPNext ERP (Phase 2)
 ├── services/                # Slim Docker wrappers for upstream OSS projects
 │   ├── lago/                # Subscription billing
 │   ├── calcom/              # Appointment scheduling
