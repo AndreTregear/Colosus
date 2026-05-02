@@ -44,7 +44,6 @@ import { leadsRouter } from './routes/api-leads.js';
 import { websiteLeadsRouter } from './routes/api-website-leads.js';
 import { ssoRouter } from './routes/api-sso.js';
 // simulate route removed — was Mastra-only demo
-import { redeployRouter } from './routes/api-redeploy.js';
 import { shareRouter } from './routes/api-share.js';
 
 process.on('unhandledRejection', (reason) => {
@@ -243,8 +242,6 @@ export function createWebServer(port: number = 3000): void {
   app.use('/api/v1/mobile/auth', mobileAuthRouter);
   app.use('/api/website/leads', websiteLeadsRouter);
   app.use('/api/v1/share', shareRouter);
-
-  app.use('/api/v1/darwin', redeployRouter); // secret-based auth, separate from session-based admin
 
   // ── Admin routes (session + admin role) ──
   app.use('/api/rules', requireSession, requireAdmin, rulesRouter);

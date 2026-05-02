@@ -1,6 +1,0 @@
-[submodule "services/erpnext"]
-	path = services/erpnext
-	url = https://github.com/frappe/frappe_docker.git
-[submodule "mcp-servers/postgres-mcp"]
-	path = mcp-servers/postgres-mcp
-	url = https://github.com/crystaldba/postgres-mcp.git

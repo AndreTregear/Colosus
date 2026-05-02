@@ -26,7 +26,6 @@ const FORBIDDEN_DEFAULTS = new Set([
   'omnimoney',
   'yaya-dev-key',
   'yaya-jwt-secret-change-me',
-  'darwin-deploy-2026',
   'admin',
   'EMPTY',
   'base64:changeme',

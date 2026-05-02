@@ -44,7 +44,6 @@ export const directAgent = new Agent({
 
 export const directAgentHpc = directAgent;
 
-// Tenant context lives in tenant-context.ts (AsyncLocalStorage). Tools call
-// `getCurrentTenant()`; callers wrap agent invocations in `runWithTenant`.
-// Re-exported here for backwards compatibility with imports.
-export { runWithTenant, getCurrentTenant } from './tenant-context.js';
+// Tenant context lives in tenant-context.ts (AsyncLocalStorage). Tools
+// call `getCurrentTenant()`; callers wrap agent invocations in
+// `runWithTenant`. Import directly from './tenant-context.js'.

@@ -124,8 +124,6 @@ services:
       # does not compromise sessions OR mobile JWTs OR device tokens.
       MOBILE_JWT_SECRET: ${MOBILE_JWT_SECRET:?MOBILE_JWT_SECRET required (>=32 chars)}
       DEVICE_TOKEN_HMAC_SECRET: ${DEVICE_TOKEN_HMAC_SECRET:?DEVICE_TOKEN_HMAC_SECRET required (>=32 chars)}
-      # Redeploy webhook (rotate frequently; no default)
-      DEPLOY_SECRET: ${DEPLOY_SECRET:?DEPLOY_SECRET required}
       # Master AES-256-GCM key for envelope-encrypting per-tenant DB
       # passwords + other service-managed secrets at rest. 32 bytes,
       # encoded as hex (64 chars) or base64.

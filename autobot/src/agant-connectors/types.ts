@@ -95,23 +95,3 @@ export async function httpJson<T>(
   return res.json() as Promise<T>;
 }
 
-export async function httpText(
-  config: HttpClientConfig,
-  method: string,
-  path: string,
-  body?: string,
-  extraHeaders?: Record<string, string>,
-): Promise<string> {
-  const url = `${config.baseUrl}${path}`;
-  const res = await fetch(url, {
-    method,
-    headers: { ...config.headers, ...extraHeaders },
-    body,
-    signal: AbortSignal.timeout(config.timeout ?? 15000),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`${method} ${path} → ${res.status}: ${text.slice(0, 200)}`);
-  }
-  return res.text();
-}
