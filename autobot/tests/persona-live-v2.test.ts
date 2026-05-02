@@ -20,7 +20,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { query, queryOne } from '../src/db/pool.js';
 import * as tenantsRepo from '../src/db/tenants-repo.js';
 import { whatsappAgent, directAgent, setTenantId } from '../src/ai/agents.js';
-import { processWithOpenClaw, isOwnerChat } from '../src/ai/mastra-bridge.js';
+import { processWithHermes, isOwnerChat } from '../src/ai/mastra-bridge.js';
 import { logger } from '../src/shared/logger.js';
 import fs from 'node:fs';
 
@@ -348,7 +348,7 @@ describe('Persona Live V2 — Mastra Agents with Tools', () => {
         const start = Date.now();
 
         const chunks: string[] = [];
-        const result = await processWithOpenClaw(
+        const result = await processWithHermes(
           testTenantId,
           'whatsapp',
           persona.jid,
@@ -501,7 +501,7 @@ describe('Persona Live V2 — Mastra Agents with Tools', () => {
 
       // Turn 1: Browse
       let chunks: string[] = [];
-      let result = await processWithOpenClaw(
+      let result = await processWithHermes(
         testTenantId, 'whatsapp', jid,
         'Hola! Qué tienen para comer?',
         async (chunk) => { chunks.push(chunk); },
@@ -513,7 +513,7 @@ describe('Persona Live V2 — Mastra Agents with Tools', () => {
 
       // Turn 2: Confirm order — customer explicitly says "sí, quiero pedir"
       chunks = [];
-      result = await processWithOpenClaw(
+      result = await processWithHermes(
         testTenantId, 'whatsapp', jid,
         'Sí, dame 2 pollos a la brasa y 1 chicha morada. Ese es mi pedido.',
         async (chunk) => { chunks.push(chunk); },
@@ -526,7 +526,7 @@ describe('Persona Live V2 — Mastra Agents with Tools', () => {
 
       // Turn 3: Ask about Yape
       chunks = [];
-      result = await processWithOpenClaw(
+      result = await processWithHermes(
         testTenantId, 'whatsapp', jid,
         'Puedo pagar por Yape?',
         async (chunk) => { chunks.push(chunk); },
@@ -584,7 +584,7 @@ describe('Persona Live V2 — Mastra Agents with Tools', () => {
       setTenantId(testTenantId);
 
       const chunks: string[] = [];
-      const result = await processWithOpenClaw(
+      const result = await processWithHermes(
         testTenantId, 'whatsapp', '51999888777@s.whatsapp.net',
         'asdfghjkl qwerty zxcvbnm',
         async (chunk) => { chunks.push(chunk); },
@@ -599,7 +599,7 @@ describe('Persona Live V2 — Mastra Agents with Tools', () => {
       setTenantId(testTenantId);
 
       const chunks: string[] = [];
-      const result = await processWithOpenClaw(
+      const result = await processWithHermes(
         testTenantId, 'whatsapp', '51999888777@s.whatsapp.net',
         '👋🍗🔥',
         async (chunk) => { chunks.push(chunk); },
@@ -614,7 +614,7 @@ describe('Persona Live V2 — Mastra Agents with Tools', () => {
 
       const longMsg = 'Hola necesito hacer un pedido grande. '.repeat(50);
       const chunks: string[] = [];
-      const result = await processWithOpenClaw(
+      const result = await processWithHermes(
         testTenantId, 'whatsapp', '51999888777@s.whatsapp.net',
         longMsg,
         async (chunk) => { chunks.push(chunk); },

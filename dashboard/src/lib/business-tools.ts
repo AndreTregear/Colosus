@@ -1,5 +1,5 @@
 /**
- * Tier 1 Business Tools — System 1 (voice) + System 2 (OpenClaw MCP)
+ * Tier 1 Business Tools — System 1 (voice) + System 2 (Hermes MCP)
  *
  * Pure functions that query PostgreSQL directly. No ORM, no HTTP intermediary.
  * Designed for <500ms response time in the voice pipeline.
@@ -7,7 +7,7 @@
  * Tools:
  *   business_metrics  — Revenue, orders, payments breakdown
  *   customer_lookup   — Find customer by name/phone + recent orders
- *   send_message      — Send WhatsApp message (gateway → fallback to OpenClaw)
+ *   send_message      — Send WhatsApp message (gateway → fallback to Hermes)
  *   calendar_today    — Today's appointments
  *   payment_status    — Pending payments / specific order status
  */

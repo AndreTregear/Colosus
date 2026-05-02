@@ -187,19 +187,19 @@ Use the deployment script to onboard a new business:
 
 This creates:
 - Isolated database schema
-- NemoClaw security policy
+- Hermes security policy
 - SOUL.md agent personality
 - Configured skills
 - Lago billing customer
 
 See `clients/<slug>/` for the generated configuration.
 
-## Step 8: Connect OpenClaw
+## Step 8: Connect Hermes
 
-Configure OpenClaw to use the Yaya Platform services:
+Configure Hermes to use the Yaya Platform services:
 
 ```yaml
-# openclaw.yaml
+# hermes.yaml
 agent:
   llm:
     provider: openai-compatible
@@ -232,7 +232,7 @@ agent:
       args: ["/app/mcp-servers/payments-mcp/dist/index.js"]
 
   security:
-    policy: /app/infra/nemoclaw/policy.yaml
+    policy: /app/infra/hermes/policy.yaml
 
   skills:
     directory: /app/skills
@@ -354,7 +354,7 @@ docker compose --env-file .env ps
 
 - All service ports bind to `localhost` only in production — use a reverse proxy (nginx/caddy) for external access
 - The `.env` file contains secrets — never commit it. It's in `.gitignore`
-- NemoClaw policy blocks all internet access — the agent cannot exfiltrate data
+- Hermes policy blocks all internet access — the agent cannot exfiltrate data
 - Each client gets an isolated database schema — no cross-client data access
 - PII stripping is enabled in the inference pipeline
 - Backups should be encrypted at rest in production

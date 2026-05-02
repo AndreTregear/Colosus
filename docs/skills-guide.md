@@ -2,7 +2,7 @@
 
 ## What Are Skills?
 
-Skills are modular capability definitions that tell the OpenClaw agent *how* to handle specific types of conversations. Each skill defines:
+Skills are modular capability definitions that tell the Hermes agent *how* to handle specific types of conversations. Each skill defines:
 
 - **When** to activate (trigger conditions)
 - **What** tools to use (MCP server dependencies)
@@ -178,7 +178,7 @@ Agent: "example response"
 
 List every MCP tool the skill needs in the "MCP Tools Required" section. The agent will only have access to tools that are:
 1. Declared in the skill
-2. Allowed by the NemoClaw policy
+2. Allowed by the Hermes policy
 3. Available from running MCP servers
 
 ### Step 4: Define Behavior Boundaries
@@ -200,7 +200,7 @@ Include at least 2-3 realistic conversation examples. These serve as few-shot ex
 2. Send test messages via WhatsApp
 3. Verify the agent activates the correct skill
 4. Check MCP tool calls in logs
-5. Verify NemoClaw policy compliance
+5. Verify Hermes policy compliance
 
 ## Per-Client Skill Customization
 
@@ -249,7 +249,7 @@ When multiple skills could handle a message, the agent uses this priority:
 
 1. **One skill per domain** — Don't create a skill that does everything. Keep responsibilities focused.
 
-2. **Declare all tools** — If a skill uses a tool, it must be listed. Undeclared tool usage will be blocked by NemoClaw.
+2. **Declare all tools** — If a skill uses a tool, it must be listed. Undeclared tool usage will be blocked by Hermes.
 
 3. **Write realistic examples** — The LLM uses examples as behavioral anchors. Make them reflect real conversations.
 

@@ -9,7 +9,7 @@ Proactive customer engagement skill that initiates conversations instead of wait
 - An out-of-stock item a customer asked about is back in stock
 - A customer's birthday or anniversary is coming up (from CRM data)
 - A configurable period has passed since a purchase (satisfaction check)
-- A scheduled follow-up reminder triggers via OpenClaw cron/heartbeat
+- A scheduled follow-up reminder triggers via Hermes cron/heartbeat
 - Payment installment is due
 - Appointment reminder needs to be sent (coordinates with yaya-appointments)
 
@@ -30,9 +30,9 @@ Proactive customer engagement skill that initiates conversations instead of wait
 - `crm-mcp` — Customer data, birthdays, purchase history, interaction log, preferences, opt-out status
 - `postgres-mcp` — Follow-up queue, scheduling, delivery tracking, customer engagement patterns
 
-## Scheduling via OpenClaw Cron
+## Scheduling via Hermes Cron
 
-Follow-up jobs are managed via OpenClaw's cron/heartbeat system:
+Follow-up jobs are managed via Hermes's cron/heartbeat system:
 
 ```yaml
 # Example cron schedule

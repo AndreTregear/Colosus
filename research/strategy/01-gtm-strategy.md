@@ -30,7 +30,7 @@
 
 Yaya Platform enters the Latin American SMB software market at a moment of structural convergence: WhatsApp has achieved near-universal penetration (89–99% across target countries), SaaS adoption among SMBs remains below 10%, and conversational commerce is growing at 27% CAGR. The platform's thesis — that Latin American small businesses should manage their entire operations through the messaging app they already use every day — is not a hypothesis. It is a description of what millions of SMBs are already *attempting* to do, poorly, with WhatsApp + Excel + manual processes.
 
-Yaya Platform positions itself as the **AI-powered business operating system that lives inside WhatsApp**. Unlike horizontal SaaS tools that require adoption of a new interface, Yaya meets businesses exactly where they are: in the chat thread. By running on local LLMs with NemoClaw security, Yaya offers a cost structure and data sovereignty posture that cloud-dependent competitors cannot match.
+Yaya Platform positions itself as the **AI-powered business operating system that lives inside WhatsApp**. Unlike horizontal SaaS tools that require adoption of a new interface, Yaya meets businesses exactly where they are: in the chat thread. By running on local LLMs with Hermes security, Yaya offers a cost structure and data sovereignty posture that cloud-dependent competitors cannot match.
 
 The strategy proceeds in three phases: a Peru pilot anchored by Andre (the founder) as Customer Zero, a Lima SMB expansion leveraging word-of-mouth and vertical partnerships, and a LATAM expansion into Mexico and Colombia powered by proven unit economics and network effects. The three-year target is **5,000+ active SMB accounts generating $2.4M+ ARR** with a path to $10M+ ARR by Year 4 through geographic expansion and embedded finance.
 
@@ -57,7 +57,7 @@ The value proposition rests on four pillars:
 1. **Zero Interface Learning Curve**: If you can send a WhatsApp message, you can run your business. No apps to download, no dashboards to learn. The conversation *is* the interface.
 2. **All-in-One Operations**: Sales tracking, inventory management, invoicing, payment collection, appointment scheduling, and business analytics — unified through natural language.
 3. **AI That Understands Your Business**: Unlike generic chatbots, Yaya learns your specific business context — your products, your customers, your workflows — and becomes more valuable over time.
-4. **Data Sovereignty & Cost Efficiency**: Running on local LLMs with NemoClaw security means no data leaves your infrastructure, no per-query API costs, and no dependency on US cloud providers.
+4. **Data Sovereignty & Cost Efficiency**: Running on local LLMs with Hermes security means no data leaves your infrastructure, no per-query API costs, and no dependency on US cloud providers.
 
 ### 2.5 Tagline Options
 
@@ -494,7 +494,7 @@ These network effects become the primary moat by Year 2–3, making it increasin
 
 ### 9.3 The Local LLM Cost Advantage
 
-Yaya's use of local LLMs (NemoClaw security, running on owned infrastructure) creates a structural cost advantage:
+Yaya's use of local LLMs (Hermes security, running on owned infrastructure) creates a structural cost advantage:
 
 | Cost Component | Cloud LLM (GPT-4/Claude API) | Yaya (Local LLM) |
 |---------------|------------------------------|-------------------|
@@ -649,11 +649,11 @@ This creates a founder-product coupling that ensures the product evolves at the 
 | Risk | Probability | Impact | Mitigation |
 |------|------------|--------|------------|
 | **WhatsApp API policy changes** | Medium | High | Build abstraction layer; prepare for multi-channel (Telegram, SMS fallback); maintain Meta partner compliance |
-| **Local LLM quality insufficient** | Low-Medium | High | Continuous model improvement; hybrid approach (local + selective cloud for complex queries); NemoClaw security enables selective cloud use |
+| **Local LLM quality insufficient** | Low-Medium | High | Continuous model improvement; hybrid approach (local + selective cloud for complex queries); Hermes security enables selective cloud use |
 | **Slow SMB adoption (digital distrust)** | Medium | Medium | Community-based onboarding; accountant channel; 10-minute time-to-value; free tier removes financial risk |
 | **Competitor enters (e.g., Zenvia adds operations suite)** | Medium | Medium | Network effects moat; data lock-in; vertical depth; local LLM cost advantage |
 | **Currency devaluation in target markets** | Medium | Low-Medium | USD-denominated infrastructure costs; local-currency revenue can be hedged; usage-based pricing adjusts naturally |
-| **Regulatory changes (data privacy, fintech)** | Low | Medium | NemoClaw security provides compliance advantage; local data storage; proactive regulatory engagement |
+| **Regulatory changes (data privacy, fintech)** | Low | Medium | Hermes security provides compliance advantage; local data storage; proactive regulatory engagement |
 | **Founder bandwidth (Andre as sole operator)** | High | High | Automate everything possible through Yaya itself; hire first team member by Month 6; prioritize ruthlessly |
 
 ### 13.2 Contingency Plans

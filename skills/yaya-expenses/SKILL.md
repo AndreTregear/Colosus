@@ -72,7 +72,7 @@ recurring_expenses:
     options: "Confirmar / Cambió el monto / No pagué todavía"
 ```
 
-## P&L Report Schedules (via OpenClaw Cron)
+## P&L Report Schedules (via Hermes Cron)
 
 ```yaml
 scheduled_reports:

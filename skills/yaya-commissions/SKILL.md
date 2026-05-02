@@ -321,7 +321,7 @@ CREATE INDEX IF NOT EXISTS idx_cp_unpaid ON business.commission_payouts(is_paid)
 - **Don't compare employees publicly** — Performance comparisons only shown to the owner
 - **Disputes stay between owner and the individual** — "Te muestro el detalle de Ana" (only to owner)
 
-## Payout Report Schedules (via OpenClaw Cron)
+## Payout Report Schedules (via Hermes Cron)
 
 ```yaml
 scheduled_reports:

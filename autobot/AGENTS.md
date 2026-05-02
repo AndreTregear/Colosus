@@ -7,7 +7,7 @@ Instructions for AI agents working in the autobot codebase.
 Autobot is a unified Node.js + TypeScript application serving four roles from a single process on port 3000:
 
 1. **WhatsApp Gateway** — Connects to WhatsApp via Baileys, one worker thread per tenant
-2. **AI Engine** — Processes messages through OpenClaw (skills + MCP servers)
+2. **AI Engine** — Processes messages through Hermes (skills + MCP servers)
 3. **REST API** — Express server with 100+ endpoints for dashboard, mobile app, admin
 4. **Web Dashboard** — Static HTML/JS served from `src/web/public/`
 
@@ -37,7 +37,7 @@ BullMQ-based background job processing backed by Redis.
 
 | File | Purpose |
 |------|---------|
-| `ai-queue.ts` | Core AI job processor — text + image → OpenClaw → reply |
+| `ai-queue.ts` | Core AI job processor — text + image → Hermes → reply |
 | `queue-factory.ts` | Queue registration and creation |
 | `redis.ts` | Redis connection management |
 | `rate-limiter.ts` | Per-tenant AI concurrency control |
@@ -200,7 +200,7 @@ Start here to understand the codebase:
 4. **`src/shared/logger.ts`** — Pino logger setup, log levels, startup banner
 5. **`src/web/server.ts`** — Express setup, all route mounting, middleware stack
 6. **`src/bot/tenant-manager.ts`** — How multi-tenant WhatsApp works
-7. **`src/ai/openclaw-bridge.ts`** — How messages reach the AI
+7. **`src/ai/hermes-bridge.ts`** — How messages reach the AI
 8. **`src/db/pool.ts`** — PostgreSQL connection pool
 
 ## Common Gotchas

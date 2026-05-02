@@ -9,8 +9,8 @@
 #
 # Creates an isolated docker stack for a business client with:
 #   - Dedicated database schema
-#   - Configured OpenClaw skills
-#   - NemoClaw security policies
+#   - Configured Hermes skills
+#   - Hermes security policies
 #   - Payment methods
 set -euo pipefail
 
@@ -241,16 +241,16 @@ CREATE INDEX IF NOT EXISTS idx_${CLIENT_ID}_msg_conv
 
 log "Database schema client_${CLIENT_ID} created"
 
-# ── Configure NemoClaw policy for client ──────────────
-info "Generating NemoClaw policy..."
+# ── Configure Hermes policy for client ──────────────
+info "Generating Hermes policy..."
 
 cat > "$CLIENT_DIR/config/policy.yaml" <<EOF
-# NemoClaw Policy — Client: $BUSINESS_NAME
+# Hermes Policy — Client: $BUSINESS_NAME
 # Inherits from base policy with client-specific overrides
 
 name: yaya-client-${CLIENT_ID}
 version: "1.0"
-extends: ../../infra/nemoclaw/policy.yaml
+extends: ../../infra/hermes/policy.yaml
 
 # Client-specific overrides
 inference:
@@ -290,7 +290,7 @@ content_safety:
         - other_clients_data
 EOF
 
-log "NemoClaw policy created"
+log "Hermes policy created"
 
 # ── Copy and configure skills ─────────────────────────
 info "Configuring skills..."
@@ -396,7 +396,7 @@ echo -e "    2. Customize SOUL:    $CLIENT_DIR/config/SOUL.md"
 echo -e "    3. Configure ERPNext: Add products for $BUSINESS_NAME"
 echo -e "    4. Test WhatsApp:     Send a message to $WHATSAPP_NUMBER"
 echo ""
-echo -e "  ${YELLOW}Connection Details (for OpenClaw):${NC}"
+echo -e "  ${YELLOW}Connection Details (for Hermes):${NC}"
 echo -e "    LLM:      http://localhost:8000/v1"
 echo -e "    Whisper:   http://localhost:9100"
 echo -e "    Lago:      http://localhost:3001"

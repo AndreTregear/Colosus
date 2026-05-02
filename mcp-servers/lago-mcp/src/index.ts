@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Lago Billing MCP Server
- * Exposes Lago REST API as MCP tools for OpenClaw agents.
+ * Exposes Lago REST API as MCP tools for Hermes agents.
  *
  * Tools:
  *  - list_subscriptions: List active subscriptions for a customer

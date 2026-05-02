@@ -22,7 +22,7 @@ const OFF_PEAK_START_HOUR = 0; // 00:00 Lima
 const OFF_PEAK_END_HOUR = 6;   // 06:00 Lima
 const LIMA_TZ = 'America/Lima';
 
-const TRAINING_SCRIPT = process.env.RL_TRAINING_SCRIPT || '/opt/openclaw-rl/train_lora.sh';
+const TRAINING_SCRIPT = process.env.RL_TRAINING_SCRIPT || '/opt/hermes-rl/train_lora.sh';
 const BASE_MODEL = process.env.RL_BASE_MODEL || 'Qwen/Qwen3.5-27B-AWQ';
 
 // ── Types ──
@@ -156,10 +156,10 @@ export class TrainingScheduler {
     }
   }
 
-  /** Execute the OpenClaw-RL training script. Returns the adapter output path. */
+  /** Execute the Hermes-RL training script. Returns the adapter output path. */
   private executeTraining(runId: number): Promise<string> {
     return new Promise((resolve, reject) => {
-      const adapterPath = `/opt/openclaw-rl/adapters/run-${runId}`;
+      const adapterPath = `/opt/hermes-rl/adapters/run-${runId}`;
 
       execFile(
         TRAINING_SCRIPT,

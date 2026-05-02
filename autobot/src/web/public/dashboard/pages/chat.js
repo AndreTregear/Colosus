@@ -1,4 +1,4 @@
-// Yaya Dashboard — Agent Chat Page (OpenClaw via merchant-ai)
+// Yaya Dashboard — Agent Chat Page (Hermes via merchant-ai)
 import { esc, formatTime } from '../shared/api.js';
 
 let loaded = false;
@@ -91,7 +91,7 @@ async function sendMessage() {
   showTyping(true);
 
   try {
-    // Call autobot's merchant-ai chat endpoint (routes through OpenClaw)
+    // Call autobot's merchant-ai chat endpoint (routes through Hermes)
     const res = await fetch('/api/merchant-ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

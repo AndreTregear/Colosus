@@ -18,14 +18,16 @@ import { withActiveSubscription } from '@/lib/billing/entitlement';
 
 export const dynamic = 'force-dynamic';
 
-const WHISPER_URL = process.env.WHISPER_BASE_URL
-  ? `${process.env.WHISPER_BASE_URL}/audio/transcriptions`
-  : 'http://localhost:9300/v1/audio/transcriptions';
-const WHISPER_KEY = process.env.WHISPER_API_KEY ?? '';
+// Voice infra per INFRA.md (`:8001` Speaches, `:8002` Kokoro, both bearer-protected).
+// Override via YAYA_ASR_* / YAYA_TTS_* (legacy WHISPER_BASE_URL / TTS_BASE_URL still honored).
+const _ASR_BASE = (process.env.YAYA_ASR_URL || process.env.WHISPER_BASE_URL || 'http://localhost:8001').replace(/\/+$/, '');
+const _TTS_BASE = (process.env.YAYA_TTS_URL || process.env.TTS_BASE_URL || 'http://localhost:8002').replace(/\/+$/, '');
+const WHISPER_URL = _ASR_BASE.endsWith('/v1') ? `${_ASR_BASE}/audio/transcriptions` : `${_ASR_BASE}/v1/audio/transcriptions`;
+const WHISPER_KEY = process.env.YAYA_ASR_KEY || process.env.WHISPER_API_KEY || 'welcometothepresent';
+const WHISPER_MODEL_ID = process.env.YAYA_ASR_MODEL || process.env.WHISPER_MODEL || 'deepdml/faster-whisper-large-v3-turbo-ct2';
 
-const TTS_URL = process.env.TTS_BASE_URL
-  ? `${process.env.TTS_BASE_URL}/v1/audio/speech`
-  : 'http://localhost:9400/v1/audio/speech';
+const TTS_URL = `${_TTS_BASE}/v1/audio/speech`;
+const TTS_KEY = process.env.YAYA_TTS_KEY || process.env.TTS_API_KEY || 'welcometothepresent';
 
 function buildSystemPrompt(): string {
   const tasks = getAllTasks();
@@ -77,12 +79,12 @@ async function postImpl(req: NextRequest) {
           const sttStart = Date.now();
           const sttForm = new FormData();
           sttForm.append('file', audioFile, 'voice.wav');
-          sttForm.append('model', 'large-v3-turbo');
+          sttForm.append('model', WHISPER_MODEL_ID);
           sttForm.append('language', 'es');
 
           const sttRes = await fetch(WHISPER_URL, {
             method: 'POST',
-            headers: WHISPER_KEY ? { Authorization: `Bearer ${WHISPER_KEY}` } : {},
+            headers: { Authorization: `Bearer ${WHISPER_KEY}` },
             body: sttForm,
           });
 
@@ -232,7 +234,10 @@ async function synthesize(text: string): Promise<string> {
   try {
     const res = await fetch(TTS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${TTS_KEY}`,
+      },
       body: JSON.stringify({
         model: 'kokoro',
         input: sanitizeForTTS(text).slice(0, 300),

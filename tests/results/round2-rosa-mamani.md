@@ -817,7 +817,7 @@ This is the ultimate test of whether Yaya Platform can serve the real LATAM SMB 
 > "la feria d la candelaria es en febrero. necesito tener 500 prendas listas. recuerdam en diciembre para empezar a pedir a las tejedoras"
 
 **Skills involved:** yaya-followup (scheduled reminder)
-**MCP tools needed:** OpenClaw cron
+**MCP tools needed:** Hermes cron
 
 **Ratings:**
 | Dimension | Score | Notes |
@@ -862,7 +862,7 @@ This is the ultimate test of whether Yaya Platform can serve the real LATAM SMB 
 > "voy a lima la proxima semana a entregar pedidos. recuerdam q tengo q ir a gamarra tambien a ver telas y visitar al sr. rodriguez q m debe 2000 soles"
 
 **Skills involved:** yaya-followup (reminder), yaya-crm (debt tracking)
-**MCP tools needed:** OpenClaw cron, `crm-mcp → log_note`
+**MCP tools needed:** Hermes cron, `crm-mcp → log_note`
 
 **Ratings:**
 | Dimension | Score | Notes |

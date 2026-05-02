@@ -28,7 +28,7 @@ yaya_platform/
 │   │   │   ├── handler.ts   # Message routing and processing
 │   │   │   └── providers/   # Baileys provider + PG auth state
 │   │   ├── ai/              # AI engine — 53 tool files
-│   │   │   ├── openclaw-bridge.ts  # OpenClaw API integration
+│   │   │   ├── hermes-bridge.ts  # Hermes API integration
 │   │   │   ├── agent.ts     # Main agent orchestration
 │   │   │   ├── client.ts    # Multi-model AI clients (text, vision, audio)
 │   │   │   ├── system-prompt.ts    # Agent system prompts
@@ -73,7 +73,7 @@ yaya_platform/
 │   └── payment-validator/   # Payment verification tool
 ├── infra/
 │   ├── docker/              # init-db.sql, Dockerfiles
-│   ├── nemoclaw/            # AI tenant isolation policies
+│   ├── hermes/            # AI tenant isolation policies
 │   ├── scripts/             # start.sh, stop.sh, backup.sh, deploy, setup
 │   └── pilot/               # Pilot testing utilities
 ├── docs/                    # Extended documentation
@@ -180,7 +180,7 @@ Browser → Express (server.ts)
 WhatsApp message → Baileys provider (connection.ts)
   → handler.ts (extract text/media, save to message_log)
   → BullMQ ai-queue (ai-queue.ts)
-  → OpenClaw bridge (openclaw-bridge.ts)
+  → Hermes bridge (hermes-bridge.ts)
   → AI agent processes with tools (agent.ts + tools/)
   → Response sent back via Baileys
   → Message logged to database
@@ -192,7 +192,7 @@ Each business is a **tenant**. Isolation happens at multiple levels:
 
 1. **Database**: PostgreSQL schema-per-tenant (`client_{tenantId}` search_path)
 2. **WhatsApp**: Separate worker thread per tenant via `tenant-manager.ts`
-3. **AI**: NemoClaw policies enforce `tenant_id` scoping on all queries
+3. **AI**: Hermes policies enforce `tenant_id` scoping on all queries
 4. **Storage**: MinIO paths scoped to `media-raw/{tenantId}/`
 5. **API**: Every authenticated request resolves to a `tenantId` via middleware
 
@@ -211,8 +211,8 @@ Every database repository accepts `tenantId` and sets `search_path = client_{ten
 ```
 WhatsApp message
   → ai-queue.ts (BullMQ job)
-  → openclaw-bridge.ts (POST to OpenClaw API)
-  → OpenClaw loads skill + MCP servers
+  → hermes-bridge.ts (POST to Hermes API)
+  → Hermes loads skill + MCP servers
   → AI agent calls tools (search products, create orders, etc.)
   → Response text returned
   → Baileys sends reply to WhatsApp
@@ -221,7 +221,7 @@ WhatsApp message
 
 ### Key AI files
 
-- `ai/openclaw-bridge.ts` — HTTP client to OpenClaw API
+- `ai/hermes-bridge.ts` — HTTP client to Hermes API
 - `ai/agent.ts` — Agent orchestration, tool registry
 - `ai/client.ts` — Multi-model clients (text: DeepSeek, vision: Kimi, audio: Qwen Omni)
 - `ai/system-prompt.ts` — Dynamic system prompt generation
@@ -246,13 +246,13 @@ WhatsApp message
 1. Create `skills/yaya-yourskill/SKILL.md`
 2. Define the skill's persona, capabilities, tools, and constraints
 3. Reference MCP servers the skill needs
-4. OpenClaw will auto-discover the skill on next restart
+4. Hermes will auto-discover the skill on next restart
 
 ### Add a new MCP server
 
 1. Create `mcp-servers/yourservice-mcp/`
 2. Follow the existing pattern (package.json, src/index.ts, tool definitions)
-3. Register in OpenClaw configuration
+3. Register in Hermes configuration
 4. Reference from relevant skills
 
 ### Add a new database table
@@ -340,7 +340,7 @@ import { getTenantId } from '../shared/validate.js';
 | `research/` | 87 market research documents — reference only, not code |
 | `tests/results/` | Historical PMF evaluation data — append only |
 | `android/` | Standalone Android app (YapeReader) — separate build system |
-| `infra/nemoclaw/` | Security policies — changes require security review |
+| `infra/hermes/` | Security policies — changes require security review |
 | `autobot/src/auth/auth.ts` | Better Auth core setup — changes break all sessions |
 | `docker-compose.prod.yml` service names | Changing names breaks inter-service DNS |
 | `.env.example` key names | Changing names breaks existing deployments |

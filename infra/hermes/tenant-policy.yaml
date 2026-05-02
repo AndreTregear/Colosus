@@ -1,0 +1,87 @@
+# Hermes Tenant Isolation Policy for Yaya Platform
+# Each tenant's Hermes agent is sandboxed to only access their own data.
+
+version: "1.0"
+name: yaya-tenant-isolation
+
+rules:
+  # Database queries must include tenant_id filter
+  - name: enforce-tenant-scope
+    description: All database queries must be scoped to the requesting tenant
+    action: require
+    conditions:
+      - tool: postgres-mcp
+        require_parameter: tenant_id
+        match_context: context.tenantId
+
+  # File access restricted to tenant's storage prefix
+  - name: restrict-file-access
+    description: Each tenant can only access their own S3 prefix
+    action: restrict
+    conditions:
+      - tool: s3
+        path_prefix: "media-raw/{context.tenantId}/"
+
+  # Block cross-tenant data access
+  - name: block-cross-tenant
+    description: Prevent any query that could return another tenant's data
+    action: deny
+    conditions:
+      - sql_contains: "SELECT * FROM"
+        without: "tenant_id"
+
+  # Restrict MCP tool access to tenant-scoped servers
+  - name: allowed-mcp-servers
+    description: Only allow MCP servers that support tenant isolation
+    action: allow
+    servers:
+      - postgres-mcp
+      - crm-mcp
+      - payments-mcp
+      - voice-mcp
+      - whatsapp-mcp
+      - lago-mcp
+      - invoicing-mcp
+      - forex-mcp
+      - appointments-mcp
+
+  # Enforce search_path for PostgreSQL queries
+  - name: enforce-search-path
+    description: All SQL execution must set search_path to the tenant's schema
+    action: require
+    conditions:
+      - tool: postgres-mcp
+        require_prefix: "SET search_path = client_{context.tenantId}"
+
+  # Rate limiting per tenant
+  - name: tenant-rate-limit
+    description: Limit AI requests per tenant to prevent abuse
+    action: rate_limit
+    limits:
+      requests_per_minute: 30
+      requests_per_hour: 500
+      concurrent_requests: 3
+
+  # Block sensitive operations
+  - name: block-dangerous-sql
+    description: Prevent destructive SQL operations
+    action: deny
+    conditions:
+      - sql_matches:
+          - "DROP TABLE"
+          - "DROP SCHEMA"
+          - "TRUNCATE"
+          - "ALTER TABLE"
+          - "CREATE TABLE"
+          - "DELETE FROM tenants"
+          - "UPDATE tenants"
+
+  # PII protection
+  - name: pii-guard
+    description: Strip PII from responses before returning to the AI
+    action: filter
+    conditions:
+      - strip_patterns:
+          - credit_card: '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b'
+          - dni_peru: '\b\d{8}\b'
+          - ruc_peru: '\b(10|20)\d{9}\b'

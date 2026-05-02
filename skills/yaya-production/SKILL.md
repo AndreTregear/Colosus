@@ -614,7 +614,7 @@ Agente: "⚠️ Alerta de producción — Pedido Lima
          ¿Qué hacemos?"
 ```
 
-## Scheduling via OpenClaw Cron
+## Scheduling via Hermes Cron
 
 ```yaml
 production_jobs:

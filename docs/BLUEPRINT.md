@@ -20,7 +20,7 @@ This document is your blueprint. It's opinionated. It works. We built it, tested
 2. [System Architecture](#system-architecture)
 3. [The Five Pillars](#the-five-pillars)
 4. [Security as a Design Pattern](#security-as-a-design-pattern)
-5. [The Data Flywheel (OpenClaw-RL)](#the-data-flywheel)
+5. [The Data Flywheel (Hermes-RL)](#the-data-flywheel)
 6. [Multi-Tenancy Done Right](#multi-tenancy)
 7. [Persona Testing](#persona-testing)
 8. [OSS-First Integration Pattern](#oss-first-integration)
@@ -43,7 +43,7 @@ This isn't paranoia. It's the only architecture that lets you tell a Peruvian bo
 
 Static models decay. Your best model today is your worst model in six months. The platform must have a built-in feedback loop: conversations generate training data, training data improves the model, the improved model generates better conversations.
 
-This is the OpenClaw-RL flywheel. It's not optional — it's what makes you defensible against competitors who just wrap GPT-4.
+This is the Hermes-RL flywheel. It's not optional — it's what makes you defensible against competitors who just wrap GPT-4.
 
 ### 3. Build on OSS, Don't Reinvent
 
@@ -78,10 +78,10 @@ If it takes more than `./start.sh` to go from zero to running, you've failed. Ne
 └────────────┬────────────────────────────────────────────────┘
              │
 ┌────────────▼────────────────────────────────────────────────┐
-│                    AI BRAIN (OpenClaw)                        │
+│                    AI BRAIN (Hermes)                        │
 │  Agent framework │ Skills │ Memory │ Tool calling             │
 │  ┌──────────────────────────────────────────────┐            │
-│  │  NemoClaw Security Sandbox                    │            │
+│  │  Hermes Security Sandbox                    │            │
 │  │  Landlock │ Seccomp │ Network namespaces       │            │
 │  │  Deny-by-default policy                       │            │
 │  └──────────────────────────────────────────────┘            │
@@ -91,7 +91,7 @@ If it takes more than `./start.sh` to go from zero to running, you've failed. Ne
 │                    LLM SERVING                               │
 │  vLLM/SGLang │ Qwen3.5-27B │ Multi-LoRA adapters            │
 │  ┌──────────────────────────────────────────────┐            │
-│  │  OpenClaw-RL Training Loop                    │            │
+│  │  Hermes-RL Training Loop                    │            │
 │  │  Rollout collector → PII scrubber → Trainer   │            │
 │  │  A/B test manager → Adapter hot-swap          │            │
 │  └──────────────────────────────────────────────┘            │
@@ -147,11 +147,11 @@ CREATE POLICY tenant_isolation ON products
 ```
 Each tenant gets a dedicated PostgreSQL role with `app.tenant_id` baked in. Even raw SQL from the AI sandbox can't cross tenant boundaries.
 
-### Pillar 2: The AI Agent (OpenClaw + NemoClaw)
+### Pillar 2: The AI Agent (Hermes + Hermes)
 
-OpenClaw is the agent framework. It provides: conversation memory, system prompts (SOUL.md), skill selection, tool calling (exec, read, write, web_search), and session management.
+Hermes is the agent framework. It provides: conversation memory, system prompts (SOUL.md), skill selection, tool calling (exec, read, write, web_search), and session management.
 
-**NemoClaw** (NVIDIA, announced GTC 2026) adds kernel-level sandboxing:
+**Hermes** (NVIDIA, announced GTC 2026) adds kernel-level sandboxing:
 - **Landlock:** Filesystem access control — agent can only read/write allowed paths
 - **Seccomp:** System call filtering — agent can't spawn processes, access network
 - **Network namespaces:** Agent can only reach allowed endpoints
@@ -167,7 +167,7 @@ Agent: "I need to check Jorge's order status"
   → returns to agent: "Order #1234: 10 bolsas cemento, pending delivery"
 ```
 
-### Pillar 3: The Data Flywheel (OpenClaw-RL)
+### Pillar 3: The Data Flywheel (Hermes-RL)
 
 Every conversation is a training opportunity. The system automatically:
 
@@ -198,7 +198,7 @@ For fitness: scrub body measurements, health conditions.
 
 **Hardware scaling:**
 - Phase 1 (2× A5000, 48GB): LoRA training on 4B model, serve 27B
-- Phase 2 (8× H100): Full OpenClaw-RL 4-component async loop
+- Phase 2 (8× H100): Full Hermes-RL 4-component async loop
 - Phase 3 (B200): Continuous online RL, per-vertical adapters
 
 ### Pillar 4: OSS-First Integration
@@ -270,7 +270,7 @@ Security isn't a layer you add on top. It's a pattern you follow at every decisi
 │ Application: Input validation, CORS,     │
 │ rate limiting, session management        │
 ├─────────────────────────────────────────┤
-│ Agent: NemoClaw sandbox, deny-by-default │
+│ Agent: Hermes sandbox, deny-by-default │
 │ tool policies, MCP access control        │
 ├─────────────────────────────────────────┤
 │ Data: Per-tenant encryption (AES-256-GCM)│
@@ -383,23 +383,23 @@ yaya_platform/
 ├── Caddyfile                   # Reverse proxy
 ├── autobot/                    # Main application
 │   ├── src/
-│   │   ├── ai/                 # OpenClaw bridge, PII scrubber
+│   │   ├── ai/                 # Hermes bridge, PII scrubber
 │   │   ├── auth/               # Better Auth integration
 │   │   ├── bot/                # Baileys WhatsApp, message handler
 │   │   ├── crypto/             # Encryption (envelope, field, middleware, keys)
 │   │   ├── db/                 # PostgreSQL repos (encrypted CRUD)
 │   │   ├── queue/              # BullMQ, rate limiter
-│   │   ├── rl/                 # OpenClaw-RL (rollout, training, A/B tests)
+│   │   ├── rl/                 # Hermes-RL (rollout, training, A/B tests)
 │   │   ├── shared/             # Logger, events, types
 │   │   └── web/                # Express routes, middleware
 │   ├── schema*.sql             # Database schemas (6 files, dependency order)
 │   ├── tests/                  # 136+ tests (crypto, RL, security, personas)
 │   └── scripts/                # RL training, data generation
-├── agent-workspace/            # OpenClaw agent config
+├── agent-workspace/            # Hermes agent config
 │   ├── SOUL.md                 # Agent personality + domain knowledge
 │   └── AGENTS.md               # Agent behavior rules
 ├── docs/                       # You are here
-└── skills/                     # OpenClaw skills (domain-specific)
+└── skills/                     # Hermes skills (domain-specific)
 ```
 
 ### Key Files to Modify for Your Domain
@@ -412,7 +412,7 @@ yaya_platform/
 | `src/ai/pii-scrubber.ts` | Regex patterns for your domain's PII | Training data safety |
 | `tests/persona-live.test.ts` | Your domain's test personas | Quality assurance |
 | `docker-compose.yml` | Add/remove OSS services | Your stack |
-| `skills/` | Domain-specific OpenClaw skills | Agent capabilities |
+| `skills/` | Domain-specific Hermes skills | Agent capabilities |
 
 ### Test Suite Structure
 

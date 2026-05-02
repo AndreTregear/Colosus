@@ -16,9 +16,9 @@ client_{tenantId}/       # Tenant-specific: products, customers, orders, payment
 
 Every database query sets `search_path = client_{tenantId}` before execution. This is enforced at the repository layer — all `*-repo.ts` files require a `tenantId` parameter.
 
-### NemoClaw — AI Agent Sandbox
+### Hermes — AI Agent Sandbox
 
-NemoClaw enforces tenant isolation at the AI layer. Policies are defined in `infra/nemoclaw/`:
+Hermes enforces tenant isolation at the AI layer. Policies are defined in `infra/hermes/`:
 
 **Database policies:**
 - `enforce-tenant-scope` — All SQL queries must include `tenant_id` filter

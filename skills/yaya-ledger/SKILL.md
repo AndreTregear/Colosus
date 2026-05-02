@@ -280,7 +280,7 @@ vs semana anterior: +S/120 (+5%) 📈
 - **Late logging**: "vendí S/200 ayer" → backdate to yesterday. "las ventas del martes fueron S/350" → backdate to Tuesday.
 - **Corrections**: "la última venta no fue 15, fue 50" → update last entry. "borra la última venta" → soft delete.
 
-## Cron Schedules (via OpenClaw Cron)
+## Cron Schedules (via Hermes Cron)
 
 ```yaml
 daily_summary:

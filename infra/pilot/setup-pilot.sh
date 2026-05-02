@@ -136,8 +136,8 @@ mkdir -p "$CLIENT_DIR/logs"
 
 log "Client directory created"
 
-# ── Step 2: Generate openclaw.json ────────────────────
-step "Generating OpenClaw configuration"
+# ── Step 2: Generate hermes.json ────────────────────
+step "Generating Hermes configuration"
 
 # Copy template and substitute variables
 sed \
@@ -170,9 +170,9 @@ sed \
     -e "s|\${ERPNEXT_URL:-http://localhost:8080}|${ERPNEXT_URL:-http://localhost:8080}|g" \
     -e "s|\${ERPNEXT_API_KEY}|${ERPNEXT_API_KEY:-}|g" \
     -e "s|\${ERPNEXT_API_SECRET}|${ERPNEXT_API_SECRET:-}|g" \
-    "$PILOT_DIR/openclaw.json" > "$CLIENT_DIR/config/openclaw.json"
+    "$PILOT_DIR/hermes.json" > "$CLIENT_DIR/config/hermes.json"
 
-log "OpenClaw configuration generated"
+log "Hermes configuration generated"
 
 # ── Step 3: Generate SOUL.md ──────────────────────────
 step "Generating agent personality (SOUL.md)"
@@ -455,12 +455,12 @@ else
     ((CHECKS_FAILED++))
 fi
 
-# Check NemoClaw policy
-if [[ -f "$REPO_ROOT/infra/nemoclaw/policy.yaml" ]]; then
-    log "NemoClaw policy: found"
+# Check Hermes policy
+if [[ -f "$REPO_ROOT/infra/hermes/policy.yaml" ]]; then
+    log "Hermes policy: found"
     ((CHECKS_PASSED++))
 else
-    warn "NemoClaw policy: missing at infra/nemoclaw/policy.yaml"
+    warn "Hermes policy: missing at infra/hermes/policy.yaml"
     ((CHECKS_FAILED++))
 fi
 
@@ -473,12 +473,12 @@ else
     ((CHECKS_FAILED++))
 fi
 
-# Check openclaw.json was generated
-if [[ -f "$CLIENT_DIR/config/openclaw.json" ]]; then
-    log "openclaw.json: generated"
+# Check hermes.json was generated
+if [[ -f "$CLIENT_DIR/config/hermes.json" ]]; then
+    log "hermes.json: generated"
     ((CHECKS_PASSED++))
 else
-    error "openclaw.json: failed to generate!"
+    error "hermes.json: failed to generate!"
     ((CHECKS_FAILED++))
 fi
 
@@ -495,7 +495,7 @@ fi
 echo -e "${BOLD}════════════════════════════════════════════════${NC}"
 echo ""
 info "Client directory: $CLIENT_DIR"
-info "Config:           $CLIENT_DIR/config/openclaw.json"
+info "Config:           $CLIENT_DIR/config/hermes.json"
 info "Personality:      $CLIENT_DIR/config/SOUL.md"
 info "Environment:      $CLIENT_DIR/.env"
 echo ""
@@ -510,5 +510,5 @@ if [[ -n "$YAPE_NUMBER" ]]; then
 else
     echo "  5. Configure Yape payment number in .env (YAPE_NUMBER, YAPE_NAME)"
 fi
-echo "  6. Run: openclaw start --config $CLIENT_DIR/config/openclaw.json"
+echo "  6. Run: hermes start --config $CLIENT_DIR/config/hermes.json"
 echo ""

@@ -1,21 +1,21 @@
 # Autobot
 
-Multi-tenant WhatsApp AI business management platform. Each tenant gets an isolated WhatsApp session, product catalog, order management, payments, and an AI agent powered by [OpenClaw](https://github.com/openclaw) — a skill-based agent framework with MCP server integration.
+Multi-tenant WhatsApp AI business management platform. Each tenant gets an isolated WhatsApp session, product catalog, order management, payments, and an AI agent powered by [Hermes](https://github.com/hermes) — a skill-based agent framework with MCP server integration.
 
 Built with TypeScript, Baileys, Express, PostgreSQL, Redis, and BullMQ.
 
 ## How It Works
 
 ```
-WhatsApp → Autobot (Gateway) → OpenClaw (AI Agent) → MCP Servers → Backend Services
+WhatsApp → Autobot (Gateway) → Hermes (AI Agent) → MCP Servers → Backend Services
 ```
 
 - **Autobot** is the multi-tenant WhatsApp gateway + web dashboard. It handles message routing, tenant isolation, queue management, and WhatsApp sessions via Baileys.
-- **OpenClaw** is the AI agent brain with 38 business skills. It handles conversation memory, skill selection, LLM inference, and tool execution.
-- **MCP servers** bridge OpenClaw to backend services: Lago (billing), Cal.com (scheduling), InvoiceShelf (invoicing), Metabase (analytics), PostgreSQL (data).
+- **Hermes** is the AI agent brain with 38 business skills. It handles conversation memory, skill selection, LLM inference, and tool execution.
+- **MCP servers** bridge Hermes to backend services: Lago (billing), Cal.com (scheduling), InvoiceShelf (invoicing), Metabase (analytics), PostgreSQL (data).
 - New capabilities are added by writing a skill (markdown file) and configuring an MCP server — no custom tool code needed.
 
-Every incoming WhatsApp message (private chats only — groups are skipped) is routed through OpenClaw. The agent:
+Every incoming WhatsApp message (private chats only — groups are skipped) is routed through Hermes. The agent:
 
 - Knows the tenant's full product catalog (names, prices, stock, categories)
 - Answers customer questions about products, pricing, and availability
@@ -53,7 +53,7 @@ Every incoming WhatsApp message (private chats only — groups are skipped) is r
                          Session A     Session B    Session N
 
                     ┌─────────────────────────────────────────────┐
-                    │           OpenClaw (AI Agent)                 │
+                    │           Hermes (AI Agent)                 │
                     │                                             │
                     │  Skills (38 markdown files)                 │
                     │  MCP Servers (postgres, lago, cal.com, ...) │
@@ -86,7 +86,7 @@ Handler
          BullMQ Worker
            ├── Tenant offline? → delay job (up to 3x, 30s each)
            ├── Per-tenant concurrency slot available? → proceed / delay
-           ├── POST to OpenClaw API with tenant context
+           ├── POST to Hermes API with tenant context
            ├── Stream response chunks to WhatsApp
            ├── Send product images after stream completes
            ├── Send reply chunks via WhatsApp (split at 4000 chars)

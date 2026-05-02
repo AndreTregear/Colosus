@@ -179,6 +179,19 @@ class TenantManagerImpl {
     await bridge.sendImage(jid, imagePath, caption);
   }
 
+  async sendAudio(tenantId: string, jid: string, audioBuffer: Buffer, mimetype: string, ptt: boolean = false): Promise<void> {
+    const bridge = this.bridges.get(tenantId);
+    if (!bridge?.isRunning()) throw new Error(`Tenant ${tenantId} is not running`);
+    await bridge.sendAudio(jid, audioBuffer, mimetype, ptt);
+  }
+
+  rejectCall(tenantId: string, callId: string, from: string): void {
+    const bridge = this.bridges.get(tenantId);
+    if (bridge?.isRunning()) {
+      bridge.rejectCall(callId, from);
+    }
+  }
+
   sendPresenceUpdate(tenantId: string, jid: string, type: 'composing' | 'paused'): void {
     const bridge = this.bridges.get(tenantId);
     if (bridge?.isRunning()) {

@@ -833,7 +833,7 @@ This is a **fundamentally different business** from the platform's target market
 **Message:** `Programar fumigación preventiva: 3 aplicaciones, cada 15 días, empezando la próxima semana. Necesito comprar insumos con 5 días de anticipación. Arma el calendario.`
 
 **Skills involved:** yaya-followup (reminders)  
-**MCP tools needed:** postgres-mcp (schedule), OpenClaw cron  
+**MCP tools needed:** postgres-mcp (schedule), Hermes cron  
 
 | Dimension | Score | Notes |
 |-----------|-------|-------|
@@ -883,7 +883,7 @@ This is a **fundamentally different business** from the platform's target market
 **Message:** `La auditoría GlobalGAP es en febrero. Recuérdame en enero para preparar: registros de aplicación de pesticidas, análisis de agua, plan de manejo integrado de plagas, registros de capacitación de personal.`
 
 **Skills involved:** yaya-followup (reminders)  
-**MCP tools needed:** OpenClaw cron  
+**MCP tools needed:** Hermes cron  
 
 | Dimension | Score | Notes |
 |-----------|-------|-------|

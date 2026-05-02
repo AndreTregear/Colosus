@@ -125,7 +125,7 @@ Look for HPC tests failing with `<tool_call>` in the reply text.
 When making 5+ sequential agent calls for the same JID (multi-turn conversation),
 the agent occasionally returns the fallback message "Lo siento, tuve un problema.
 ¿Podrías repetirme?" on the 5th or 6th turn. The error is caught silently in the
-`processWithOpenClaw` catch block.
+`processWithHermes` catch block.
 
 ### Reproduction
 
@@ -168,7 +168,7 @@ Observe turns 1.5 or 1.6 — one of them will intermittently return the fallback
 
 ### Resolution (2026-04-07)
 
-Applied **retry without history**: `processWithOpenClaw` now wraps `agent.generate()`
+Applied **retry without history**: `processWithHermes` now wraps `agent.generate()`
 in an inner try/catch. On first failure, it retries with conversation history stripped
 from the prompt, reducing token load. If the retry also fails, the outer catch returns
 the fallback message.

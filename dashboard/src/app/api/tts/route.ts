@@ -3,9 +3,11 @@ import { withActiveSubscription } from '@/lib/billing/entitlement'
 
 export const dynamic = 'force-dynamic'
 
-const TTS_URL = process.env.TTS_BASE_URL
-  ? `${process.env.TTS_BASE_URL}/v1/audio/speech`
-  : 'http://localhost:9400/v1/audio/speech'
+// Kokoro TTS endpoint per INFRA.md (`:8002`, bearer `welcometothepresent`).
+// Override via YAYA_TTS_URL / YAYA_TTS_KEY (legacy TTS_BASE_URL also honored).
+const TTS_BASE = (process.env.YAYA_TTS_URL || process.env.TTS_BASE_URL || 'http://localhost:8002').replace(/\/+$/, '')
+const TTS_URL = `${TTS_BASE}/v1/audio/speech`
+const TTS_KEY = process.env.YAYA_TTS_KEY || process.env.TTS_API_KEY || 'welcometothepresent'
 
 async function postImpl(req: NextRequest) {
   try {
@@ -15,6 +17,7 @@ async function postImpl(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${TTS_KEY}`,
       },
       body: JSON.stringify({
         model: 'kokoro',

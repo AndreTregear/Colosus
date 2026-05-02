@@ -2,6 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { createOpenAI } from '@ai-sdk/openai';
 import { crmTools } from './tools/crm-tools.js';
 import { yapeTools } from './tools/yape-tools.js';
+import { yayapayTools } from './tools/yayapay-tools.js';
 import { qwenNoThinkFetch } from './qwen-fetch.js';
 import { AI_API_KEY, AI_BASE_URL } from '../config.js';
 
@@ -20,6 +21,7 @@ const localModel = openai('cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit');
 const allTools = {
   ...crmTools,
   ...yapeTools,
+  ...yayapayTools,
 };
 
 export const whatsappAgent = new Agent({

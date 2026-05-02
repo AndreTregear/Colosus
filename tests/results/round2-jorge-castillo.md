@@ -718,12 +718,12 @@
 > "Recuérdame el viernes que tengo que pagar la cuota del préstamo del BCP, son S/3,200."
 
 **Skills involved:** `yaya-followup` (partially — designed for customer follow-ups, not owner reminders)
-**MCP tools:** OpenClaw cron for scheduling
+**MCP tools:** Hermes cron for scheduling
 
 **Ratings:**
 | Dimension | Score | Notes |
 |-----------|-------|-------|
-| Handleable | 6 | OpenClaw cron can schedule a reminder, but no skill owns "owner personal reminders" |
+| Handleable | 6 | Hermes cron can schedule a reminder, but no skill owns "owner personal reminders" |
 | Accuracy | 7 | Can set a reminder |
 | Speed | 8 | Simple cron creation |
 | Completeness | 5 | Reminder yes, but no integration with bank payments or cash flow |

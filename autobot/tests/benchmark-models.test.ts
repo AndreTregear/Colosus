@@ -15,7 +15,7 @@ import { query, queryOne } from '../src/db/pool.js';
 import * as tenantsRepo from '../src/db/tenants-repo.js';
 import { setTenantId } from '../src/ai/agents.js';
 import { getModel, backends, ensureHealthy, getRouterStats } from '../src/ai/model-router.js';
-import { processWithOpenClaw } from '../src/ai/mastra-bridge.js';
+import { processWithHermes } from '../src/ai/mastra-bridge.js';
 import { Agent } from '@mastra/core/agent';
 import { allBusinessToolsWithYape } from '../src/ai/agents.js';
 

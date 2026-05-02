@@ -451,7 +451,7 @@ Agente: "📩 Doña Rosa respondió al recordatorio.
          • Otra cosa"
 ```
 
-## Scheduling via OpenClaw Cron
+## Scheduling via Hermes Cron
 
 ```yaml
 fiado_jobs:

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireMobileOrDeviceAuth } from '../middleware/mobile-auth.js';
 import { requireTenantAuth } from '../middleware/tenant-auth.js';
 import { getTenantId } from '../../shared/validate.js';
-import { processOwnerWithOpenClaw } from '../../ai/openclaw-bridge.js';
+import { processOwnerWithHermes } from '../../ai/hermes-bridge.js';
 import { logger } from '../../shared/logger.js';
 
 const router = Router();
@@ -22,7 +22,7 @@ router.use(flexAuth);
 
 /**
  * POST /api/merchant-ai/chat
- * Send a message to the merchant AI agent via OpenClaw.
+ * Send a message to the merchant AI agent via Hermes.
  */
 router.post('/chat', async (req, res) => {
   const tenantId = getTenantId(req);
@@ -35,7 +35,7 @@ router.post('/chat', async (req, res) => {
 
   try {
     const ownerJid = `${tenantId}@api`; // API-based owner interaction
-    const result = await processOwnerWithOpenClaw(tenantId, ownerJid, message);
+    const result = await processOwnerWithHermes(tenantId, ownerJid, message);
     res.json({ reply: result.reply });
   } catch (err) {
     logger.error({ tenantId, err }, 'Merchant AI chat failed');

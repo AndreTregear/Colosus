@@ -13,6 +13,9 @@ type EventMap = {
   'tenant-health-alert': [tenantId: string, message: string];
   'yape-payment-matched': [tenantId: string, paymentId: number, orderId: number, customerJid: string];
   'yape-payment-synced': [tenantId: string, notificationId: number];
+  'yayapay-intent-created': [intentId: string, clientReferenceId: string | null, amount: number];
+  'yayapay-payment-succeeded': [intentId: string, clientReferenceId: string | null, amount: number, senderName: string | null];
+  'yayapay-payment-expired': [intentId: string, clientReferenceId: string | null];
   'low-stock-alert': [tenantId: string, productId: number, productName: string, currentStock: number];
   'out-of-stock': [tenantId: string, productId: number, productName: string];
   'ai-job-enqueued': [tenantId: string, jid: string];
@@ -29,6 +32,9 @@ type EventMap = {
   'appointment-cancelled': [tenantId: string, appointmentId: number];
   'rider-assigned': [tenantId: string, orderId: number, riderId: number];
   'delivery-completed': [tenantId: string, orderId: number, assignmentId: number];
+  'confirmation-requested': [tenantId: string, jid: string, confirmationId: string, action: string];
+  'confirmation-accepted': [tenantId: string, jid: string, confirmationId: string, action: string, fields: any];
+  'confirmation-cancelled': [tenantId: string, jid: string, confirmationId: string];
 };
 
 class TypedEmitter extends EventEmitter {

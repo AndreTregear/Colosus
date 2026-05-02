@@ -9,7 +9,7 @@ Manages bulk and segmented customer notifications via WhatsApp for small busines
 - Business owner wants to run a promotional campaign ("manda una promo del 20% a mis mejores clientes")
 - A customer requests to opt out of notifications ("no me manden más mensajes")
 - Business owner asks about campaign performance ("¿cuántos leyeron el último mensaje?")
-- Scheduled campaign triggers via OpenClaw cron
+- Scheduled campaign triggers via Hermes cron
 
 ## Capabilities
 - **Restock Notifications** — Notify customers who expressed interest in out-of-stock items when those items return to inventory
@@ -262,7 +262,7 @@ Cliente: "Sí gracias"
 Agente: "¡Listo! Cualquier cosa que necesites, aquí estamos 😊"
 ```
 
-## Scheduling via OpenClaw Cron
+## Scheduling via Hermes Cron
 
 ```yaml
 notification_jobs:

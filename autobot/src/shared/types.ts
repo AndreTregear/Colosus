@@ -400,14 +400,24 @@ export type WorkerCommand =
   | { type: 'stop' }
   | { type: 'send-message'; jid: string; text: string; requestId?: string }
   | { type: 'send-image'; jid: string; imagePath: string; caption?: string; requestId?: string }
+  | { type: 'send-audio'; jid: string; audioBuffer: Buffer; mimetype: string; ptt?: boolean; requestId?: string }
   | { type: 'send-presence'; jid: string; presenceType: 'composing' | 'paused' }
+  | { type: 'reject-call'; callId: string; from: string }
   | { type: 'health-check' };
+
+export interface WACallEvent {
+  id: string;
+  from: string;
+  isVideo: boolean;
+  status: string;
+}
 
 export type WorkerEvent =
   | { type: 'ready' }
   | { type: 'qr'; dataUrl: string }
   | { type: 'connection-update'; status: 'open' | 'connecting' | 'close'; phone?: string }
   | { type: 'message'; message: IncomingMessage }
+  | { type: 'call'; events: WACallEvent[] }
   | { type: 'error'; error: string }
   | { type: 'heartbeat'; timestamp: number }
   | { type: 'send-result'; requestId: string; success: boolean; error?: string }

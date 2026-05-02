@@ -29,7 +29,7 @@ Generates business intelligence reports and insights from sales, customer, inven
 - `postgres-mcp` — Complex aggregations, trend calculations, cross-system joins
 - `lago-mcp` — Platform usage metrics (for Yaya team internal analytics)
 
-## Report Schedules (via OpenClaw Cron)
+## Report Schedules (via Hermes Cron)
 
 ```yaml
 scheduled_reports:

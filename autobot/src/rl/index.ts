@@ -1,5 +1,5 @@
 /**
- * OpenClaw-RL Pipeline — barrel exports + initialization.
+ * Hermes-RL Pipeline — barrel exports + initialization.
  *
  * Components:
  * - PII Scrubber: strips customer data from training trajectories

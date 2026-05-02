@@ -2,7 +2,7 @@
 /**
  * Business MCP Server
  *
- * Exposes Tier 1 business tools to OpenClaw agents via direct PostgreSQL queries.
+ * Exposes Tier 1 business tools to Hermes agents via direct PostgreSQL queries.
  * Same logic as the voice tools in agente-ceo — single source of truth for
  * business data access.
  *

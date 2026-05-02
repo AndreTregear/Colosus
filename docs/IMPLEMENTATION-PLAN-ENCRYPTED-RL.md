@@ -14,7 +14,7 @@ Yaya Platform combines two breakthrough capabilities into one product:
 
 1. **Zero-knowledge per-tenant encryption** — customer business data is encrypted with keys only the customer controls. Not even Yaya (the platform operator) can read it.
 
-2. **Self-improving AI via OpenClaw-RL** — every conversation makes the AI smarter, using reinforcement learning from natural conversation feedback. The model improves continuously without human labeling or access to raw customer data.
+2. **Self-improving AI via Hermes-RL** — every conversation makes the AI smarter, using reinforcement learning from natural conversation feedback. The model improves continuously without human labeling or access to raw customer data.
 
 These two capabilities are not in conflict — they are complementary. The RL system learns from **behavioral patterns** (how to query, format, respond) while the encryption system protects **business data** (customer names, payment details, financial records). The AI gets better at being a business assistant without ever seeing unencrypted PII in its training loop.
 
@@ -71,7 +71,7 @@ The LATAM SMB SaaS market is $42B but has near-zero penetration because existing
               ┌───────────────┼───────────────┐
               ▼               ▼               ▼
 ┌──────────────────┐ ┌───────────────┐ ┌──────────────────┐
-│   ENCRYPTED DB   │ │ OPENCLAW      │ │  OPENCLAW-RL     │
+│   ENCRYPTED DB   │ │ HERMES      │ │  HERMES-RL     │
 │                  │ │ AGENT         │ │  (ASYNC RL LOOP) │
 │ PII: ciphertext  │ │               │ │                  │
 │ Prices: plaintext│ │ Sandboxed per │ │ Rollout → PRM →  │
@@ -233,20 +233,20 @@ RL DOES NOT see: "María García" (PII scrubbed from training data)
 
 ---
 
-## Part IV: OpenClaw-RL Integration
+## Part IV: Hermes-RL Integration
 
 ### Prior Art & Literature
 
 | Reference | Key Insight |
 |-----------|-------------|
-| **OpenClaw-RL** (Gen-Verse, Princeton, Feb 2026) | Async RL from conversation feedback. Binary RL + OPD. No manual labeling. |
-| **OpenClaw-RL Technical Report** (arXiv:2603.10165, Mar 2026) | #1 HuggingFace Daily Papers. Next-state signals as universal learning interface. |
+| **Hermes-RL** (Gen-Verse, Princeton, Feb 2026) | Async RL from conversation feedback. Binary RL + OPD. No manual labeling. |
+| **Hermes-RL Technical Report** (arXiv:2603.10165, Mar 2026) | #1 HuggingFace Daily Papers. Next-state signals as universal learning interface. |
 | **GRPO** (DeepSeek, 2024) | Group Relative Policy Optimization — RL without a critic model. |
 | **DPO/SDPO** (Rafailov et al., 2023; extended 2026) | Direct Preference Optimization — simpler than PPO, no reward model needed. |
 | **Constitutional AI** (Anthropic, 2023) | Self-supervision with principles. Relevant for safety during RL. |
 | **Slime Framework** (Tsinghua THUDM) | Megatron-based RL training backbone. 4,400+ GitHub stars. |
 
-### How OpenClaw-RL Works for Yaya
+### How Hermes-RL Works for Yaya
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -254,7 +254,7 @@ RL DOES NOT see: "María García" (PII scrubbed from training data)
 │                                                           │
 │  Business owner sends WhatsApp message                    │
 │           ↓                                               │
-│  Autobot → OpenClaw Agent (Qwen3.5-27B via vLLM)         │
+│  Autobot → Hermes Agent (Qwen3.5-27B via vLLM)         │
 │           ↓                                               │
 │  Agent responds with business data                        │
 │           ↓                                               │
@@ -270,7 +270,7 @@ RL DOES NOT see: "María García" (PII scrubbed from training data)
 ┌──────────────────────────────────────────────────────────┐
 │              ROLLOUT COLLECTOR (async)                     │
 │                                                           │
-│  1. Intercepts conversation via OpenClaw extension         │
+│  1. Intercepts conversation via Hermes extension         │
 │  2. Classifies turns: main-line (trainable) vs side       │
 │  3. Extracts next-state signal from user reaction         │
 │  4. PII SCRUBBER removes customer names, phones, amounts  │
@@ -324,13 +324,13 @@ RL DOES NOT see: "María García" (PII scrubbed from training data)
 
 ### Implementation Steps
 
-**Step 1: Install OpenClaw-RL extension on c.yaya.sh**
+**Step 1: Install Hermes-RL extension on c.yaya.sh**
 ```bash
 # The RL training headers extension intercepts conversations
 cd ~/yaya_platform
-git clone https://github.com/Gen-Verse/OpenClaw-RL.git
-cd OpenClaw-RL/extensions/rl-training-headers
-# Install into OpenClaw
+git clone https://github.com/Gen-Verse/Hermes-RL.git
+cd Hermes-RL/extensions/rl-training-headers
+# Install into Hermes
 ```
 
 **Step 2: PII Scrubber** (`autobot/src/ai/pii-scrubber.ts`)
@@ -409,14 +409,14 @@ vLLM hot-swaps LoRA adapter (no restart needed)
 ### Phase 2: RL Pipeline (Weeks 3-4)
 - [ ] Day 15-16: PII scrubber (`pii-scrubber.ts`)
 - [ ] Day 17-18: Rollout collector (hook into ai-queue.ts)
-- [ ] Day 19-20: OpenClaw-RL extension installation
+- [ ] Day 19-20: Hermes-RL extension installation
 - [ ] Day 21-22: PRM judge configuration
 - [ ] Day 23-24: LoRA training pipeline (off-peak scheduler)
 - [ ] Day 25-26: A/B testing framework
 - [ ] Day 27-28: Monitoring + metrics dashboard
 
 ### Phase 3: Production Hardening (Weeks 5-6)
-- [ ] OpenShell sandbox integration (NemoClaw)
+- [ ] OpenShell sandbox integration (Hermes)
 - [ ] Key rotation mechanism
 - [ ] BYOK (Bring Your Own Key) for enterprise tenants
 - [ ] Disaster recovery (encrypted backups with separate KEK)
@@ -434,7 +434,7 @@ vLLM hot-swaps LoRA adapter (no restart needed)
 1. **WhatsApp is the OS** — 92% penetration in LATAM, 20M+ businesses already use it
 2. **E-invoicing mandates** — Peru/Mexico/Colombia forcing digital adoption
 3. **LLM costs collapsed** — local inference at $0/query makes $13/month pricing viable
-4. **OpenClaw-RL just released** — first practical framework for continuous agent improvement
+4. **Hermes-RL just released** — first practical framework for continuous agent improvement
 5. **Trust deficit** — LATAM has the lowest institutional trust globally; zero-knowledge encryption is a differentiator, not a feature
 
 ### Competitive Advantage
@@ -489,7 +489,7 @@ autobot/src/
 │   ├── middleware.ts          — Transparent repo encryption
 │   └── migration.ts          — One-time plaintext→ciphertext migration
 ├── ai/
-│   ├── openclaw-bridge.ts     — OpenClaw agent invocation (existing)
+│   ├── hermes-bridge.ts     — Hermes agent invocation (existing)
 │   ├── pii-scrubber.ts        ← NEW: Strip PII from RL training data
 │   └── client.ts              — vLLM/Whisper clients (existing)
 ├── integrations/
@@ -504,11 +504,11 @@ autobot/src/
 └── [existing: bot/, db/, web/, queue/, media/, services/, shared/]
 
 infra/
-├── openclaw-rl/               ← NEW: RL configuration
+├── hermes-rl/               ← NEW: RL configuration
 │   ├── run_qwen35_27b_lora.sh — LoRA training launch script
 │   ├── pii-scrub-config.yaml  — PII scrubbing rules
 │   └── ab-test-config.yaml    — A/B testing parameters
-├── nemoclaw/
+├── hermes/
 │   └── tenant-policy.yaml     — OpenShell sandbox policy (existing)
 └── docker/
     └── docker-compose.prod.yml — Full stack (existing)

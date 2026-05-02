@@ -16,9 +16,10 @@ import { MODELS } from '@/lib/models';
 import { sanitizeForTTS } from '@/lib/tts-sanitize';
 import { withActiveSubscription } from '@/lib/billing/entitlement';
 
-const TTS_URL = process.env.TTS_BASE_URL
-  ? `${process.env.TTS_BASE_URL}/v1/audio/speech`
-  : 'http://localhost:9400/v1/audio/speech';
+// Kokoro TTS per INFRA.md (`:8002`, bearer `welcometothepresent`).
+const _TTS_BASE = (process.env.YAYA_TTS_URL || process.env.TTS_BASE_URL || 'http://localhost:8002').replace(/\/+$/, '');
+const TTS_URL = `${_TTS_BASE}/v1/audio/speech`;
+const TTS_KEY = process.env.YAYA_TTS_KEY || process.env.TTS_API_KEY || 'welcometothepresent';
 
 export const dynamic = 'force-dynamic';
 
@@ -154,7 +155,10 @@ async function summarizeAndSpeak(
   try {
     const ttsRes = await fetch(TTS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${TTS_KEY}`,
+      },
       body: JSON.stringify({
         model: 'kokoro',
         input: sanitizeForTTS(summary).slice(0, 300),

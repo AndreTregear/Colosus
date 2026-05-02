@@ -688,7 +688,7 @@ The Yaya Platform is designed primarily for **B2C retail and service businesses*
 
 | Dimension | Score | Notes |
 |-----------|-------|-------|
-| Handleable | 7 | Can set a reminder via OpenClaw cron |
+| Handleable | 7 | Can set a reminder via Hermes cron |
 | Accuracy | 7 | Date calculation for "last Saturday" and "2 weeks before" is straightforward |
 | Speed | 8 | Quick to schedule |
 | Completeness | 5 | Can remind but can't manage event registration, WOD creation, or Instagram posting |

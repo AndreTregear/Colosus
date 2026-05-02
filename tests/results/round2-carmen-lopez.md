@@ -68,7 +68,7 @@ Tax compliance gap analysis is a good concept but yaya-tax can't assess Colombia
 yaya-appointments has provider schedule management. Cross-location coverage (Diana from Ciudad Jardín to Granada) is conceptually possible if providers are configured across sedes. Gap: no staff availability/shift management skill.
 
 **S18** — "Día de la madre... recuérdame 3 semanas antes..." — **Score: 7/10**  
-yaya-followup and OpenClaw cron handle scheduled reminders. Pre-event preparation checklist is a good use case. Colombia celebrates Día de la Madre on the second Sunday of May (different from some countries). Skill would need Colombian holiday calendar.
+yaya-followup and Hermes cron handle scheduled reminders. Pre-event preparation checklist is a good use case. Colombia celebrates Día de la Madre on the second Sunday of May (different from some countries). Skill would need Colombian holiday calendar.
 
 **S19** — "Capacitación de mechas balayage... primer domingo del mes..." — **Score: 6/10**  
 yaya-appointments can schedule events. Recurring scheduling (first Sunday monthly) needs cron. Cost tracking ($800,000) for training as business expense not captured.

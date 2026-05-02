@@ -1,7 +1,7 @@
 {
   "name": "whatsapp-mcp",
   "version": "0.1.0",
-  "description": "MCP server for outbound WhatsApp messaging via OpenClaw gateway",
+  "description": "MCP server for outbound WhatsApp messaging via Hermes gateway",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {

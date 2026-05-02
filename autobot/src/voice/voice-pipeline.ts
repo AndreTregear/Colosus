@@ -152,7 +152,7 @@ export async function transcribeSpeech(audioBuffer: Buffer, mimetype: string): P
  * STT -> LLM (via provided generate function) -> TTS
  *
  * The `generateResponse` callback lets the caller plug in any LLM agent
- * (Mastra directAgent, OpenClaw, etc.) without coupling to a specific implementation.
+ * (Mastra directAgent, Hermes, etc.) without coupling to a specific implementation.
  */
 export async function processVoiceMessage(
   audioBuffer: Buffer,

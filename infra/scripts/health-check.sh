@@ -64,11 +64,11 @@ else
   check "vLLM (inference :8000)" "not responding"
 fi
 
-# OpenClaw
+# Hermes
 if curl -sf http://localhost:3100/api/v1/health > /dev/null 2>&1; then
-  check "OpenClaw (agent :3100)" "ok"
+  check "Hermes (agent :3100)" "ok"
 else
-  check "OpenClaw (agent :3100)" "not responding"
+  check "Hermes (agent :3100)" "not responding"
 fi
 
 # Lago

@@ -994,7 +994,7 @@ Yaya:  "💸 Proyección de cobros — Marzo 2026
         💡 Rango probable: S/56,000 - S/68,000"
 ```
 
-## Cron Schedules (via OpenClaw Cron)
+## Cron Schedules (via Hermes Cron)
 
 ```yaml
 overdue_check:

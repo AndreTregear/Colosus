@@ -44,14 +44,14 @@ vi.mock('../src/shared/logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-const { processWithOpenClaw, processOwnerWithOpenClaw, isOwnerChat } =
+const { processWithHermes, processOwnerWithHermes, isOwnerChat } =
   await import('../src/ai/mastra-bridge.js');
 
 describe('mastra-bridge', () => {
-  describe('processWithOpenClaw', () => {
+  describe('processWithHermes', () => {
     it('should process a message and return reply', async () => {
       const chunks: string[] = [];
-      const result = await processWithOpenClaw(
+      const result = await processWithHermes(
         'tenant-1',
         'whatsapp',
         '51999@s.whatsapp.net',
@@ -66,7 +66,7 @@ describe('mastra-bridge', () => {
     });
 
     it('should handle image media path', async () => {
-      const result = await processWithOpenClaw(
+      const result = await processWithHermes(
         'tenant-1',
         'whatsapp',
         '51999@s.whatsapp.net',
@@ -84,7 +84,7 @@ describe('mastra-bridge', () => {
         .mockRejectedValueOnce(new Error('LLM down'))
         .mockRejectedValueOnce(new Error('LLM still down'));
 
-      const result = await processWithOpenClaw(
+      const result = await processWithHermes(
         'tenant-1',
         'whatsapp',
         '51999@s.whatsapp.net',
@@ -96,9 +96,9 @@ describe('mastra-bridge', () => {
     });
   });
 
-  describe('processOwnerWithOpenClaw', () => {
+  describe('processOwnerWithHermes', () => {
     it('should process owner message', async () => {
-      const result = await processOwnerWithOpenClaw(
+      const result = await processOwnerWithHermes(
         'tenant-1',
         '51987654321@s.whatsapp.net',
         'Cuantas ventas hoy?',
@@ -112,7 +112,7 @@ describe('mastra-bridge', () => {
         .mockRejectedValueOnce(new Error('first attempt fail'))
         .mockResolvedValueOnce({ text: 'Recovered reply' });
 
-      const result = await processOwnerWithOpenClaw(
+      const result = await processOwnerWithHermes(
         'tenant-1',
         '51987654321@s.whatsapp.net',
         'test retry',
@@ -127,7 +127,7 @@ describe('mastra-bridge', () => {
         .mockRejectedValueOnce(new Error('fail'))
         .mockRejectedValueOnce(new Error('still failing'));
 
-      const result = await processOwnerWithOpenClaw(
+      const result = await processOwnerWithHermes(
         'tenant-1',
         '51987654321@s.whatsapp.net',
         'test',

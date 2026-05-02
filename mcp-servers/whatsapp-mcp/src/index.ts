@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * WhatsApp Outbound MCP Server
- * Enables agents to send proactive WhatsApp messages via OpenClaw gateway.
+ * Enables agents to send proactive WhatsApp messages via Hermes gateway.
  *
  * Tools:
  *  - send_message: Send a text message to a WhatsApp number
@@ -24,8 +24,8 @@ const execFileAsync = promisify(execFile);
 
 // ── Configuration ────────────────────────────────────
 
-const OPENCLAW_GATEWAY_URL =
-  process.env.OPENCLAW_GATEWAY_URL || "http://localhost:3284";
+const HERMES_GATEWAY_URL =
+  process.env.HERMES_GATEWAY_URL || "http://localhost:3284";
 const WHATSAPP_ACCOUNT = process.env.WHATSAPP_ACCOUNT || "default";
 const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -41,7 +41,7 @@ async function gatewayFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<GatewayResponse> {
-  const url = `${OPENCLAW_GATEWAY_URL}${endpoint}`;
+  const url = `${HERMES_GATEWAY_URL}${endpoint}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> || {}),
@@ -92,7 +92,7 @@ async function sendViaCli(
   message: string
 ): Promise<GatewayResponse> {
   try {
-    const { stdout, stderr } = await execFileAsync("openclaw", [
+    const { stdout, stderr } = await execFileAsync("hermes", [
       "send",
       "--channel",
       "whatsapp",
@@ -106,7 +106,7 @@ async function sendViaCli(
       data: { output: stdout.trim(), stderr: stderr.trim() || undefined },
     };
   } catch (err: any) {
-    throw new Error(`OpenClaw CLI failed: ${err.message}`);
+    throw new Error(`Hermes CLI failed: ${err.message}`);
   }
 }
 
@@ -509,7 +509,7 @@ async function handleTool(
     case "check_online_status": {
       const start = Date.now();
       const result: Record<string, any> = {
-        gateway_url: OPENCLAW_GATEWAY_URL,
+        gateway_url: HERMES_GATEWAY_URL,
         account: WHATSAPP_ACCOUNT,
       };
 
@@ -571,7 +571,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(
-    `WhatsApp MCP server running on stdio (gateway: ${OPENCLAW_GATEWAY_URL}, account: ${WHATSAPP_ACCOUNT})`
+    `WhatsApp MCP server running on stdio (gateway: ${HERMES_GATEWAY_URL}, account: ${WHATSAPP_ACCOUNT})`
   );
 }
 

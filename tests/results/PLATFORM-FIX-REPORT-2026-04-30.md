@@ -53,8 +53,8 @@ Better Auth's `trustedOrigins` was only `[BETTER_AUTH_URL]` (= `https://agente.c
 ### F10 — Built dist + re-pointed PM2 to colosus
 PM2 `yaya-business` was pointed at `/home/yaya/yaya_business/autobot/dist` (a sister directory diverged from `colosus`). After user approval, deleted the old PM2 entry and recreated it at `/home/yaya/colosus/autobot/dist/index.js`. Production now runs the active codebase with all fixes. Compiled `.js` runs the Baileys worker thread cleanly (the dev-mode tsx ESM resolution issue is bypassed entirely).
 
-### F11 — Repaired `openclaw-wrapper.sh` (newly discovered)
-Once F1 unblocked tenant DB provisioning, the next layer surfaced: the wrapper script was calling `http://localhost:18080/v1/chat/completions` with model `qwen3-omni`, but that endpoint isn't running. Switched to env-driven `${VLLM_URL:-http://localhost:8000}` + `${VLLM_MODEL:-cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit}` (with `${AI_API_KEY}`), and added `chat_template_kwargs: {enable_thinking: false}` to the body. Also re-pointed `OPENCLAW_BIN` in `.env` to the colosus copy.
+### F11 — Repaired `hermes-wrapper.sh` (newly discovered)
+Once F1 unblocked tenant DB provisioning, the next layer surfaced: the wrapper script was calling `http://localhost:18080/v1/chat/completions` with model `qwen3-omni`, but that endpoint isn't running. Switched to env-driven `${VLLM_URL:-http://localhost:8000}` + `${VLLM_MODEL:-cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit}` (with `${AI_API_KEY}`), and added `chat_template_kwargs: {enable_thinking: false}` to the body. Also re-pointed `HERMES_BIN` in `.env` to the colosus copy.
 
 ### Bonus — `/api/admin/ai-usage` 500 fix
 Discovered while debugging test 5.43: route SQL referenced column `cost`, but `ai_usage_events` schema has `total_cost`. Fixed in `src/web/routes/api-ai-usage.ts`. Also added a root `GET /` handler so callers using `/api/admin/ai-usage` (no sub-path) get the dashboard payload.
@@ -63,7 +63,7 @@ Discovered while debugging test 5.43: route SQL referenced column `cost`, but `a
 
 ```
 autobot/.env                                    F11
-autobot/openclaw-wrapper.sh                     F11
+autobot/hermes-wrapper.sh                     F11
 autobot/schema.sql                              F1
 autobot/src/ai/agents.ts                        F2
 autobot/src/ai/business-intelligence.ts         F2

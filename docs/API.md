@@ -243,7 +243,7 @@ All mounted under `/api/web/`.
 
 #### POST /api/merchant-ai/chat
 
-Chat with AI assistant as the merchant (via OpenClaw).
+Chat with AI assistant as the merchant (via Hermes).
 
 **Request:** `{ "message": "How were my sales today?" }`
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-# OpenClaw-RL LoRA Training Script for Yaya Platform
+# Hermes-RL LoRA Training Script for Yaya Platform
 # ═══════════════════════════════════════════════════════════════
 #
 # Trains a LoRA adapter on conversation trajectories.
@@ -48,7 +48,7 @@ done
 ADAPTER_PATH="$OUTPUT_DIR/run-$RUN_ID"
 
 echo "==============================================="
-echo "  OpenClaw-RL LoRA Training"
+echo "  Hermes-RL LoRA Training"
 echo "==============================================="
 echo "  Base model:    $BASE_MODEL"
 echo "  Rollout dir:   $ROLLOUT_DIR"

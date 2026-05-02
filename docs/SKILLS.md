@@ -5,7 +5,7 @@ Skills are the core abstraction that defines what the AI agent can do. Each skil
 ## How Skills Work
 
 1. **Definition:** Each skill is a `SKILL.md` file inside `skills/yaya-{name}/`
-2. **Loading:** OpenClaw reads skill files and injects them into the AI agent's system prompt
+2. **Loading:** Hermes reads skill files and injects them into the AI agent's system prompt
 3. **Activation:** Skills are activated contextually based on the conversation topic
 4. **Tools:** Skills reference MCP servers and AI tools they need access to
 5. **Constraints:** Skills define what the agent can and cannot do (safety boundaries)
@@ -17,7 +17,7 @@ Skills declare which MCP servers they need. When a skill is active, the AI agent
 ```
 Skill (SKILL.md)
   → declares: needs postgres-mcp, payments-mcp
-  → OpenClaw grants access to those MCP server tools
+  → Hermes grants access to those MCP server tools
   → AI agent can call: query_database, confirm_payment, etc.
 ```
 
@@ -168,11 +168,11 @@ Agent: "..."
 
 ### 3. Reference MCP servers
 
-Ensure the MCP servers your skill needs are listed. OpenClaw uses this to grant tool access.
+Ensure the MCP servers your skill needs are listed. Hermes uses this to grant tool access.
 
 ### 4. Test the skill
 
-Restart OpenClaw and test via WhatsApp or the merchant AI chat endpoint (`POST /api/merchant-ai/chat`).
+Restart Hermes and test via WhatsApp or the merchant AI chat endpoint (`POST /api/merchant-ai/chat`).
 
 ## Skill File Conventions
 

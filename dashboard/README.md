@@ -69,6 +69,6 @@ Ready for immediate executive use with placeholder data that can be connected to
 
 ---
 
-**Built by**: OpenClaw AI Agent  
+**Built by**: Hermes AI Agent  
 **Completion Time**: < 2 hours  
 **Status**: Production Ready ✅

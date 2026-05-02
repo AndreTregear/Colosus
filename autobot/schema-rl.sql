@@ -1,4 +1,4 @@
--- RL Training metadata (OpenClaw-RL pipeline)
+-- RL Training metadata (Hermes-RL pipeline)
 
 -- Training run history — one row per LoRA fine-tuning job
 CREATE TABLE IF NOT EXISTS rl_training_runs (

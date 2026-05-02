@@ -27,9 +27,17 @@ const execFileAsync = promisify(execFile);
 
 // ── Configuration ────────────────────────────────────
 
-const WHISPER_URL = process.env.WHISPER_URL || "http://localhost:9100";
-const TTS_URL = process.env.TTS_URL || "http://localhost:9200";
-const TTS_API_KEY = process.env.TTS_API_KEY || "megustalaia";
+// Endpoints align with INFRA.md:
+//   ASR (Speaches): :8001 — /v1/audio/transcriptions, bearer `welcometothepresent`
+//   TTS (Kokoro):   :8002 — /v1/audio/speech,         bearer `welcometothepresent`
+// Override per-env via YAYA_ASR_URL / YAYA_ASR_KEY / YAYA_TTS_URL / YAYA_TTS_KEY.
+const trimSlash = (s: string) => s.replace(/\/+$/, "");
+const WHISPER_URL = trimSlash(process.env.YAYA_ASR_URL || process.env.WHISPER_URL || "http://localhost:8001");
+const WHISPER_API_KEY = process.env.YAYA_ASR_KEY || process.env.WHISPER_API_KEY || "welcometothepresent";
+const WHISPER_MODEL = process.env.YAYA_ASR_MODEL || process.env.WHISPER_MODEL || "deepdml/faster-whisper-large-v3-turbo-ct2";
+const TTS_URL = trimSlash(process.env.YAYA_TTS_URL || process.env.TTS_URL || "http://localhost:8002");
+const TTS_API_KEY = process.env.YAYA_TTS_KEY || process.env.TTS_API_KEY || "welcometothepresent";
+const TTS_MODEL = process.env.YAYA_TTS_MODEL || process.env.TTS_MODEL || "kokoro";
 const VOICE_OUTPUT_DIR = process.env.VOICE_OUTPUT_DIR || "/tmp/voice-output";
 const DEFAULT_VOICE = process.env.DEFAULT_VOICE || "af_heart";
 const DEFAULT_LANGUAGE = process.env.DEFAULT_LANGUAGE || "es";
@@ -159,12 +167,12 @@ async function transcribeAudio(
   const audioData = await readFile(audioPath);
   const formData = new FormData();
   formData.append("file", new Blob([audioData]), "audio.ogg");
-  if (language) {
-    formData.append("language", language);
-  }
+  formData.append("model", WHISPER_MODEL);
+  if (language) formData.append("language", language);
 
-  const res = await httpRequest(`${WHISPER_URL}/transcribe`, {
+  const res = await httpRequest(`${WHISPER_URL}/v1/audio/transcriptions`, {
     method: "POST",
+    headers: { "Authorization": `Bearer ${WHISPER_API_KEY}` },
     body: formData,
   });
 
@@ -182,10 +190,12 @@ async function detectLanguage(
   const audioData = await readFile(audioPath);
   const formData = new FormData();
   formData.append("file", new Blob([audioData]), "audio.ogg");
-  formData.append("detect_language", "true");
+  formData.append("model", WHISPER_MODEL);
+  formData.append("response_format", "verbose_json");
 
-  const res = await httpRequest(`${WHISPER_URL}/transcribe`, {
+  const res = await httpRequest(`${WHISPER_URL}/v1/audio/transcriptions`, {
     method: "POST",
+    headers: { "Authorization": `Bearer ${WHISPER_API_KEY}` },
     body: formData,
   });
 
@@ -213,14 +223,14 @@ async function synthesizeSpeech(
   speed: number = 1.0,
   responseFormat: string = "mp3"
 ): Promise<{ buffer: Buffer; format: string }> {
-  const res = await httpRequest(`${TTS_URL}/api/v1/audio/speech`, {
+  const res = await httpRequest(`${TTS_URL}/v1/audio/speech`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${TTS_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "kokoro",
+      model: TTS_MODEL,
       input: text,
       voice,
       speed,

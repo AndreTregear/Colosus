@@ -17,14 +17,14 @@ Everything runs on your own infrastructure. Local AI inference means your data n
 │                     Autobot (Port 3000)                          │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────┐  │
 │  │ WhatsApp │  │   REST   │  │   Web    │  │   AI Engine    │  │
-│  │ Gateway  │  │   API    │  │Dashboard │  │  (OpenClaw)    │  │
+│  │ Gateway  │  │   API    │  │Dashboard │  │  (Hermes)    │  │
 │  │(Baileys) │  │(Express) │  │  (HTML)  │  │ 38 Skills      │  │
 │  └────┬─────┘  └────┬─────┘  └──────────┘  │ 10 MCP Servers │  │
 │       │              │                       └───────┬────────┘  │
 │       └──────┬───────┘                               │           │
 │              ▼                                       ▼           │
 │  ┌───────────────────┐                   ┌───────────────────┐  │
-│  │   BullMQ/Redis    │                   │   NemoClaw        │  │
+│  │   BullMQ/Redis    │                   │   Hermes        │  │
 │  │  (Job Processing) │                   │ (Tenant Sandbox)  │  │
 │  └───────────────────┘                   └───────────────────┘  │
 └──────────────────────────────────┬───────────────────────────────┘

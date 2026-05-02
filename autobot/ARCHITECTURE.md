@@ -345,7 +345,7 @@ All use parameterized queries (no ORM, no SQL injection).
 
 ### Mastra Framework
 
-Replaced OpenClaw CLI. Two shared agents defined in `src/ai/agents.ts`:
+Replaced Hermes CLI. Two shared agents defined in `src/ai/agents.ts`:
 
 | Agent | ID | Use Case | System Prompt |
 |-------|-----|----------|---------------|

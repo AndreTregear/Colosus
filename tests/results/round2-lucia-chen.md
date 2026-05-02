@@ -789,8 +789,8 @@
 **Message:**
 > "recordame mañana pagar USD 3,500 al proveedor de guangzhou x western union. y el viernes la planilla"
 
-**Skills involved:** Partial — OpenClaw cron for reminders, but no structured reminder skill for business owner
-**MCP tools:** OpenClaw cron scheduling
+**Skills involved:** Partial — Hermes cron for reminders, but no structured reminder skill for business owner
+**MCP tools:** Hermes cron scheduling
 
 **Ratings:**
 | Dimension | Score | Notes |

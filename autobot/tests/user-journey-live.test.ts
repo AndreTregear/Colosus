@@ -35,7 +35,7 @@ import { query, queryOne } from '../src/db/pool.js';
 import * as tenantsRepo from '../src/db/tenants-repo.js';
 import * as pgMessagesRepo from '../src/db/pg-messages-repo.js';
 import { whatsappAgent, directAgent, setTenantId } from '../src/ai/agents.js';
-import { processWithOpenClaw } from '../src/ai/mastra-bridge.js';
+import { processWithHermes } from '../src/ai/mastra-bridge.js';
 
 // ── Config ──
 
@@ -88,7 +88,7 @@ async function customerSays(jid: string, message: string): Promise<string> {
     timestamp: new Date().toISOString(),
   });
 
-  const result = await processWithOpenClaw(
+  const result = await processWithHermes(
     testTenantId, 'whatsapp', jid, message,
     async () => {},
   );

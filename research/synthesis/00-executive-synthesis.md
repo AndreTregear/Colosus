@@ -61,7 +61,7 @@ Peru has the lowest interpersonal trust in Latin America: 54% report low trust e
 
 ### Insight 5: The Cost Structure Is the Moat
 
-Yaya's local LLM deployment (RTX A5000 fleet via NemoClaw/OpenClaw) creates a structural cost advantage that cloud-dependent competitors cannot match. Per-query cost: ~$0.001 (local) vs. $0.01–0.05 (cloud API) — an 8–18× advantage. Combined with Meta's July 2025 pricing revolution (service/customer-initiated WhatsApp messages are now *completely free and unlimited*), Yaya's marginal cost per user approaches zero. At $13/month (S/49) for the Starter tier, this yields 85%+ gross margins — vs. 40–60% for competitors paying cloud LLM APIs. This pricing advantage is permanent and compounding: every dollar saved on infrastructure can be reinvested into growth or passed through as lower pricing, creating a cost moat in the most price-sensitive business software market on earth.
+Yaya's local LLM deployment (RTX A5000 fleet via Hermes/Hermes) creates a structural cost advantage that cloud-dependent competitors cannot match. Per-query cost: ~$0.001 (local) vs. $0.01–0.05 (cloud API) — an 8–18× advantage. Combined with Meta's July 2025 pricing revolution (service/customer-initiated WhatsApp messages are now *completely free and unlimited*), Yaya's marginal cost per user approaches zero. At $13/month (S/49) for the Starter tier, this yields 85%+ gross margins — vs. 40–60% for competitors paying cloud LLM APIs. This pricing advantage is permanent and compounding: every dollar saved on infrastructure can be reinvested into growth or passed through as lower pricing, creating a cost moat in the most price-sensitive business software market on earth.
 
 ---
 
@@ -160,7 +160,7 @@ Mercado Libre ($7.4B quarterly revenue, 10M SMBs in ecosystem) and Rappi ($5.25B
 
 **The threat:** 6+ distinct data protection regimes (Peru's Law 29733, Brazil's LGPD, Colombia's Law 1581), evolving AI legislation (Peru's Law 31814 with three-tier risk framework, Brazil's PL 2338, Colombia's PL 43/2025), and complex e-invoicing standards. Non-compliance fines up to 2% of revenue / R$50M under LGPD.
 
-**Mitigation:** (a) Data residency planning from Day 1 — local processing via NemoClaw provides inherent compliance advantage. (b) Modular compliance architecture supporting multiple tax regimes. (c) Peru-first strategy reduces initial regulatory surface to a single jurisdiction. (d) Leverage Peru's reformed SBS regulatory sandbox (Resolution N° 04142-2025) if financial features are launched. (e) Hire local legal counsel in each expansion market.
+**Mitigation:** (a) Data residency planning from Day 1 — local processing via Hermes provides inherent compliance advantage. (b) Modular compliance architecture supporting multiple tax regimes. (c) Peru-first strategy reduces initial regulatory surface to a single jurisdiction. (d) Leverage Peru's reformed SBS regulatory sandbox (Resolution N° 04142-2025) if financial features are launched. (e) Hire local legal counsel in each expansion market.
 
 ### Risk 5: Well-Funded Competitor Entry (Score: 20/25 — Critical)
 

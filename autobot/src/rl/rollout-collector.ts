@@ -1,5 +1,5 @@
 /**
- * Rollout Collector — captures OpenClaw agent conversations for RL training.
+ * Rollout Collector — captures Hermes agent conversations for RL training.
  *
  * Hooks into autobot's message pipeline (appBus events) to collect:
  * - User messages (input)
@@ -192,7 +192,7 @@ export class RolloutCollector {
 
   /**
    * Score the previous assistant turn based on the user's next message.
-   * This is the "next-state signal" from OpenClaw-RL.
+   * This is the "next-state signal" from Hermes-RL.
    */
   private scoreLastAssistantTurn(session: Trajectory, userMessage: string): void {
     const lastAssistant = this.findLastUnscored(session, 'assistant');

@@ -16,7 +16,7 @@ import multer from 'multer';
 import { requireMobileOrDeviceAuth } from '../middleware/mobile-auth.js';
 import { getTenantId } from '../../shared/validate.js';
 import { query, queryOne } from '../../db/pool.js';
-import { processOwnerWithOpenClaw } from '../../ai/mastra-bridge.js';
+import { processOwnerWithHermes } from '../../ai/mastra-bridge.js';
 import { transcribeAudio } from '../../ai/client.js';
 import * as sessionsRepo from '../../db/sessions-repo.js';
 import { logger } from '../../shared/logger.js';
@@ -66,7 +66,7 @@ router.post('/chat', async (req, res) => {
   try {
     const startTime = Date.now();
     const ownerJid = `${tenantId}@mobile-app`;
-    const result = await processOwnerWithOpenClaw(tenantId, ownerJid, message.trim());
+    const result = await processOwnerWithHermes(tenantId, ownerJid, message.trim());
 
     logger.info({ tenantId, durationMs: Date.now() - startTime }, 'Mobile agente chat completed');
 
@@ -121,7 +121,7 @@ router.post('/voice', audioUpload.single('audio'), async (req, res) => {
     // 2. LLM processing
     const llmStart = Date.now();
     const ownerJid = `${tenantId}@mobile-voice`;
-    const result = await processOwnerWithOpenClaw(tenantId, ownerJid, transcription.trim());
+    const result = await processOwnerWithHermes(tenantId, ownerJid, transcription.trim());
     timings.llmMs = Date.now() - llmStart;
 
     // 3. TTS is handled client-side on Android (using Android TTS engine)

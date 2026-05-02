@@ -422,17 +422,17 @@ Autobot is the single application that serves everything. The previous `yaya-api
 4. Redirected to /dashboard → merchant SPA loads
 5. Navigate to "Agente Chat" → /api/qr generates WhatsApp QR
 6. User scans QR with WhatsApp → Baileys connection established
-7. AI (via OpenClaw) auto-configures business:
+7. AI (via Hermes) auto-configures business:
    └── Asks about products, pricing, hours, payment methods
 8. Customers message the WhatsApp number
 9. AI handles conversations, owner monitors via dashboard
 ```
 
-## NemoClaw Tenant Isolation
+## Hermes Tenant Isolation
 
-NemoClaw enforces tenant data isolation within OpenClaw. Each tenant's AI agent is sandboxed to only access their own data.
+Hermes enforces tenant data isolation within Hermes. Each tenant's AI agent is sandboxed to only access their own data.
 
-### Policy Rules (infra/nemoclaw/tenant-policy.yaml)
+### Policy Rules (infra/hermes/tenant-policy.yaml)
 
 - **enforce-tenant-scope**: All database queries must include `tenant_id` matching the request context
 - **restrict-file-access**: S3 access restricted to `media-raw/{tenantId}/` prefix
@@ -445,9 +445,9 @@ NemoClaw enforces tenant data isolation within OpenClaw. Each tenant's AI agent 
 ### How It Works
 
 ```
-Dashboard/WhatsApp → Autobot → OpenClaw API
+Dashboard/WhatsApp → Autobot → Hermes API
                                     │
-                              NemoClaw checks:
+                              Hermes checks:
                               ├── Is tenant_id in every query?
                               ├── Is search_path set correctly?
                               ├── Any cross-tenant data access?
@@ -459,21 +459,21 @@ Dashboard/WhatsApp → Autobot → OpenClaw API
                               Response filtered → User
 ```
 
-## OpenClaw Integration
+## Hermes Integration
 
-Autobot delegates all AI processing to OpenClaw, an external agent framework accessed via HTTP API.
+Autobot delegates all AI processing to Hermes, an external agent framework accessed via HTTP API.
 
 ### How It Works
 
 1. **Message arrives** → BullMQ worker picks up the job
-2. **Bridge call** → `openclaw-bridge.ts` sends a POST to `${OPENCLAW_API_URL}/chat` with the message text and tenant context (tenantId, channel, contactJid, isOwner, imageUrl)
-3. **OpenClaw processes** → selects appropriate skill, builds prompt, calls LLM, executes MCP tools
+2. **Bridge call** → `hermes-bridge.ts` sends a POST to `${HERMES_API_URL}/chat` with the message text and tenant context (tenantId, channel, contactJid, isOwner, imageUrl)
+3. **Hermes processes** → selects appropriate skill, builds prompt, calls LLM, executes MCP tools
 4. **Response returns** → streamed via SSE (or JSON fallback) back to the bridge
 5. **Bridge forwards** → chunks streamed to WhatsApp via Baileys
 
 ### Per-Tenant Context Injection
 
-Every request to OpenClaw includes tenant context as metadata:
+Every request to Hermes includes tenant context as metadata:
 
 ```json
 {
@@ -488,23 +488,23 @@ Every request to OpenClaw includes tenant context as metadata:
 }
 ```
 
-OpenClaw uses this context to:
+Hermes uses this context to:
 - Set the PostgreSQL `search_path` to the tenant's schema (via postgres-mcp)
 - Load the tenant's SOUL.md and active skills
 - Determine whether to use owner-mode or customer-mode skills
 
 ### Skill Selection and Routing
 
-OpenClaw maintains a library of 38 business skills (markdown files). Each skill defines:
+Hermes maintains a library of 38 business skills (markdown files). Each skill defines:
 - When it should activate (trigger conditions)
 - What MCP tools it needs
 - System prompt instructions for the LLM
 
-Skill selection happens inside OpenClaw based on conversation context — Autobot does not participate in routing decisions.
+Skill selection happens inside Hermes based on conversation context — Autobot does not participate in routing decisions.
 
 ### MCP Server Lifecycle
 
-MCP servers are managed by OpenClaw, not Autobot. Each server:
+MCP servers are managed by Hermes, not Autobot. Each server:
 - Communicates via stdio (JSON-RPC)
 - Has access to tenant-scoped resources (database schema, API keys)
 - Is stateless per request
@@ -513,7 +513,7 @@ MCP servers are managed by OpenClaw, not Autobot. Each server:
 
 To add a new business capability:
 1. Write a skill file (markdown) defining the behavior
-2. Configure the MCP server(s) it needs in OpenClaw
+2. Configure the MCP server(s) it needs in Hermes
 3. No code changes in Autobot required
 
 This architecture means the AI logic is entirely managed through skills and MCP configs — no custom tool code in Autobot.

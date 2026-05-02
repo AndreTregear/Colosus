@@ -785,7 +785,7 @@ Agente: "🌎 Envío 2 kg Lima → Bogotá
          que no haya restricciones de aduana."
 ```
 
-## Scheduled Jobs (via OpenClaw Cron)
+## Scheduled Jobs (via Hermes Cron)
 
 ```yaml
 scheduled_jobs:

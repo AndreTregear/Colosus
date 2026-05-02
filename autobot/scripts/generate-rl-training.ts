@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Generate synthetic RL training data for OpenClaw-RL.
+ * Generate synthetic RL training data for Hermes-RL.
  * 
  * Creates 100+ multi-turn conversation trajectories with reward signals.
  * PII is scrubbed before writing. Output: JSONL for the RL trainer.

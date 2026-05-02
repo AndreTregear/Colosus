@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import { DelayedError, type Job } from 'bullmq';
 import { QueueFactory, registerQueue } from './queue-factory.js';
-import { processWithOpenClaw, processOwnerWithOpenClaw, isOwnerChat } from '../ai/openclaw-bridge.js';
+import { processWithHermes, processOwnerWithHermes, isOwnerChat } from '../ai/hermes-bridge.js';
 import { tenantManager } from '../bot/tenant-manager.js';
 import { acquireTenantSlot, releaseTenantSlot, checkAndIncrementRateLimit } from './rate-limiter.js';
 import * as pgMessagesRepo from '../db/pg-messages-repo.js';
@@ -94,7 +94,7 @@ async function processAIJob(job: Job<AIJobData, AIJobResult>): Promise<AIJobResu
     logger.info({ tenantId, jid, jobId: job.id }, 'Routing owner message to unified owner agent');
 
     try {
-      const { reply: response } = await processOwnerWithOpenClaw(tenantId, jid, text);
+      const { reply: response } = await processOwnerWithHermes(tenantId, jid, text);
 
       if (response) {
         const chunks = splitMessage(response, 4000);
@@ -130,7 +130,7 @@ async function processAIJob(job: Job<AIJobData, AIJobResult>): Promise<AIJobResu
 
   try {
     let chunksSent = 0;
-    const result = await processWithOpenClaw(
+    const result = await processWithHermes(
       tenantId, channel, jid, text,
       async (chunk) => {
         await tenantManager.sendMessage(tenantId, jid, chunk);

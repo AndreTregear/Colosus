@@ -53,7 +53,7 @@ CLOUD_API_TOKEN = os.environ.get("WHATSAPP_CLOUD_API_TOKEN", "")
 PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 
 # WAHA / Baileys gateway (fallback)
-GATEWAY_URL = os.environ.get("OPENCLAW_GATEWAY_URL", "http://localhost:3284")
+GATEWAY_URL = os.environ.get("HERMES_GATEWAY_URL", "http://localhost:3284")
 GATEWAY_ACCOUNT = os.environ.get("WHATSAPP_ACCOUNT", "default")
 
 # General

@@ -771,12 +771,12 @@
 > "Para Fiestas Patrias quiero armar un menú especial. Recuérdame 2 semanas antes para empezar a planificar. Es 28 de julio"
 
 **Skills involved:** yaya-followup (scheduled reminder)
-**MCP tools needed:** OpenClaw cron or reminder system
+**MCP tools needed:** Hermes cron or reminder system
 
 **Ratings:**
 | Dimension | Score | Notes |
 |-----------|-------|-------|
-| Handleable | 8 | yaya-followup or OpenClaw cron can schedule a reminder for July 14. |
+| Handleable | 8 | yaya-followup or Hermes cron can schedule a reminder for July 14. |
 | Accuracy | 8 | Date math is correct (28 julio - 14 días = 14 julio). |
 | Speed | 8 | Quick scheduling. |
 | Completeness | 6 | Can remind, but can't help with actual menu planning. No event management features. |
@@ -810,7 +810,7 @@
 > "Agenda pedido de pescado para que salga de Lima el miércoles por la noche. Necesito 15kg lenguado, 10kg pulpo, 5kg camarones. Llega jueves temprano"
 
 **Skills involved:** yaya-followup (reminder), yaya-inventory (conceptually)
-**MCP tools needed:** OpenClaw cron, `erpnext-mcp → create_purchase_order` (not skill-guided)
+**MCP tools needed:** Hermes cron, `erpnext-mcp → create_purchase_order` (not skill-guided)
 
 **Ratings:**
 | Dimension | Score | Notes |

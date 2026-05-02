@@ -1,0 +1,32 @@
+{
+  "name": "@yaya/clients",
+  "version": "0.1.0",
+  "description": "Composable clients for Yaya voice infrastructure (vLLM, Speaches, streaming-asr, Kokoro). All endpoints from INFRA.md, every URL/key overridable via env.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".":            { "types": "./dist/index.d.ts",       "import": "./dist/index.js" },
+    "./llm":        { "types": "./dist/llm.d.ts",         "import": "./dist/llm.js" },
+    "./asr":        { "types": "./dist/asr.d.ts",         "import": "./dist/asr.js" },
+    "./asr-stream": { "types": "./dist/asr-stream.d.ts",  "import": "./dist/asr-stream.js" },
+    "./tts":        { "types": "./dist/tts.d.ts",         "import": "./dist/tts.js" },
+    "./config":     { "types": "./dist/config.d.ts",      "import": "./dist/config.js" }
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "files": ["dist", "src", "README.md"],
+  "peerDependencies": {
+    "ws": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ws": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/node": ">=20",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.4.0"
+  }
+}

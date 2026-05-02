@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Atomic CRM MCP Server
- * Exposes Supabase-based CRM REST API as MCP tools for OpenClaw agents.
+ * Exposes Supabase-based CRM REST API as MCP tools for Hermes agents.
  *
  * Tools:
  *  - search_contacts: Search contacts by name, phone, email

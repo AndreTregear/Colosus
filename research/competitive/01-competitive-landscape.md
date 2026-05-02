@@ -366,7 +366,7 @@ Yaya processes WhatsApp voice notes via faster-whisper (STT) and generates voice
 LATAM's dominant payment methods (Yape in Peru, Nequi in Colombia, Plin in Peru, PIX in Brazil, OXXO in Mexico) are screenshot/voucher-based. Yaya's Payment Validator App (mobile) enables business owners to confirm payments without leaving WhatsApp context. No competitor addresses this workflow.
 
 #### 5. Multi-Tenant with Schema Isolation
-Each business client gets an isolated PostgreSQL schema, dedicated NemoClaw security policy, and customized SOUL.md personality. This enables white-labeling and ensures no data leakage between clients—a critical requirement for regulated industries.
+Each business client gets an isolated PostgreSQL schema, dedicated Hermes security policy, and customized SOUL.md personality. This enables white-labeling and ensures no data leakage between clients—a critical requirement for regulated industries.
 
 #### 6. Open-Source Foundation with Proprietary Moat
 The stack (ERPNext GPL, Lago AGPL, Atomic CRM MIT, Qwen Apache 2.0) is open-source, reducing infrastructure cost and enabling rapid iteration. The proprietary moat consists of:
@@ -374,7 +374,7 @@ The stack (ERPNext GPL, Lago AGPL, Atomic CRM MIT, Qwen Apache 2.0) is open-sour
 - Skills library (yaya-sales, yaya-billing, yaya-tax, etc.)
 - Payment Validator App
 - Business Insights App
-- NemoClaw security policies
+- Hermes security policies
 
 ### 5.2 Why Competitors Cannot Easily Replicate
 
@@ -385,7 +385,7 @@ The stack (ERPNext GPL, Lago AGPL, Atomic CRM MIT, Qwen Apache 2.0) is open-sour
 | Tax compliance per country | Very High (legal research + implementation per jurisdiction) | 12–18 months per country |
 | Voice pipeline (STT+TTS) | Medium (off-the-shelf components, but integration is nuanced) | 3–6 months |
 | Payment screenshot validation | Medium (mobile app + OCR + business logic) | 3–6 months |
-| NemoClaw security sandbox | High (NVIDIA ecosystem expertise) | 6–12 months |
+| Hermes security sandbox | High (NVIDIA ecosystem expertise) | 6–12 months |
 | Combined system integration | Very High (the "full stack" is the moat) | 18–24 months |
 
 ---
@@ -428,7 +428,7 @@ The stack (ERPNext GPL, Lago AGPL, Atomic CRM MIT, Qwen Apache 2.0) is open-sour
 - Full-stack integration complexity is a genuine barrier (18–24 month head start)
 - Tax compliance knowledge is hard to replicate
 - Local LLM deployment requires GPU expertise and capital
-- NemoClaw security model is differentiated
+- Hermes security model is differentiated
 - Payment ecosystem knowledge is country-specific
 
 **Net assessment:** New entrants can build pieces (chat + CRM, or AI + sales) but integrating everything into a coherent conversational ERP with local inference is genuinely hard. The window to establish first-mover advantage is approximately 18 months.

@@ -845,7 +845,7 @@ Yaya: "📋 *Estimación para Domingo 22 Mar*
 - **Margin recovery** — After ingredient price increase: "Si subes el 1/4 pollo S/2 (a S/27), recuperas el margen al 65%"
 - **End-of-day batch reminder** — At 8 PM if rotisserie batches open: "Tienes 8 pollos sin vender de la tanda de las 5 PM. ¿Hacemos promo de cierre?"
 
-## Cron Schedules (via OpenClaw Cron)
+## Cron Schedules (via Hermes Cron)
 
 ```yaml
 pre_market_list:

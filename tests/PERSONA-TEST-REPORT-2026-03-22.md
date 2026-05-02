@@ -26,7 +26,7 @@
 | Order creation | ❌ FAIL | Web API missing POST /api/web/orders |
 | WhatsApp connect (web) | ❌ BLOCKED | /api/qr requires admin role, not tenant role |
 | WhatsApp connect (mobile) | ⚠️ PARTIAL | Status + QR endpoint work, but QR shows "not yet" (tenant not started) |
-| AI agent chat | ⚠️ DEGRADED | Returns fallback "hubo un error" — OpenClaw not running |
+| AI agent chat | ⚠️ DEGRADED | Returns fallback "hubo un error" — Hermes not running |
 | Yape payment sync | ⚠️ UNTESTED | Requires Android app + Yape notifications |
 | Analytics | ✅ PASS | Returns empty data correctly |
 | Settings | ✅ PASS | Returns ai_enabled setting |
@@ -97,7 +97,7 @@
 | Registration | ✅ PASS | |
 | Product catalog with images | ⚠️ PARTIAL | Upload endpoint exists, MinIO running |
 | Order management | ❌ FAIL | No web order creation |
-| WhatsApp sales conversation | ❌ BLOCKED | Needs WhatsApp + OpenClaw |
+| WhatsApp sales conversation | ❌ BLOCKED | Needs WhatsApp + Hermes |
 | Yape payment validation | ⚠️ UNTESTED | Endpoints exist, need Android app |
 | Customer tagging | ❌ MISSING | Tags field exists in DB but no web UI |
 | Shipping/delivery | ❌ MISSING | Karrio not deployed |
@@ -115,7 +115,7 @@
 
 2. **Missing web CRUD for customers & orders** — Web dashboard can only READ customers/orders, not CREATE. The mobile API has these endpoints but the web dashboard doesn't. Fix: Add POST routes to core customer/order routes.
 
-3. **OpenClaw not running** — The AI agent bridge returns fallback errors. Without this, no conversational features work. Fix: Deploy an OpenClaw instance and set OPENCLAW_API_URL.
+3. **Hermes not running** — The AI agent bridge returns fallback errors. Without this, no conversational features work. Fix: Deploy an Hermes instance and set HERMES_API_URL.
 
 4. **Spanish character slug generation** — "Pollería" becomes "poller-a", "Salón" becomes "sal-n". Breaks readability and could cause duplicates. Fix: Use proper transliteration (ñ→n, á→a, etc.).
 
@@ -137,7 +137,7 @@
 - Dashboard API (returns correct aggregate data)
 - Mobile auth (JWT + refresh tokens)
 - Subscription tracking (free plan auto-assigned)
-- AI agent fallback (graceful error when OpenClaw unavailable)
+- AI agent fallback (graceful error when Hermes unavailable)
 - Debug logging (comprehensive structured logs)
 - Systemd auto-restart (survives crashes and reboots)
 

@@ -299,23 +299,26 @@ class WhatsAppManager {
           text = ''; // Empty text, but we have audioBuffer for omni processing
         } else {
           console.log('[WA] Using Whisper transcription...');
-          // Send to Whisper API (OpenAI-compatible endpoint or local)
-          const whisperUrl = process.env.WHISPER_URL || process.env.AI_API_URL || 'https://ai.yaya.sh/v1';
-          const whisperKey = process.env.WHISPER_API_KEY || process.env.AI_API_KEY || '';
-          
-          const FormData = (await import('node:buffer')).Buffer;
+          // Speaches per INFRA.md (`:8001`, bearer `welcometothepresent`).
+          // Override via YAYA_ASR_URL / YAYA_ASR_KEY / YAYA_ASR_MODEL.
+          const whisperUrl = (process.env.YAYA_ASR_URL || process.env.WHISPER_URL || process.env.WHISPER_BASE_URL || process.env.AI_API_URL || 'http://localhost:8001').replace(/\/+$/, '');
+          const whisperKey = process.env.YAYA_ASR_KEY || process.env.WHISPER_API_KEY || process.env.AI_API_KEY || 'welcometothepresent';
+          const whisperModel = process.env.YAYA_ASR_MODEL || process.env.WHISPER_MODEL || 'deepdml/faster-whisper-large-v3-turbo-ct2';
+
           const boundary = '----FormBoundary' + randomUUID().replace(/-/g, '');
-          
+
           // Build multipart form data manually
           const parts: Buffer[] = [];
           parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="voice.ogg"\r\nContent-Type: audio/ogg\r\n\r\n`));
           parts.push(audioBuffer);
-          parts.push(Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n`));
+          parts.push(Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\n${whisperModel}\r\n`));
           parts.push(Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\nes\r\n`));
           parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
           const body = Buffer.concat(parts);
 
-          const resp = await fetch(`${whisperUrl}/audio/transcriptions`, {
+          // Speaches uses /v1/audio/transcriptions (no /v1 trim like older clients)
+          const transcribePath = whisperUrl.endsWith('/v1') ? '/audio/transcriptions' : '/v1/audio/transcriptions';
+          const resp = await fetch(`${whisperUrl}${transcribePath}`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${whisperKey}`,

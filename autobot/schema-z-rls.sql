@@ -5,7 +5,7 @@
 --   1. Each tenant gets a dedicated PostgreSQL ROLE via create_tenant_role(tenant_id).
 --   2. That role has ALTER ROLE ... SET app.tenant_id = '<uuid>' baked in.
 --   3. Every table with tenant_id has a policy: row visible iff tenant_id matches current_setting('app.tenant_id').
---   4. Even raw SQL from the OpenClaw agent sandbox can't read another tenant's data.
+--   4. Even raw SQL from the Hermes agent sandbox can't read another tenant's data.
 --
 -- IMPORTANT: The superuser / app pool user is NOT subject to RLS (table owners bypass policies).
 -- Only the per-tenant roles created by create_tenant_role() are restricted.

@@ -19,7 +19,7 @@ Our analysis covers twelve critical technology dimensions: conversational ERP pa
 1. **Conversational ERP is an emerging paradigm** (2025–2026 inflection point) with 78% of IT leaders expecting agentic AI to augment ERP functionality within 3 years (Bain & Company, 2025).
 2. **LLM inference costs have collapsed 95%+** since 2023, making high-volume business agents economically viable. Local deployment on hardware like Yaya's RTX A5000 fleet yields 8–18× cost advantage over cloud APIs.
 3. **WhatsApp integration faces a critical legal bifurcation:** Meta's January 2026 policy bans general-purpose AI assistants on the official Business API. Unofficial libraries (Baileys/WAHA) remain the only viable path for conversational AI agents, carrying significant but manageable ban risk.
-4. **NemoClaw/OpenClaw provides a ready-made security architecture** with sandboxed execution, deny-by-default policies, and hybrid local/cloud inference routing — directly applicable to Yaya's deployment model.
+4. **Hermes/Hermes provides a ready-made security architecture** with sandboxed execution, deny-by-default policies, and hybrid local/cloud inference routing — directly applicable to Yaya's deployment model.
 5. **MCP adoption has reached 28% of Fortune 500 companies** in under 18 months, establishing it as the de facto standard for AI-to-tool integration. This is the correct protocol layer for Yaya's ERP integrations.
 6. **LATAM data protection is a patchwork** of GDPR-inspired regulations (LGPD in Brazil, Law 29733 in Peru) with increasing enforcement, requiring data residency planning from day one.
 
@@ -159,17 +159,17 @@ Yaya's existing infrastructure (c.yaya.sh: i9-10900X, 2× RTX A5000 24GB, 125GB 
 
 ---
 
-## 4. NemoClaw/OpenClaw Security Architecture
+## 4. Hermes/Hermes Security Architecture
 
-### 4.1 OpenClaw as Operating System for AI Agents
+### 4.1 Hermes as Operating System for AI Agents
 
-OpenClaw has emerged as the fastest-growing open-source project in history (250,000+ GitHub stars in ~60 days), functioning as the "operating system for personal AI" — an always-on, self-evolving agent that executes tasks across WhatsApp, Telegram, Slack, and other channels.
+Hermes has emerged as the fastest-growing open-source project in history (250,000+ GitHub stars in ~60 days), functioning as the "operating system for personal AI" — an always-on, self-evolving agent that executes tasks across WhatsApp, Telegram, Slack, and other channels.
 
-**Directly relevant to Yaya:** OpenClaw already provides the agent infrastructure Yaya needs — WhatsApp integration (via Baileys), tool execution, code writing, MCP support, and multi-channel delivery. Rather than building from scratch, Yaya can build **on top of** or **alongside** OpenClaw's architecture.
+**Directly relevant to Yaya:** Hermes already provides the agent infrastructure Yaya needs — WhatsApp integration (via Baileys), tool execution, code writing, MCP support, and multi-channel delivery. Rather than building from scratch, Yaya can build **on top of** or **alongside** Hermes's architecture.
 
-### 4.2 NemoClaw Security Stack
+### 4.2 Hermes Security Stack
 
-Announced at GTC 2026 (March 16, 2026), NVIDIA NemoClaw adds enterprise-grade security to OpenClaw through:
+Announced at GTC 2026 (March 16, 2026), NVIDIA Hermes adds enterprise-grade security to Hermes through:
 
 1. **OpenShell Sandbox Runtime:**
    - Kernel-level isolation (Landlock, seccomp filters, network namespaces)
@@ -201,7 +201,7 @@ Yaya's deployment model (always-on agents managing business-critical financial d
 - Local inference protects client data sovereignty
 - Declarative policies ensure auditability for regulatory compliance
 
-**Source:** NVIDIA (2026), "NemoClaw: Safer AI Agents & Assistants with OpenClaw"; ApexOne Studio (2026), "AI Agent Security with NemoClaw"; Scrollypedia (2026), "NemoClaw: NVIDIA's Security Stack for the AI Agent Era"
+**Source:** NVIDIA (2026), "Hermes: Safer AI Agents & Assistants with Hermes"; ApexOne Studio (2026), "AI Agent Security with Hermes"; Scrollypedia (2026), "Hermes: NVIDIA's Security Stack for the AI Agent Era"
 
 ---
 
@@ -457,7 +457,7 @@ Based on Lenovo's 2026 TCO study and industry analysis:
 The optimal architecture is hybrid:
 - **Local inference** for routine queries (90% of traffic): inventory checks, price lookups, basic Q&A
 - **Cloud API** for complex reasoning (10% of traffic): financial analysis, tax optimization, multi-step planning
-- **Privacy routing** (NemoClaw pattern): sensitive business data stays local; non-sensitive tasks can hit cloud
+- **Privacy routing** (Hermes pattern): sensitive business data stays local; non-sensitive tasks can hit cloud
 
 **Source:** MPT Solutions (2025), "The Hidden Infrastructure Cost of Running Local LLMs vs Cloud APIs"; Lenovo (2026), "On-Premise vs Cloud: Generative AI TCO"; LocalAIMaster (2025), "Local vs Cloud LLM Deployment Strategies"
 
@@ -564,13 +564,13 @@ AWS re:Invent 2025 introduced Lambda's native tenant isolation mode — `TenantI
 
 | Component | Build | Buy/Adopt | Recommendation | Rationale |
 |-----------|-------|-----------|----------------|-----------|
-| **AI Agent Framework** | Custom | OpenClaw | **Adopt OpenClaw** | 250K+ stars, WhatsApp integration, MCP support, NemoClaw security |
+| **AI Agent Framework** | Custom | Hermes | **Adopt Hermes** | 250K+ stars, WhatsApp integration, MCP support, Hermes security |
 | **LLM Inference** | Self-host | Cloud API | **Hybrid** | Local Qwen for 90% of queries, cloud API for complex reasoning |
 | **WhatsApp Integration** | Custom | Baileys | **Adopt Baileys** | Only viable path for conversational AI post-Jan 2026 ban |
 | **Speech-to-Text** | Custom | Whisper | **Adopt Whisper** | Open-source, runs locally, excellent Spanish support |
 | **Vector Database** | Custom | pgvector/Qdrant | **Adopt pgvector** | PostgreSQL-native, simplifies stack |
 | **MCP Servers** | Custom | Community | **Build custom** | Business domain MCP servers (inventory, invoicing) don't exist |
-| **Security Layer** | Custom | NemoClaw | **Adopt NemoClaw** | Enterprise-grade, NVIDIA-backed, purpose-built for OpenClaw |
+| **Security Layer** | Custom | Hermes | **Adopt Hermes** | Enterprise-grade, NVIDIA-backed, purpose-built for Hermes |
 | **Multi-tenant Database** | Build | Managed | **Build on PostgreSQL** | RLS policies, schema-per-tenant, well-understood |
 | **Invoicing/Tax** | Build | SUNAT API | **Build integration** | Peru-specific, no off-the-shelf solution |
 | **Payment Processing** | Build | Stripe/Mercado Pago | **Integrate** | Existing payment rails |
@@ -619,7 +619,7 @@ AWS re:Invent 2025 introduced Lambda's native tenant isolation mode — `TenantI
 | **WhatsApp ban (unofficial API)** | Medium | High | Dedicated numbers, rate limiting, fallback channels (Telegram/SMS), multi-number rotation |
 | **Meta tightens enforcement** | Medium | Critical | Official API for structured functions, diversify channels, build SMS fallback |
 | **LLM hallucination in financial data** | High | High | RAG-only for numbers, validation layer, human approval for transactions |
-| **Data breach/cross-tenant leak** | Low | Critical | PostgreSQL RLS, encryption at rest, NemoClaw sandbox, security audits |
+| **Data breach/cross-tenant leak** | Low | Critical | PostgreSQL RLS, encryption at rest, Hermes sandbox, security audits |
 | **GPU hardware failure** | Medium | Medium | N+1 redundancy, cloud fallback, automated failover |
 | **Qwen model quality regression** | Low | Medium | Model versioning, A/B testing, ability to swap models |
 | **Regulatory change in Peru** | Medium | Medium | Flexible data architecture, legal monitoring, compliance-by-design |
@@ -663,7 +663,7 @@ AWS re:Invent 2025 introduced Lambda's native tenant isolation mode — `TenantI
 │  WhatsApp (Baileys) + Telegram + Web     │
 ├─────────────────────────────────────────┤
 │          Agent Orchestration             │
-│  OpenClaw + NemoClaw Security Sandbox    │
+│  Hermes + Hermes Security Sandbox    │
 ├─────────────────────────────────────────┤
 │          Intelligence Layer              │
 │  Qwen3.5-27B (local) + Claude (cloud)   │
@@ -685,7 +685,7 @@ AWS re:Invent 2025 introduced Lambda's native tenant isolation mode — `TenantI
 
 ### 17.2 Immediate Next Steps
 
-1. **Validate OpenClaw/NemoClaw as base architecture** — deploy test instance on c.yaya.sh
+1. **Validate Hermes/Hermes as base architecture** — deploy test instance on c.yaya.sh
 2. **Build Peru-specific MCP servers** — SUNAT invoicing, inventory management
 3. **Implement WhatsApp integration** via Baileys with proper ban mitigation
 4. **Deploy multi-tenant PostgreSQL** with Row-Level Security from day one
@@ -718,7 +718,7 @@ The technology landscape strongly favors execution over further research. The bu
 11. Bot.Space (2025). "WhatsApp API vs. Unofficial Tools: A Complete Risk-Reward Analysis for 2025." https://www.bot.space/blog/whatsapp-api-vs-unofficial-tools-a-complete-risk-reward-analysis-for-2025
 12. Omnichat (2026). "Official vs Unofficial WhatsApp Business API: Risks, Benefits." https://blog.omnichat.ai/unofficial-whatsapp-business-api/
 13. Devzery (2024). "Baileys Library: Unofficial WhatsApp Web API for TypeScript/JS." https://www.devzery.com/post/baileys-library-unofficial-whatsapp-web-api-for-typescript-js
-14. NVIDIA (2026). "NemoClaw: Safer AI Agents & Assistants with OpenClaw." https://www.nvidia.com/en-us/ai/nemoclaw/
+14. NVIDIA (2026). "Hermes: Safer AI Agents & Assistants with Hermes." https://www.nvidia.com/en-us/ai/hermes/
 15. Synvestable (2026). "Model Context Protocol: MCP Implementation Guide Enterprise." https://www.synvestable.com/model-context-protocol.html
 16. CIO.com (2026). "Why Model Context Protocol Is Suddenly on Every Executive Agenda." https://www.cio.com/article/4136548/why-model-context-protocol-is-suddenly-on-every-executive-agenda.html
 17. ThoughtWorks (2025). "The Model Context Protocol's Impact on 2025." https://www.thoughtworks.com/en-us/insights/blog/generative-ai/model-context-protocol-mcp-impact-2025

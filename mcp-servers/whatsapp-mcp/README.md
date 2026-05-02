@@ -33,7 +33,7 @@ WHATSAPP_CLOUD_API_URL=https://graph.facebook.com/v21.0  # optional
 
 **WAHA/Baileys Gateway (fallback):**
 ```bash
-OPENCLAW_GATEWAY_URL=http://localhost:3284
+HERMES_GATEWAY_URL=http://localhost:3284
 WHATSAPP_ACCOUNT=default
 ```
 

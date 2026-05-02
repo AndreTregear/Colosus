@@ -2,10 +2,10 @@
 
 ## Overview
 
-MCP (Model Context Protocol) servers bridge the gap between the LLM agent and business systems. Each server exposes a set of typed tools that the agent can call during conversation. All servers use stdio transport and run within the NemoClaw security sandbox.
+MCP (Model Context Protocol) servers bridge the gap between the LLM agent and business systems. Each server exposes a set of typed tools that the agent can call during conversation. All servers use stdio transport and run within the Hermes security sandbox.
 
 ```
-  OpenClaw Agent
+  Hermes Agent
        │
        │ tool_call("search_products", {query: "nike 42"})
        ▼
@@ -15,7 +15,7 @@ MCP (Model Context Protocol) servers bridge the gap between the LLM agent and bu
        │
        │ {results: [{item: "Air Max 90", price: 299, stock: 3}]}
        ▼
-  OpenClaw Agent
+  Hermes Agent
 ```
 
 ## Available MCP Servers
@@ -46,7 +46,7 @@ A general-purpose PostgreSQL MCP server for direct database access with safety c
 DATABASE_URI=postgresql://yaya:password@postgres:5432/yaya
 ```
 
-#### NemoClaw Restrictions
+#### Hermes Restrictions
 - SELECT only on `agent.*` schema
 - No DDL operations (CREATE, DROP, ALTER)
 - No access to sensitive pg_catalog tables
@@ -281,9 +281,9 @@ COPY dist/ ./dist/
 CMD ["node", "dist/index.js"]
 ```
 
-### Step 5: Add to NemoClaw Policy
+### Step 5: Add to Hermes Policy
 
-Add your server to `infra/nemoclaw/policy.yaml`:
+Add your server to `infra/hermes/policy.yaml`:
 
 ```yaml
 mcp_servers:

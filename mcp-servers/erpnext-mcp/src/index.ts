@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * ERPNext MCP Server
- * Exposes ERPNext REST API as MCP tools for OpenClaw agents.
+ * Exposes ERPNext REST API as MCP tools for Hermes agents.
  *
  * Tools:
  *  - search_products: Search product catalog

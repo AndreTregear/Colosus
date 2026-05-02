@@ -16,7 +16,7 @@ import { startPartitionManager, stopPartitionManager } from './warehouse/partiti
 import { startETLRunner, stopETLRunner } from './warehouse/etl-runner.js';
 import { registerEventListeners } from './services/notification-service.js';
 import { initializeRLPipeline, stopRLPipeline } from './rl/index.js';
-import { OPENCLAW_API_URL } from './config.js';
+import { HERMES_API_URL } from './config.js';
 import { logger, logStartupBanner } from './shared/logger.js';
 
 /** Start all platform services and return a shutdown function. */
@@ -45,7 +45,7 @@ export async function startPlatform(port: number): Promise<() => Promise<void>> 
   await ensureBuckets();
   logger.debug({ latencyMs: Date.now() - stepStart }, 'Object storage initialized');
 
-  logger.info({ openclawUrl: OPENCLAW_API_URL }, 'OpenClaw bridge configured');
+  logger.info({ hermesUrl: HERMES_API_URL }, 'Hermes bridge configured');
 
   stepStart = Date.now();
   createWebServer(port);

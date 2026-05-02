@@ -50,7 +50,7 @@ export function mount(container) {
       <div class="card-body">
         <div class="form-group">
           <label class="form-label">Motor IA</label>
-          <input type="text" id="set-ai-model" class="form-input" value="OpenClaw (Qwen3.5-27B)" disabled>
+          <input type="text" id="set-ai-model" class="form-input" value="Hermes (Qwen3.5-27B)" disabled>
           <p class="text-muted" style="font-size:12px;margin-top:4px">El modelo se configura desde el servidor</p>
         </div>
         <div class="form-group">

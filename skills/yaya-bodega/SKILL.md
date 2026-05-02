@@ -665,7 +665,7 @@ Agente: "⚠️ Stock bajo detectado:
          ¿Armo los pedidos?"
 ```
 
-## Scheduling via OpenClaw Cron
+## Scheduling via Hermes Cron
 
 ```yaml
 bodega_jobs:

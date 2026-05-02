@@ -8,7 +8,7 @@ Every WhatsApp conversation makes Yaya smarter. Peruvian and LATAM business owne
 ## Current State (2× RTX A5000, c.yaya.sh)
 
 ```
-WhatsApp → Baileys → BullMQ → OpenClaw Bridge → Qwen3.5-27B (vLLM, AWQ 4-bit)
+WhatsApp → Baileys → BullMQ → Hermes Bridge → Qwen3.5-27B (vLLM, AWQ 4-bit)
                                     ↓
                         Rollout Collector (appBus events)
                                     ↓
@@ -46,12 +46,12 @@ WhatsApp → Baileys → BullMQ → OpenClaw Bridge → Qwen3.5-27B (vLLM, AWQ 4
 | Agent/tool-call workloads | Good | Up to 6.4x throughput |
 | Multi-LoRA serving | Supported (v0.15+) | Supported |
 | Structured output (JSON) | Standard | 3x faster (compressed FSM) |
-| OpenClaw-RL official backend | ❌ | ✅ (SGLang is the reference impl) |
+| Hermes-RL official backend | ❌ | ✅ (SGLang is the reference impl) |
 
 ### Verdict: **Migrate to SGLang**
 
 Three reasons:
-1. **OpenClaw-RL uses SGLang** — it's the official inference backend for the RL training loop. Fighting upstream is pointless.
+1. **Hermes-RL uses SGLang** — it's the official inference backend for the RL training loop. Fighting upstream is pointless.
 2. **WhatsApp is multi-turn by nature** — RadixAttention's prefix caching is perfect. Same system prompt + conversation history = 75-90% cache hits = faster responses for users.
 3. **B200 readiness** — SGLang has native PD disaggregation via NIXL, critical for scaling to GB200/B200.
 
@@ -77,14 +77,14 @@ Drop-in replacement — same OpenAI-compatible API, same port, same auth.
 
 ---
 
-## OpenClaw-RL Integration Architecture
+## Hermes-RL Integration Architecture
 
 ### The Official 4-Component Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    OpenClaw Agent                         │
-│  WhatsApp → Baileys → OpenClaw → SGLang (serving)        │
+│                    Hermes Agent                         │
+│  WhatsApp → Baileys → Hermes → SGLang (serving)        │
 │                          ↓                               │
 │              conversation data (API calls)                │
 └───────────────────────┬─────────────────────────────────┘
@@ -106,9 +106,9 @@ Drop-in replacement — same OpenAI-compatible API, same port, same auth.
                                     SGLang hot-reload
 ```
 
-### What We Already Have vs What OpenClaw-RL Provides
+### What We Already Have vs What Hermes-RL Provides
 
-| Component | Our Implementation | OpenClaw-RL Official |
+| Component | Our Implementation | Hermes-RL Official |
 |-----------|-------------------|---------------------|
 | Rollout Collection | ✅ `rollout-collector.ts` (appBus events, session tracking, JSONL) | Uses SGLang API intercept |
 | PII Scrubbing | ✅ `pii-scrubber.ts` (Peru-specific patterns) | Generic — **ours is better for LATAM** |
@@ -119,13 +119,13 @@ Drop-in replacement — same OpenAI-compatible API, same port, same auth.
 
 ### Integration Strategy: Hybrid
 
-Keep our custom components (PII scrubber, A/B testing) and plug into OpenClaw-RL for training:
+Keep our custom components (PII scrubber, A/B testing) and plug into Hermes-RL for training:
 
-1. **Our rollout collector** feeds PII-scrubbed trajectories to OpenClaw-RL's trainer
+1. **Our rollout collector** feeds PII-scrubbed trajectories to Hermes-RL's trainer
 2. **Our PII scrubber** runs BEFORE data enters the RL pipeline (critical for Peru compliance)
-3. **Our A/B test manager** controls adapter deployment AFTER OpenClaw-RL produces a new adapter
-4. **OpenClaw-RL's PRM judge** replaces our regex-based scoring (much better quality)
-5. **OpenClaw-RL's trainer** (Megatron + GRPO) replaces our shell script stub
+3. **Our A/B test manager** controls adapter deployment AFTER Hermes-RL produces a new adapter
+4. **Hermes-RL's PRM judge** replaces our regex-based scoring (much better quality)
+5. **Hermes-RL's trainer** (Megatron + GRPO) replaces our shell script stub
 
 ---
 
@@ -232,7 +232,7 @@ customers (name, phone, address, notes, location), orders (notes, delivery_addre
 - **Inference:** SGLang, TP=4, ~100+ tok/s
 - **Training:** Dedicated GPU partition (4 train, 4 serve)
 - **Capacity:** ~500 tenants, ~5,000 conversations/day
-- **OpenClaw-RL:** Full 4-component async loop (8 GPU default)
+- **Hermes-RL:** Full 4-component async loop (8 GPU default)
 - **Cost:** ~$10-15K/month (cloud H100s)
 
 ### Phase 3: Scale (1× B200 192GB or GB200 NVL72)
@@ -278,7 +278,7 @@ services:
     # Separate GPU for judging — doesn't block inference
 
   trainer:
-    build: ./openclaw-rl/trainer
+    build: ./hermes-rl/trainer
     command: >
       python3 train.py
       --method combine
@@ -320,10 +320,10 @@ SGLang and vLLM both support multi-LoRA serving — one base model, N adapters h
 - [ ] Write `train_lora.sh` using Unsloth + trl (single-GPU LoRA)
 - [ ] Test end-to-end: collect rollouts → train LoRA → load adapter → verify improvement
 
-### Week 2: PRM Judge + OpenClaw-RL Integration
+### Week 2: PRM Judge + Hermes-RL Integration
 - [ ] Set up PRM judge model (small model for scoring, e.g., Qwen3-4B)
 - [ ] Replace regex scoring with PRM 3-vote majority
-- [ ] Wire OpenClaw-RL's trainer (GRPO) to our rollout collector output
+- [ ] Wire Hermes-RL's trainer (GRPO) to our rollout collector output
 - [ ] Test OPD (hindsight-guided distillation) on real conversations
 
 ### Week 3: A/B Testing + Production Loop
@@ -342,11 +342,11 @@ SGLang and vLLM both support multi-LoRA serving — one base model, N adapters h
 
 ## Key Technical Decisions
 
-1. **SGLang over vLLM** — 29% faster, multi-turn cache hits, OpenClaw-RL reference backend
+1. **SGLang over vLLM** — 29% faster, multi-turn cache hits, Hermes-RL reference backend
 2. **LoRA over full fine-tuning** — fits on A5000s, fast iteration, multi-adapter serving
-3. **Hybrid integration** — keep our PII scrubber + A/B tests, use OpenClaw-RL for training
+3. **Hybrid integration** — keep our PII scrubber + A/B tests, use Hermes-RL for training
 4. **Off-peak training (Phase 1)** — share GPUs between inference and training
 5. **PII scrubbing before RL** — training data never sees raw customer info
 6. **Per-tenant encryption** — zero-knowledge architecture, password-derived keys
-7. **GRPO + OPD combined** — best results per the OpenClaw-RL paper
+7. **GRPO + OPD combined** — best results per the Hermes-RL paper
 8. **B200 target** — architecture designed for single-GPU scale (PD disaggregation ready)

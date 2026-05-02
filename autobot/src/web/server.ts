@@ -29,6 +29,7 @@ import { creatorPlansRouter } from './routes/api-creator-plans.js';
 import { platformPlansRouter, adminPlansRouter } from './routes/api-platform-plans.js';
 import { merchantAIRouter } from './routes/api-merchant-ai.js';
 import { yapeRouter } from './routes/api-yape.js';
+import { yayapayWebhookRouter } from './routes/api-yayapay-webhook.js';
 import { calendarRouter } from './routes/api-calendar.js';
 import { mobileAuthRouter } from './routes/api-mobile-auth.js';
 import { mobileRouter } from './routes/api-mobile.js';
@@ -236,6 +237,9 @@ export function createWebServer(port: number = 3000): void {
   app.use('/api/register', registerRouter);
   app.use('/api/plans', platformPlansRouter);
   app.use('/api/v1/yape', yapeRouter);
+  // yaya_pay webhook receiver — uses route-scoped raw body parser internally
+  // so HMAC verification can hash the original bytes.
+  app.use('/api/v1/webhooks/yayapay', yayapayWebhookRouter);
   app.use('/api/v1/mobile/auth', mobileAuthRouter);
   app.use('/api/website/leads', websiteLeadsRouter);
   app.use('/api/v1/share', shareRouter);
