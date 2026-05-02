@@ -18,7 +18,7 @@
 
 import * as http from 'http';
 import * as https from 'https';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 
 // ── Configuration ──
 

@@ -8,14 +8,21 @@ import { logger } from '../../shared/logger.js';
 const router = Router();
 
 /**
- * Auth: accept both mobile/device auth (Android app) and tenant web auth (dashboard).
+ * Auth: accept both mobile/device auth (Android app) and tenant web auth
+ * (dashboard / API key). The previous "try-then-fallback" version was
+ * broken — requireTenantAuth writes a 401 response on failure rather than
+ * passing an error to next(), so the fallback never ran. Branch on the
+ * auth header shape instead and commit to one path up front.
  */
 async function flexAuth(req: Parameters<typeof requireMobileOrDeviceAuth>[0], res: Parameters<typeof requireMobileOrDeviceAuth>[1], next: Parameters<typeof requireMobileOrDeviceAuth>[2]) {
-  // Try tenant (web dashboard) auth first, fall back to mobile auth
-  requireTenantAuth(req, res, (err?: unknown) => {
-    if (!err && req.tenantId) return next();
-    requireMobileOrDeviceAuth(req, res, next);
-  });
+  const authHeader = req.headers.authorization;
+  const apiKey = req.headers['x-api-key'];
+  if (authHeader?.startsWith('Bearer ') && !apiKey) {
+    // Bearer header without X-API-Key → mobile JWT or device token.
+    return requireMobileOrDeviceAuth(req, res, next);
+  }
+  // X-API-Key header, Better Auth cookie, or no header → tenant auth.
+  return requireTenantAuth(req, res, next);
 }
 
 router.use(flexAuth);

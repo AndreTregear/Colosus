@@ -68,6 +68,10 @@ export function requireTenantOwner(req: Request, res: Response, next: NextFuncti
     res.status(401).json({ error: 'Not authenticated' });
     return;
   }
+  // Admins bypass per-tenant ownership — they manage all tenants.
+  if (req.sessionUser.role === 'admin') {
+    return next();
+  }
   if (!req.sessionUser.tenantId) {
     res.status(403).json({ error: 'No tenant associated with this account' });
     return;
